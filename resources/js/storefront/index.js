@@ -2,6 +2,7 @@ import { initChatWidget } from './modules/chat';
 import { initCheckoutOptions } from './modules/checkout';
 import { initStorefrontFilters } from './modules/filters';
 import { initHeaderMenus } from './modules/header';
+import { initProductMedia } from './modules/media';
 import { initTrustMarquees } from './modules/marquee';
 import { initRevealMotion } from './modules/motion';
 import { initProductDetailForm } from './modules/product-detail';
@@ -10,6 +11,7 @@ import { initToasts } from './modules/toasts';
 
 const initStorefront = () => {
     initHeaderMenus();
+    initProductMedia();
     initTrustMarquees();
     initRevealMotion();
     initStorefrontFilters();

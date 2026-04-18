@@ -65,6 +65,56 @@
         padding-right: 0.06em;
     }
 
+    .ys-product-media-shell {
+        @apply relative isolate block h-full w-full overflow-hidden bg-[#09090b];
+        background:
+            radial-gradient(circle at 16% 18%, rgba(212, 166, 59, 0.22), transparent 26%),
+            radial-gradient(circle at 82% 16%, rgba(255, 255, 255, 0.08), transparent 20%),
+            linear-gradient(180deg, #1a1714 0%, #0b0b0d 100%);
+    }
+
+    .ys-product-media-shell::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 28%, rgba(0, 0, 0, 0.28));
+        pointer-events: none;
+    }
+
+    .ys-product-media-image {
+        @apply block h-full w-full object-cover;
+        transition:
+            opacity 220ms ease,
+            transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .ys-product-media-fallback {
+        @apply absolute inset-0 flex flex-col justify-end p-5 text-left;
+        background: linear-gradient(180deg, rgba(8, 8, 9, 0.08) 0%, rgba(8, 8, 9, 0.22) 36%, rgba(8, 8, 9, 0.94) 100%);
+        opacity: 0;
+        transition: opacity 220ms ease;
+    }
+
+    .ys-product-media-badge {
+        @apply inline-flex w-fit items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-ys-gold/80;
+    }
+
+    .ys-product-media-title {
+        @apply mt-4 font-serif text-[1.55rem] leading-none text-ys-ivory;
+    }
+
+    .ys-product-media-caption {
+        @apply mt-2 text-[0.82rem] uppercase tracking-[0.22em] text-ys-ivory/42;
+    }
+
+    .ys-product-media-shell.is-fallback-visible .ys-product-media-image {
+        opacity: 0;
+    }
+
+    .ys-product-media-shell.is-fallback-visible .ys-product-media-fallback {
+        opacity: 1;
+    }
+
     .ys-trust-strip {
         @apply relative overflow-hidden border-y border-white/7 bg-[#0b0b0c];
         box-shadow:
@@ -260,6 +310,14 @@
 
         .ys-trust-marquee-viewport {
             @apply py-5.5;
+        }
+
+        .ys-product-media-fallback {
+            @apply p-4;
+        }
+
+        .ys-product-media-title {
+            @apply text-[1.3rem];
         }
 
         .ys-trust-marquee-group {

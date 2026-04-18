@@ -29,7 +29,14 @@
                             <article class="rounded-[1.6rem] border border-white/7 bg-ys-panel/80 p-4 sm:p-5" data-reveal>
                                 <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
                                     <div class="overflow-hidden rounded-2xl border border-white/6 bg-black">
-                                        <img src="{{ $media->pathFor($item->variant->product, 'card') }}" alt="{{ $item->variant->product->name }}" class="h-20 w-20 object-cover">
+                                        <x-storefront.product-media
+                                            :image-url="$media->imageUrlFor($item->variant->product)"
+                                            :alt="$media->altTextFor($item->variant->product)"
+                                            :title="$item->variant->product->name"
+                                            :eyebrow="$item->variant->product->category?->name ?? 'Collection'"
+                                            class="h-20 w-20"
+                                            fallback-class="p-3"
+                                        />
                                     </div>
 
                                     <div class="flex-1">

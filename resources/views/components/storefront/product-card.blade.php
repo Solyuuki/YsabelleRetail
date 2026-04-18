@@ -5,14 +5,22 @@
 
 @inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
 
+@php
+    $imageUrl = $media->imageUrlFor($product);
+    $imageAlt = $media->altTextFor($product);
+@endphp
+
 <article class="group overflow-hidden rounded-[1.75rem] border border-white/7 bg-ys-panel/90 shadow-[0_10px_60px_rgba(0,0,0,0.35)] transition duration-500 hover:-translate-y-1 hover:border-ys-gold/30 hover:shadow-[0_18px_75px_rgba(0,0,0,0.55)]" data-reveal>
     <a href="{{ route('storefront.catalog.products.show', $product) }}" class="block">
         <div class="relative aspect-[4/4.2] overflow-hidden border-b border-white/6 bg-black">
-            <img
-                src="{{ $media->pathFor($product, 'card') }}"
-                alt="{{ $product->name }}"
-                class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.035]"
-            >
+            <x-storefront.product-media
+                :image-url="$imageUrl"
+                :alt="$imageAlt"
+                :title="$product->name"
+                :eyebrow="$product->category?->name ?? 'Collection'"
+                image-class="group-hover:scale-[1.035]"
+                class="h-full w-full"
+            />
 
             <div class="absolute left-5 top-5 flex gap-2">
                 @if ($product->is_featured)

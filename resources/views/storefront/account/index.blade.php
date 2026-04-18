@@ -1,7 +1,5 @@
 @extends('layouts.storefront', ['title' => 'My Account | Ysabelle Retail'])
 
-@inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
-
 @section('content')
     <section class="ys-container pb-18 pt-10 lg:pt-14">
         @if ($latestOrderNumber)
@@ -42,7 +40,14 @@
                             <div class="mt-5 space-y-3">
                                 @foreach ($order->items as $item)
                                     <div class="flex items-center gap-4">
-                                        <img src="{{ $media->pathFor($item->metadata['product_slug'] ?? \Illuminate\Support\Str::slug($item->product_name)) }}" alt="{{ $item->product_name }}" class="h-16 w-16 rounded-xl border border-white/6 object-cover">
+                                        <x-storefront.product-media
+                                            :image-url="$item->metadata['product_image_url'] ?? null"
+                                            :alt="$item->metadata['product_image_alt'] ?? $item->product_name"
+                                            :title="$item->product_name"
+                                            eyebrow="Order Item"
+                                            class="h-16 w-16 rounded-xl border border-white/6"
+                                            fallback-class="p-3"
+                                        />
                                         <div>
                                             <p class="text-sm font-semibold text-ys-ivory">{{ $item->product_name }}</p>
                                             <p class="text-xs text-ys-ivory/42">{{ $item->variant_name }} &middot; Qty {{ $item->quantity }}</p>

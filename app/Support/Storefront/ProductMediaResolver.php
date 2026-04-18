@@ -6,19 +6,64 @@ use App\Models\Catalog\Product;
 
 class ProductMediaResolver
 {
-    public function pathFor(Product|string $product, string $variant = 'card'): string
+    public function imageUrlFor(?Product $product): ?string
     {
-        $slug = $product instanceof Product ? $product->slug : $product;
-        $media = config("storefront.product_media.{$slug}");
-
-        if ($media && isset($media[$variant])) {
-            return asset($media[$variant]);
+        if (! $product) {
+            return null;
         }
 
-        if ($media && isset($media['card'])) {
-            return asset($media['card']);
+        return $this->normalizeUrl($product->primary_image_url)
+            ?? $this->galleryFor($product)[0]
+            ?? null;
+    }
+
+    public function galleryFor(?Product $product): array
+    {
+        if (! $product) {
+            return [];
         }
 
-        return asset('/images/storefront/products/aurum-card.png');
+        return collect($product->image_gallery ?? [])
+            ->map(fn (mixed $url): ?string => $this->normalizeUrl($url))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public function altTextFor(?Product $product, ?string $fallbackTitle = null): string
+    {
+        if ($product && filled($product->image_alt)) {
+            return trim($product->image_alt);
+        }
+
+        $title = $fallbackTitle ?? $product?->name ?? 'Ysabelle Retail footwear';
+
+        return "{$title} by Ysabelle Retail";
+    }
+
+    public function pathFor(?Product $product, string $variant = 'primary'): ?string
+    {
+        return $this->imageUrlFor($product);
+    }
+
+    private function normalizeUrl(mixed $url): ?string
+    {
+        if (! is_string($url)) {
+            return null;
+        }
+
+        $url = trim($url);
+
+        if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        return $url;
     }
 }
