@@ -2,6 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Catalog\Category;
+use App\Models\Catalog\Product;
+use App\Models\Orders\Order;
+use App\Policies\Catalog\CategoryPolicy;
+use App\Policies\Catalog\ProductPolicy;
+use App\Policies\Orders\OrderPolicy;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +26,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::before(function ($user) {
+            return $user->hasRole('super-admin') ? true : null;
+        });
+
+        Gate::policy(Category::class, CategoryPolicy::class);
+        Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(Order::class, OrderPolicy::class);
     }
 }

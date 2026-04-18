@@ -1,7 +1,9 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-Route::get('/', function () {
-    return view('welcome');
-});
+foreach ([
+    __DIR__.'/storefront.php',
+    __DIR__.'/auth.php',
+    __DIR__.'/admin.php',
+] as $routeFile) {
+    require $routeFile;
+}

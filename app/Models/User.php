@@ -3,7 +3,11 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Access\Role;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -22,6 +26,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status',
     ];
 
     /**
@@ -45,5 +50,42 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(UserProfile::class);
+    }
+
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class)->withTimestamps();
+    }
+
+    public function carts(): HasMany
+    {
+        return $this->hasMany(\App\Models\Cart\Cart::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(\App\Models\Orders\Order::class);
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(\App\Models\Audit\AuditLog::class, 'actor_id');
+    }
+
+    public function hasRole(string ...$slugs): bool
+    {
+        return $this->roles()
+            ->whereIn('slug', $slugs)
+            ->exists();
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin', 'super-admin');
     }
 }
