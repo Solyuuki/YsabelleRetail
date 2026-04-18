@@ -40,6 +40,18 @@ class CatalogQueryService
             ->paginate($perPage);
     }
 
+    public function navigationCategories(): Collection
+    {
+        if (! $this->catalogIsAvailable()) {
+            return collect();
+        }
+
+        return Category::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+    }
+
     public function products(array $filters = [], int $perPage = 12): LengthAwarePaginator
     {
         if (! $this->catalogIsAvailable()) {
@@ -66,13 +78,25 @@ class CatalogQueryService
             $query->where('category_id', $categoryId);
         }
 
+        if ($categorySlug = $filters['category'] ?? null) {
+            $query->whereHas('category', function ($builder) use ($categorySlug): void {
+                $builder->where('slug', $categorySlug);
+            });
+        }
+
         if ($featured = $filters['featured'] ?? null) {
             $query->where('is_featured', (bool) $featured);
         }
 
+        match ($filters['sort'] ?? 'featured') {
+            'price_asc' => $query->orderBy('base_price'),
+            'price_desc' => $query->orderByDesc('base_price'),
+            'newest' => $query->latest(),
+            'name' => $query->orderBy('name'),
+            default => $query->orderByDesc('is_featured')->orderBy('name'),
+        };
+
         return $query
-            ->orderByDesc('is_featured')
-            ->orderBy('name')
             ->paginate($perPage)
             ->withQueryString();
     }

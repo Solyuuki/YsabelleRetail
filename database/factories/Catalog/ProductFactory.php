@@ -27,6 +27,8 @@ class ProductFactory extends Factory
             'description' => fake()->paragraphs(2, true),
             'base_price' => fake()->randomFloat(2, 999, 5999),
             'compare_at_price' => fake()->optional()->randomFloat(2, 1999, 6999),
+            'rating_average' => fake()->randomFloat(1, 4.2, 5.0),
+            'review_count' => fake()->numberBetween(12, 220),
             'status' => 'active',
             'is_featured' => fake()->boolean(30),
             'track_inventory' => true,

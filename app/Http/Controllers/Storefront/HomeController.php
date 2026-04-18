@@ -16,6 +16,7 @@ class HomeController extends Controller
         return view('storefront.home', [
             'metrics' => $dashboardMetrics->summary(),
             'featuredProducts' => $catalogQuery->featuredProducts(),
+            'featuredCategories' => $catalogQuery->navigationCategories(),
         ]);
     }
 }

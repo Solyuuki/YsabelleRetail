@@ -3,7 +3,7 @@
 test('the storefront home page loads successfully', function () {
     $this->get(route('storefront.home'))
         ->assertOk()
-        ->assertSee('Ysabelle Store now has a structured Laravel foundation', false);
+        ->assertSeeText('Premium footwear engineered for movement and crafted for legacy.');
 });
 
 test('guest users are redirected to login for admin routes', function () {
@@ -11,7 +11,7 @@ test('guest users are redirected to login for admin routes', function () {
         ->assertRedirect(route('login'));
 });
 
-test('the login and register placeholder pages are available', function () {
+test('the login and register storefront pages are available', function () {
     $this->get(route('login'))->assertOk();
     $this->get(route('register'))->assertOk();
 });

@@ -13,8 +13,9 @@ class ProductController extends Controller
     public function index(ProductBrowseRequest $request, CatalogQueryService $catalogQuery): View
     {
         return view('storefront.catalog.products.index', [
-            'products' => $catalogQuery->products($request->validated()),
+            'products' => $catalogQuery->products($request->validated(), 24),
             'filters' => $request->validated(),
+            'filterCategories' => $catalogQuery->navigationCategories(),
         ]);
     }
 
@@ -24,6 +25,12 @@ class ProductController extends Controller
 
         return view('storefront.catalog.products.show', [
             'product' => $product,
+            'relatedProducts' => Product::query()
+                ->with(['category', 'variants.inventoryItem'])
+                ->where('id', '!=', $product->id)
+                ->where('category_id', $product->category_id)
+                ->limit(4)
+                ->get(),
         ]);
     }
 }

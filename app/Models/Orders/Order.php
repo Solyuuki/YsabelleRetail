@@ -26,6 +26,13 @@ class Order extends Model
         'grand_total',
         'placed_at',
         'notes',
+        'customer_name',
+        'customer_email',
+        'customer_phone',
+        'shipping_city',
+        'shipping_address_line',
+        'shipping_postal_code',
+        'payment_method',
     ];
 
     protected function casts(): array

@@ -1,0 +1,17 @@
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply min-h-screen bg-ys-ink font-sans text-ys-ivory antialiased;
+    }
+
+    a,
+    button,
+    input,
+    select,
+    textarea {
+        @apply transition;
+    }
+}

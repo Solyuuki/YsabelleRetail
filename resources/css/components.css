@@ -1,0 +1,109 @@
+@layer components {
+    .ys-container {
+        @apply mx-auto w-full max-w-[1180px] px-5 sm:px-6 lg:px-8;
+    }
+
+    .ys-button-primary {
+        @apply inline-flex items-center gap-2 rounded-[1.15rem] border border-ys-gold/80 bg-gradient-to-r from-[#d7ad48] to-[#b78221] px-6 py-3.5 text-sm font-semibold text-[#17110a] shadow-[0_10px_35px_rgba(212,166,59,0.22)] transition duration-300 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-[0_16px_44px_rgba(212,166,59,0.34)];
+    }
+
+    .ys-button-secondary {
+        @apply inline-flex items-center gap-2 rounded-[1.15rem] border border-ys-gold/22 bg-transparent px-6 py-3.5 text-sm font-semibold text-ys-gold transition duration-300 hover:-translate-y-0.5 hover:border-ys-gold/50 hover:bg-ys-gold/8;
+    }
+
+    .ys-button-ghost {
+        @apply inline-flex items-center gap-2 rounded-[1.15rem] border border-white/8 bg-white/[0.02] px-6 py-3.5 text-sm font-semibold text-ys-ivory/70 transition duration-300 hover:border-white/14 hover:bg-white/[0.035] hover:text-ys-ivory;
+    }
+
+    .ys-icon-button {
+        @apply inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-ys-ivory/70 transition duration-300 hover:-translate-y-0.5 hover:border-ys-gold/35 hover:text-ys-gold;
+    }
+
+    .ys-input {
+        @apply h-13 w-full rounded-[1rem] border border-white/8 bg-black/45 px-4 text-sm text-ys-ivory placeholder:text-ys-ivory/26 focus:border-ys-gold/45 focus:outline-none;
+    }
+
+    .ys-select {
+        @apply h-13 w-full rounded-[1rem] border border-white/8 bg-black/45 px-4 text-sm text-ys-ivory focus:border-ys-gold/45 focus:outline-none;
+    }
+
+    .ys-field {
+        @apply block space-y-2;
+    }
+
+    .ys-field > span {
+        @apply text-xs font-semibold uppercase tracking-[0.25em] text-ys-ivory/48;
+    }
+
+    .ys-status-pill {
+        @apply inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.24em];
+    }
+
+    .ys-stat-block {
+        @apply border-l border-white/7 pl-4 first:border-l-0 first:pl-0;
+    }
+
+    .ys-stat-value {
+        @apply text-xl font-semibold text-ys-ivory;
+    }
+
+    .ys-stat-label {
+        @apply mt-1 text-xs text-ys-ivory/40;
+    }
+
+    .ys-link-inline {
+        @apply text-sm font-semibold text-ys-ivory/70 transition hover:text-ys-gold;
+    }
+
+    .ys-filter-pill {
+        @apply inline-flex items-center rounded-[0.95rem] border border-white/8 bg-white/[0.02] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-ys-ivory/55 transition duration-300 hover:border-white/16 hover:text-ys-ivory;
+    }
+
+    .ys-filter-pill-active {
+        @apply border-ys-gold/40 bg-ys-gold text-[#17110a] hover:text-[#17110a];
+    }
+
+    .ys-size-option {
+        @apply inline-flex min-w-12 items-center justify-center rounded-[0.95rem] border border-white/8 bg-transparent px-4 py-3 text-sm font-semibold text-ys-ivory/72 transition duration-300 hover:border-ys-gold/35 hover:text-ys-gold;
+    }
+
+    .ys-size-option-active {
+        @apply border-ys-gold/55 bg-ys-gold text-[#17110a] hover:text-[#17110a];
+    }
+
+    .ys-quantity-button {
+        @apply inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg font-semibold text-ys-ivory/70 transition duration-300 hover:bg-white/[0.05] hover:text-ys-gold;
+    }
+
+    .ys-dropdown {
+        @apply absolute right-0 top-[calc(100%+0.75rem)] overflow-hidden rounded-2xl border border-white/8 bg-ys-panel shadow-[0_24px_60px_rgba(0,0,0,0.45)];
+    }
+
+    .ys-dropdown-link {
+        @apply block px-4 py-3 text-sm font-medium text-ys-ivory/75 transition hover:bg-white/[0.04] hover:text-ys-ivory;
+    }
+
+    .ys-payment-option {
+        @apply cursor-pointer rounded-[1.2rem] border border-white/8 bg-white/[0.02] px-5 py-4 transition duration-300 hover:border-ys-gold/28;
+    }
+
+    .ys-payment-option-active {
+        @apply border-ys-gold/55 bg-ys-gold/10;
+    }
+
+    .ys-toast {
+        @apply rounded-[1.2rem] border px-4 py-3 shadow-[0_18px_45px_rgba(0,0,0,0.5)];
+    }
+
+    .ys-toast-success {
+        @apply border-[#0d5a2e] bg-[#09311a] text-[#ddf6e4];
+    }
+
+    .ys-toast-error {
+        @apply border-[#6b1a1a] bg-[#3b0d0d] text-[#ffd8d8];
+    }
+
+    .ys-chat-trigger {
+        @apply inline-flex h-14 w-14 items-center justify-center rounded-full border border-ys-gold/45 bg-ys-gold text-[#17110a] shadow-[0_12px_36px_rgba(212,166,59,0.35)] transition duration-300 hover:-translate-y-1 hover:scale-[1.02];
+    }
+}

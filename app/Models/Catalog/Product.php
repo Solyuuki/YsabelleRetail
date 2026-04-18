@@ -22,6 +22,8 @@ class Product extends Model
         'description',
         'base_price',
         'compare_at_price',
+        'rating_average',
+        'review_count',
         'status',
         'is_featured',
         'track_inventory',
@@ -32,6 +34,7 @@ class Product extends Model
         return [
             'base_price' => 'decimal:2',
             'compare_at_price' => 'decimal:2',
+            'rating_average' => 'decimal:1',
             'is_featured' => 'boolean',
             'track_inventory' => 'boolean',
         ];

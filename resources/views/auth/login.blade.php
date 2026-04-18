@@ -1,12 +1,31 @@
-@extends('layouts.app', ['title' => 'Login'])
+@extends('layouts.storefront', ['title' => 'Sign in | Ysabelle Retail'])
 
 @section('content')
-    <div class="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white/5 p-8">
-        <p class="text-sm uppercase tracking-[0.3em] text-amber-300">Authentication</p>
-        <h1 class="mt-3 text-3xl font-semibold text-white">Login route is reserved and wired.</h1>
-        <p class="mt-4 text-stone-300">
-            The application now has explicit auth routing boundaries so admin redirects and future frontend integration have stable endpoints.
-            Credential handling, password reset, and session hardening flows are not implemented yet.
-        </p>
-    </div>
+    <section class="ys-container flex min-h-[calc(100vh-20rem)] items-center justify-center pb-18 pt-10 lg:pt-14">
+        <div class="w-full max-w-md rounded-[1.9rem] border border-white/7 bg-ys-panel/90 p-8 shadow-[0_20px_80px_rgba(0,0,0,0.5)]" data-reveal>
+            <p class="text-center font-serif text-4xl text-ys-gold">Ysabelle</p>
+            <h1 class="mt-5 text-center font-serif text-4xl text-ys-ivory">Welcome back</h1>
+            <p class="mt-3 text-center text-sm text-ys-ivory/48">Sign in to access your bag and orders.</p>
+
+            <form action="{{ route('login.store') }}" method="POST" class="mt-8 space-y-5">
+                @csrf
+                <label class="ys-field">
+                    <span>Email</span>
+                    <input type="email" name="email" class="ys-input" value="{{ old('email') }}" required>
+                </label>
+
+                <label class="ys-field">
+                    <span>Password</span>
+                    <input type="password" name="password" class="ys-input" required>
+                </label>
+
+                <button class="ys-button-primary mt-2 w-full justify-center">Sign in</button>
+            </form>
+
+            <p class="mt-5 text-center text-sm text-ys-ivory/42">
+                Don't have an account?
+                <a href="{{ route('register') }}" class="font-semibold text-ys-ivory transition hover:text-ys-gold">Sign up</a>
+            </p>
+        </div>
+    </section>
 @endsection

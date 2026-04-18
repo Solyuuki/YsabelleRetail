@@ -1,0 +1,9 @@
+@layer components {
+    [data-reveal] {
+        @apply translate-y-4 opacity-0 transition duration-700 ease-out;
+    }
+
+    [data-reveal].is-visible {
+        @apply translate-y-0 opacity-100;
+    }
+}

@@ -8,8 +8,10 @@ use App\Models\Orders\Order;
 use App\Policies\Catalog\CategoryPolicy;
 use App\Policies\Catalog\ProductPolicy;
 use App\Policies\Orders\OrderPolicy;
+use App\View\Composers\StorefrontLayoutComposer;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\View;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,5 +35,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Category::class, CategoryPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(Order::class, OrderPolicy::class);
+
+        View::composer('layouts.storefront', StorefrontLayoutComposer::class);
     }
 }
