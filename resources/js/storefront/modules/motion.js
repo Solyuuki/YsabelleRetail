@@ -17,5 +17,11 @@ export const initRevealMotion = () => {
         { threshold: 0.12 }
     );
 
-    elements.forEach((element) => observer.observe(element));
+    elements.forEach((element) => {
+        if (element.dataset.revealDelay) {
+            element.style.transitionDelay = `${element.dataset.revealDelay}ms`;
+        }
+
+        observer.observe(element);
+    });
 };

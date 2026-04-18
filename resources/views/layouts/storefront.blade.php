@@ -17,7 +17,7 @@
             :cart-count="($storefrontCartCount ?? 0)"
         />
 
-        <main class="min-h-[calc(100vh-5rem)] pt-20">
+        <main class="min-h-[calc(100vh-5.5rem)] pt-22 lg:pt-24">
             @yield('content')
         </main>
 
