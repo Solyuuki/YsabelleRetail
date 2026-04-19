@@ -24,6 +24,43 @@ class CatalogQueryService
             ->get();
     }
 
+    public function showcaseProducts(?Product $heroProduct = null, int $limit = 4): Collection
+    {
+        if (! $this->catalogIsAvailable()) {
+            return collect();
+        }
+
+        $heroId = $heroProduct?->getKey();
+
+        $featured = (clone $this->featuredProductsQuery())
+            ->when($heroId, fn (Builder $query) => $query->where('id', '!=', $heroId))
+            ->limit($limit)
+            ->get();
+
+        if ($featured->count() >= $limit) {
+            return $featured->values();
+        }
+
+        $excludedIds = $featured->pluck('id');
+
+        if ($heroId) {
+            $excludedIds->push($heroId);
+        }
+
+        $fallback = Product::query()
+            ->with(['category', 'variants.inventoryItem'])
+            ->where('status', 'active')
+            ->whereNotIn('id', $excludedIds->unique()->values()->all())
+            ->orderByDesc('is_featured')
+            ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('featured_rank')
+            ->latest()
+            ->limit($limit - $featured->count())
+            ->get();
+
+        return $featured->concat($fallback)->values();
+    }
+
     public function heroProduct(): ?Product
     {
         if (! $this->catalogIsAvailable()) {

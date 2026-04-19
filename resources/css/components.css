@@ -354,6 +354,198 @@
         @apply mt-1 text-[0.98rem] leading-5 text-ys-ivory/48;
     }
 
+    .ys-featured-showcase {
+        @apply mx-auto w-full max-w-[1110px];
+    }
+
+    .ys-featured-showcase-header {
+        @apply flex items-end justify-between gap-6;
+    }
+
+    .ys-featured-showcase-eyebrow {
+        @apply text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-ys-gold/48;
+    }
+
+    .ys-featured-showcase-title {
+        @apply mt-3 font-serif text-[2.55rem] leading-[0.96] text-ys-ivory;
+        letter-spacing: -0.028em;
+    }
+
+    .ys-featured-showcase-link {
+        @apply text-[0.66rem] font-semibold uppercase tracking-[0.28em] text-ys-ivory/42 transition duration-300 hover:text-ys-gold/84;
+    }
+
+    .ys-featured-showcase-grid {
+        @apply mt-8 grid gap-4;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .ys-featured-card {
+        @apply overflow-hidden border border-white/[0.065] bg-[#121213];
+        border-radius: 0.2rem;
+        transition:
+            border-color 420ms cubic-bezier(0.22, 1, 0.36, 1),
+            background-color 420ms cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 420ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .ys-featured-card:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        background-color: #151517;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+        transform: translateY(-1px);
+    }
+
+    .ys-featured-card-link {
+        @apply block;
+    }
+
+    .ys-featured-card-media {
+        @apply relative flex aspect-[1/1.06] items-center justify-center overflow-hidden bg-black;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+        background:
+            radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 34%),
+            linear-gradient(180deg, #060607 0%, #0d0d0f 100%);
+    }
+
+    .ys-featured-card-media::after {
+        content: '';
+        @apply pointer-events-none absolute inset-x-0 bottom-0 h-[22%];
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.34));
+        opacity: 0.72;
+    }
+
+    .ys-featured-card-badges {
+        @apply absolute left-3 top-3 z-10 flex flex-col gap-1.5;
+    }
+
+    .ys-featured-card-badge {
+        @apply inline-flex w-fit items-center rounded-full px-2.5 py-[0.18rem] text-[0.56rem] font-semibold uppercase tracking-[0.18em];
+        line-height: 1;
+    }
+
+    .ys-featured-card-badge.is-gold {
+        background: rgba(215, 173, 72, 0.95);
+        color: #17110a;
+    }
+
+    .ys-featured-card-badge.is-sale {
+        background: rgba(230, 74, 74, 0.96);
+        color: #fff7f7;
+    }
+
+    .ys-featured-card-image {
+        @apply block h-full w-full object-cover;
+        filter: drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
+        object-position: center 52%;
+        transform: translate3d(0, 0, 0) scale(1.04);
+        transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
+        will-change: transform;
+    }
+
+    .ys-featured-card:hover .ys-featured-card-image {
+        transform: translate3d(0, -1%, 0) scale(1.08);
+    }
+
+    .ys-featured-card-fallback {
+        @apply flex h-full w-full items-center justify-center px-6 text-center text-[1rem] font-medium text-ys-ivory/54;
+        background:
+            radial-gradient(circle at 50% 42%, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 34%),
+            linear-gradient(180deg, #09090a 0%, #121214 100%);
+    }
+
+    .ys-featured-card-body {
+        @apply flex min-h-[6.95rem] flex-col justify-between px-4 py-3.5;
+    }
+
+    .ys-featured-card-row {
+        @apply flex items-start justify-between gap-4;
+    }
+
+    .ys-featured-card-row.is-bottom {
+        @apply items-end;
+    }
+
+    .ys-featured-card-copy {
+        @apply min-w-0;
+    }
+
+    .ys-featured-card-title {
+        @apply truncate text-[0.78rem] font-medium text-ys-ivory/88 transition duration-300;
+        letter-spacing: -0.01em;
+    }
+
+    .ys-featured-card:hover .ys-featured-card-title {
+        color: rgba(255, 249, 239, 0.98);
+    }
+
+    .ys-featured-card-caption {
+        @apply mt-1 truncate text-[0.58rem] uppercase tracking-[0.24em] text-ys-ivory/28;
+    }
+
+    .ys-featured-card-rating {
+        @apply flex shrink-0 items-center gap-1.5 pt-0.5 text-[0.56rem] font-medium text-ys-ivory/36;
+    }
+
+    .ys-featured-card-rating-dot {
+        @apply h-[0.32rem] w-[0.32rem] rounded-full bg-ys-gold/80;
+        box-shadow: 0 0 10px rgba(212, 166, 59, 0.35);
+    }
+
+    .ys-featured-card-price-wrap {
+        @apply min-w-0;
+    }
+
+    .ys-featured-card-price {
+        @apply text-[0.98rem] font-semibold text-ys-ivory;
+        letter-spacing: -0.015em;
+    }
+
+    .ys-featured-card-price-note {
+        @apply mt-0.5 text-[0.56rem] uppercase tracking-[0.2em] text-ys-ivory/24;
+    }
+
+    .ys-featured-card-action {
+        @apply shrink-0 text-[0.58rem] font-semibold uppercase tracking-[0.24em] text-ys-ivory/26 transition duration-300;
+    }
+
+    .ys-featured-card:hover .ys-featured-card-action {
+        color: rgba(215, 173, 72, 0.84);
+    }
+
+    .ys-featured-banner {
+        @apply mt-7 overflow-hidden border border-white/[0.055];
+        border-radius: 0.2rem;
+        background:
+            radial-gradient(circle at 12% 78%, rgba(212, 166, 59, 0.12), rgba(212, 166, 59, 0) 22%),
+            radial-gradient(circle at 88% 24%, rgba(212, 166, 59, 0.1), rgba(212, 166, 59, 0) 20%),
+            linear-gradient(180deg, #191919 0%, #141414 100%);
+    }
+
+    .ys-featured-banner-inner {
+        @apply flex flex-col items-center justify-center px-6 py-10 text-center sm:px-10;
+    }
+
+    .ys-featured-banner-title {
+        @apply max-w-[13ch] font-serif text-[2.15rem] leading-[1.02] text-ys-ivory;
+        letter-spacing: -0.026em;
+    }
+
+    .ys-featured-banner-copy {
+        @apply mt-3 text-[0.82rem] text-ys-ivory/42;
+    }
+
+    .ys-featured-banner-button {
+        @apply mt-5 inline-flex items-center rounded-[0.18rem] border border-[#c69839] bg-[#c69839] px-5 py-2.5 text-[0.66rem] font-semibold uppercase tracking-[0.22em] text-[#17110a] transition duration-300;
+    }
+
+    .ys-featured-banner-button:hover {
+        background: #d3a648;
+        border-color: #d3a648;
+        box-shadow: 0 10px 20px rgba(198, 152, 57, 0.18);
+    }
+
     .ys-stat-value {
         @apply text-[1.7rem] font-semibold leading-none text-ys-ivory;
     }
@@ -476,6 +668,19 @@
         .ys-trust-item {
             min-width: 15.4rem;
         }
+
+        .ys-featured-showcase {
+            max-width: 100%;
+        }
+
+        .ys-featured-showcase-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .ys-featured-banner-title {
+            font-size: 2rem;
+        }
+
     }
 }
 
@@ -571,6 +776,48 @@
         .ys-trust-item-description {
             @apply text-[0.88rem];
         }
+
+        .ys-featured-showcase-header {
+            @apply items-start;
+        }
+
+        .ys-featured-showcase-title {
+            font-size: 2.1rem;
+        }
+
+        .ys-featured-showcase-grid {
+            @apply mt-6 gap-3.5;
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .ys-featured-card-media {
+            aspect-ratio: 1 / 0.92;
+        }
+
+        .ys-featured-card-body {
+            min-height: 6.55rem;
+        }
+
+        .ys-featured-banner {
+            @apply mt-5;
+        }
+
+        .ys-featured-banner-inner {
+            @apply px-5 py-8;
+        }
+
+        .ys-featured-banner-title {
+            font-size: 1.7rem;
+        }
+
+        .ys-featured-banner-copy {
+            @apply text-[0.78rem];
+        }
+
+        .ys-featured-banner-button {
+            @apply px-4.5 py-2.5 text-[0.62rem];
+        }
+
     }
 }
 

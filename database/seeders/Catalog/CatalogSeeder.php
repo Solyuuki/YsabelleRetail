@@ -127,7 +127,27 @@ class CatalogSeeder extends Seeder
             'performance' => [
                 'name' => 'Performance',
                 'description' => 'Precision-built footwear for customers chasing premium performance.',
-                'products' => [],
+                'products' => [
+                    [
+                        'name' => 'Onyx Vector',
+                        'style_code' => 'YS-ONX-6290',
+                        'base_price' => 6290,
+                        'compare_at_price' => null,
+                        'rating_average' => 4.8,
+                        'review_count' => 109,
+                        'is_featured' => true,
+                        'featured_rank' => 5,
+                        'short_description' => 'Technical trainer with an anchored stance and a dark, sculpted finish.',
+                        'description' => 'A precision-led performance pair with firm response, controlled structure, and a sleek monochrome profile.',
+                        'primary_image_url' => 'https://images.unsplash.com/photo-1539185441755-769473a23570?auto=format&fit=crop&w=1400&q=80',
+                        'image_alt' => 'Onyx Vector premium performance sneaker product image',
+                        'image_gallery' => [
+                            'https://images.unsplash.com/photo-1539185441755-769473a23570?auto=format&fit=crop&w=1400&q=80',
+                            'https://images.unsplash.com/photo-1543508282-6319a3e2621f?auto=format&fit=crop&w=1400&q=80',
+                        ],
+                        'sizes' => ['7', '8', '9', '10', '11'],
+                    ],
+                ],
             ],
         ];
 
@@ -183,6 +203,7 @@ class CatalogSeeder extends Seeder
                                     'ivory-prestige' => 'Ivory/Gold',
                                     'volt-edge' => 'Graphite/Volt',
                                     'azure-velocity' => 'Blue/Black',
+                                    'onyx-vector' => 'Onyx/Graphite',
                                     default => 'Black/Gold',
                                 },
                             ],

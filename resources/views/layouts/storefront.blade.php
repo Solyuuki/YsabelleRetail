@@ -1,11 +1,28 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
+        @php
+            $versionedPublicAsset = static function (string $path): string {
+                $absolutePath = public_path($path);
+
+                if (! file_exists($absolutePath)) {
+                    return asset($path);
+                }
+
+                return asset($path).'?v='.filemtime($absolutePath);
+            };
+        @endphp
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $title ?? 'Ysabelle Retail' }}</title>
         <meta name="description" content="{{ $description ?? 'Premium footwear crafted for movement, legacy, and refined performance.' }}">
+        <meta name="theme-color" content="#060606">
         <link rel="preconnect" href="https://fonts.bunny.net">
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ $versionedPublicAsset('favicon-32x32.png') }}">
+        <link rel="icon" type="image/png" sizes="16x16" href="{{ $versionedPublicAsset('favicon-16x16.png') }}">
+        <link rel="icon" type="image/png" sizes="48x48" href="{{ $versionedPublicAsset('favicon-48x48.png') }}">
+        <link rel="apple-touch-icon" href="{{ $versionedPublicAsset('apple-touch-icon.png') }}">
+        <link rel="shortcut icon" href="{{ $versionedPublicAsset('favicon.ico') }}">
         <link href="https://fonts.bunny.net/css?family=cormorant-garamond:500,600,700|instrument-sans:400,500,600,700" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -17,7 +34,7 @@
             :cart-count="($storefrontCartCount ?? 0)"
         />
 
-        <main class="min-h-[calc(100vh-5.5rem)] pt-22 lg:pt-24">
+        <main class="min-h-[calc(100vh-5.9rem)] pt-[5.9rem] md:min-h-[calc(100vh-6.3rem)] md:pt-[6.3rem] lg:min-h-[calc(100vh-6.75rem)] lg:pt-[6.75rem]">
             @yield('content')
         </main>
 

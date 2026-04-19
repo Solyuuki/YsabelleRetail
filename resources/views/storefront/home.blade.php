@@ -94,47 +94,5 @@
 
     <x-storefront.trust-strip />
 
-    <section class="ys-container py-20 lg:py-28">
-        <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <x-storefront.section-heading
-                eyebrow="Featured Collection"
-                title="Crafted for motion, tuned for presence."
-                description="A premium edit of the silhouettes customers are already gravitating toward, presented in the same dark editorial language from the reference storefront."
-            />
-            <a href="{{ route('storefront.shop') }}" class="ys-link-inline">Browse all shoes</a>
-        </div>
-
-        <div class="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            @foreach ($featuredProducts->take(4) as $product)
-                <x-storefront.product-card :product="$product" />
-            @endforeach
-        </div>
-    </section>
-
-    <section class="ys-container pb-20 lg:pb-28">
-        <div class="grid gap-7 xl:grid-cols-[1.1fr_0.9fr]">
-            <div class="rounded-[2.15rem] border border-white/7 bg-gradient-to-br from-ys-panel via-[#1a1713] to-[#15120f] p-9 md:p-12" data-reveal>
-                <p class="text-[0.82rem] font-semibold uppercase tracking-[0.35em] text-ys-gold/90">Editorial Drop</p>
-                <h2 class="mt-4 max-w-xl font-serif text-[3.45rem] leading-[0.96] text-ys-ivory">Quiet luxury, built for everyday velocity.</h2>
-                <p class="mt-6 max-w-2xl text-[1rem] leading-8 text-ys-ivory/58">
-                    The premium UI language in the reference leans on restraint, contrast, and a product-first composition. This middle callout preserves that same posture while staying clean inside Laravel.
-                </p>
-                <div class="mt-9 flex flex-wrap gap-4">
-                    <a href="{{ route('storefront.shop', ['category' => 'running']) }}" class="ys-button-primary">Explore bestsellers</a>
-                    <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary">View your orders</a>
-                </div>
-            </div>
-
-            <div class="grid gap-6 sm:grid-cols-2" data-reveal>
-                @foreach ($featuredCategories->take(4) as $category)
-                    <a href="{{ route('storefront.shop', ['category' => $category->slug]) }}" class="rounded-[1.95rem] border border-white/7 bg-white/[0.02] p-7 transition duration-500 hover:border-ys-gold/30 hover:bg-white/[0.035]">
-                        <p class="text-[0.78rem] font-semibold uppercase tracking-[0.3em] text-ys-gold/80">Category</p>
-                        <h3 class="mt-4 font-serif text-[2.15rem] leading-none text-ys-ivory">{{ $category->name }}</h3>
-                        <p class="mt-4 text-[0.98rem] leading-8 text-ys-ivory/50">{{ $category->description }}</p>
-                        <span class="mt-7 inline-flex text-[0.98rem] font-semibold text-ys-ivory/70 transition hover:text-ys-gold">Open collection</span>
-                    </a>
-                @endforeach
-            </div>
-        </div>
-    </section>
+    <x-storefront.featured-showcase :products="$featuredProducts" />
 @endsection
