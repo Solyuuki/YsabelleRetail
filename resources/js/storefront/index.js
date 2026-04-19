@@ -7,10 +7,12 @@ import { initTrustMarquees } from './modules/marquee';
 import { initRevealMotion } from './modules/motion';
 import { initProductDetailForm } from './modules/product-detail';
 import { initCartQuantityForms } from './modules/cart';
+import { initHeroShowcase } from './modules/hero-showcase';
 import { initToasts } from './modules/toasts';
 
 const initStorefront = () => {
     initHeaderMenus();
+    initHeroShowcase();
     initProductMedia();
     initTrustMarquees();
     initRevealMotion();

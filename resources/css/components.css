@@ -43,26 +43,161 @@
         @apply border-l border-white/7 pl-5 first:border-l-0 first:pl-0;
     }
 
+    .ys-hero-copy {
+        @apply max-w-[40rem] pt-2 lg:pt-4;
+    }
+
+    .ys-hero-eyebrow {
+        @apply text-[0.82rem] font-semibold uppercase tracking-[0.4em] text-ys-gold/85;
+    }
+
     .ys-hero-heading {
-        @apply mt-8 max-w-[11.65ch] font-serif text-ys-ivory;
-        font-size: clamp(3.45rem, 8.4vw, 5.95rem);
-        line-height: 1.03;
-        letter-spacing: -0.036em;
-        text-wrap: balance;
+        @apply mt-6 max-w-[16.75ch] font-serif text-ys-ivory;
+        font-size: clamp(3.1rem, 4.3vw + 1.5rem, 5.15rem);
+        line-height: 0.94;
+        letter-spacing: -0.04em;
     }
 
-    .ys-hero-heading-break {
+    .ys-hero-heading-line {
         @apply block;
-        height: 0.14em;
     }
 
-    .ys-hero-heading-emphasis-group {
+    .ys-hero-heading-line + .ys-hero-heading-line {
+        margin-top: 0.08em;
+    }
+
+    .ys-hero-heading-line-primary,
+    .ys-hero-heading-line-secondary {
+        white-space: nowrap;
+    }
+
+    .ys-hero-heading-kicker {
         @apply inline-block whitespace-nowrap;
+        letter-spacing: -0.02em;
     }
 
     .ys-hero-heading-emphasis {
-        @apply inline-block text-ys-gold italic;
-        padding-right: 0.06em;
+        @apply inline-block text-ys-gold;
+        font-style: normal;
+        font-weight: 600;
+        letter-spacing: -0.018em;
+        padding-right: 0.03em;
+        text-shadow: 0 0 18px rgba(212, 166, 59, 0.08);
+    }
+
+    .ys-hero-description {
+        @apply mt-7 max-w-[35rem] text-[1.04rem] leading-[1.95] text-ys-ivory/58;
+    }
+
+    .ys-hero-actions {
+        @apply mt-10 flex flex-wrap gap-4;
+    }
+
+    .ys-hero-stats {
+        @apply mt-11 grid max-w-xl grid-cols-3 gap-6 lg:gap-8;
+    }
+
+    .ys-hero-product-shell {
+        @apply relative isolate min-h-[25rem] lg:min-h-[34rem];
+    }
+
+    .ys-hero-product-stage {
+        @apply relative flex h-full min-h-[25rem] w-full items-center justify-center lg:min-h-[34rem];
+    }
+
+    .ys-hero-product-stage::before,
+    .ys-hero-product-stage::after {
+        content: '';
+        @apply pointer-events-none absolute rounded-full;
+        filter: blur(26px);
+        opacity: 0.7;
+    }
+
+    .ys-hero-product-stage::before {
+        inset: 12% auto auto 12%;
+        height: 12rem;
+        width: 10rem;
+        background: radial-gradient(circle, rgba(255, 245, 218, 0.22) 0%, rgba(255, 245, 218, 0.06) 48%, rgba(255, 245, 218, 0) 74%);
+    }
+
+    .ys-hero-product-stage::after {
+        inset: 18% 10% auto auto;
+        height: 10rem;
+        width: 8rem;
+        background: radial-gradient(circle, rgba(214, 224, 255, 0.18) 0%, rgba(214, 224, 255, 0.05) 42%, rgba(214, 224, 255, 0) 72%);
+    }
+
+    .ys-hero-product-rig {
+        @apply pointer-events-none absolute inset-0 z-10;
+        animation: ys-hero-product-float 7.8s ease-in-out infinite;
+        transform-origin: 50% 56%;
+        will-change: transform;
+    }
+
+    .ys-hero-product-glow {
+        @apply pointer-events-none absolute left-1/2 top-[48%] h-[54%] w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full;
+        background:
+            radial-gradient(circle, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 36%, rgba(255, 255, 255, 0) 68%),
+            radial-gradient(circle at 40% 44%, rgba(212, 166, 59, 0.08) 0%, rgba(212, 166, 59, 0) 44%);
+        filter: blur(36px);
+        opacity: 0.88;
+    }
+
+    .ys-hero-product-fallback {
+        @apply pointer-events-none absolute left-1/2 top-[46%] h-[62%] w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-full transition duration-500;
+        background:
+            radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04) 34%, rgba(255, 255, 255, 0) 72%),
+            radial-gradient(circle at 42% 42%, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 54%);
+        filter: blur(18px);
+        opacity: 1;
+    }
+
+    .ys-hero-product-fallback-shadow {
+        @apply absolute bottom-[18%] left-1/2 h-10 w-[40%] -translate-x-1/2 rounded-full transition duration-500;
+        background: radial-gradient(circle, rgba(0, 0, 0, 0.22) 0%, rgba(0, 0, 0, 0.08) 50%, rgba(0, 0, 0, 0) 78%);
+        filter: blur(16px);
+        opacity: 0.6;
+    }
+
+    .ys-hero-model-viewer {
+        @apply absolute inset-0 z-20 block h-full w-full;
+        opacity: 0;
+        transition: opacity 420ms ease;
+        --progress-bar-height: 0;
+        --poster-color: transparent;
+        --min-hotspot-opacity: 0;
+    }
+
+    .ys-hero-model-viewer::part(default-progress-bar),
+    .ys-hero-model-viewer::part(ar-button),
+    .ys-hero-model-viewer::part(default-ar-button),
+    .ys-hero-model-viewer::part(default-exit-webxr-button),
+    .ys-hero-model-viewer::part(default-a11y-prompt) {
+        display: none;
+    }
+
+    .ys-hero-product-shell[data-ready='true'] .ys-hero-model-viewer {
+        opacity: 1;
+    }
+
+    .ys-hero-product-shell[data-ready='true'] .ys-hero-product-fallback {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.92);
+    }
+
+    .ys-hero-product-shell[data-ready='true'] .ys-hero-product-fallback-shadow {
+        opacity: 0;
+    }
+
+    .ys-hero-product-shell[data-failed='true'] .ys-hero-model-viewer {
+        opacity: 0;
+    }
+
+    .ys-hero-product-shadow {
+        @apply pointer-events-none absolute bottom-[14%] left-1/2 z-0 h-12 w-[44%] -translate-x-1/2 rounded-full;
+        background: radial-gradient(circle, rgba(0, 0, 0, 0.38) 0%, rgba(0, 0, 0, 0.2) 42%, rgba(0, 0, 0, 0) 74%);
+        filter: blur(16px);
+        opacity: 0.9;
     }
 
     .ys-product-media-shell {
@@ -284,8 +419,52 @@
     }
 }
 
+@keyframes ys-hero-product-float {
+    0%,
+    100% {
+        transform: translateY(0) rotateZ(-1deg) rotateX(1.25deg);
+    }
+
+    50% {
+        transform: translateY(-10px) rotateZ(0.8deg) rotateX(0deg);
+    }
+}
+
 @media (max-width: 1024px) {
     @layer components {
+        .ys-hero-copy {
+            @apply max-w-[36rem] pt-0;
+        }
+
+        .ys-hero-heading {
+            max-width: 100%;
+            font-size: clamp(2.85rem, 7.8vw, 4.5rem);
+            line-height: 0.98;
+            letter-spacing: -0.03em;
+        }
+
+        .ys-hero-heading-line-primary,
+        .ys-hero-heading-line-secondary {
+            white-space: normal;
+        }
+
+        .ys-hero-description {
+            @apply max-w-[34rem];
+        }
+
+        .ys-hero-stats {
+            @apply max-w-lg gap-5;
+        }
+
+        .ys-hero-product-shell,
+        .ys-hero-product-stage {
+            min-height: 30rem;
+        }
+
+        .ys-hero-product-rig {
+            animation-duration: 8.6s;
+        }
+
         .ys-trust-marquee-viewport {
             @apply py-7;
         }
@@ -303,9 +482,60 @@
 @media (max-width: 640px) {
     @layer components {
         .ys-hero-heading {
-            max-width: 12ch;
-            line-height: 1.05;
-            letter-spacing: -0.024em;
+            max-width: 10.5ch;
+            font-size: clamp(2.5rem, 12vw, 3.55rem);
+            line-height: 1;
+            letter-spacing: -0.022em;
+        }
+
+        .ys-hero-heading-emphasis {
+            letter-spacing: -0.012em;
+        }
+
+        .ys-hero-heading-line + .ys-hero-heading-line {
+            margin-top: 0.12em;
+        }
+
+        .ys-hero-description {
+            @apply mt-6 text-[1rem] leading-8;
+        }
+
+        .ys-hero-actions {
+            @apply mt-8 gap-3;
+        }
+
+        .ys-hero-stats {
+            @apply mt-9 grid-cols-1 gap-4;
+        }
+
+        .ys-hero-product-shell {
+            min-height: 22rem;
+        }
+
+        .ys-hero-product-stage {
+            min-height: 22rem;
+        }
+
+        .ys-hero-product-glow {
+            width: 78%;
+            height: 48%;
+        }
+
+        .ys-hero-product-rig {
+            animation-duration: 9.2s;
+        }
+
+        .ys-hero-product-shadow {
+            width: 52%;
+            bottom: 15%;
+        }
+
+        .ys-stat-block {
+            @apply border-l-0 border-t border-white/7 pl-0 pt-4 first:border-t-0 first:pt-0;
+        }
+
+        .ys-stat-label {
+            @apply mt-1.5;
         }
 
         .ys-trust-marquee-viewport {
@@ -340,6 +570,19 @@
 
         .ys-trust-item-description {
             @apply text-[0.88rem];
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @layer components {
+        .ys-hero-model-viewer,
+        .ys-hero-product-fallback {
+            transition: none;
+        }
+
+        .ys-hero-product-rig {
+            animation: none;
         }
     }
 }

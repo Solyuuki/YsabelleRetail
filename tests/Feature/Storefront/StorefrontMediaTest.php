@@ -6,7 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('the storefront hero links to a featured product record and renders its media url', function () {
+test('the storefront hero renders the isolated Polycam shoe capture and matching hero copy', function () {
     $category = Category::factory()->create([
         'name' => 'Running',
         'slug' => 'running',
@@ -30,7 +30,15 @@ test('the storefront hero links to a featured product record and renders its med
 
     $this->get(route('storefront.home'))
         ->assertOk()
-        ->assertSee(route('storefront.catalog.products.show', $heroProduct), escape: false)
-        ->assertSee('https://cdn.ysabelle.test/catalog/aurum-runner.jpg', escape: false)
-        ->assertSeeText('Aurum Runner');
+        ->assertSee('https://poly.cam/explore/capture/3051A780-6C9D-45B7-A1A1-D568C3839F63/Nike+Shoe+V2', escape: false)
+        ->assertSee(asset('models/storefront/polycam-nike-shoe-v2/poly.gltf'), escape: false)
+        ->assertSee(asset('images/storefront/hdri/small_hangar_01_1k.hdr'), escape: false)
+        ->assertSee('https://cdn.ysabelle.test/catalog/secondary.jpg', escape: false)
+        ->assertSee('data-hero-showcase', escape: false)
+        ->assertSee('<model-viewer', escape: false)
+        ->assertSeeText('Polycam Capture / Charcoal / White / Orange Accent')
+        ->assertSeeText('Nike Shoe V2 shows a charcoal mesh runner with black laces and collar, a crisp white Swoosh, a sculpted white sole, and a small orange eyelet accent taken directly from the Polycam source capture.')
+        ->assertSeeText('Nike Shoe V2')
+        ->assertSeeText('55,389')
+        ->assertSeeText('Published');
 });

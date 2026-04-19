@@ -1,50 +1,42 @@
 @extends('layouts.storefront', ['title' => 'Ysabelle Retail | Premium Footwear'])
 
-@inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
-
 @section('content')
     @php
-        $heroImageUrl = $media->imageUrlFor($heroProduct);
-        $heroImageAlt = $media->altTextFor($heroProduct);
         $heroCategory = $heroProduct?->category;
-        $heroStock = $heroProduct?->variants?->sum(fn ($variant) => $variant->inventoryItem?->available_quantity ?? 0) ?? 0;
+        $heroShowcaseName = 'Nike Shoe V2';
+        $heroShowcaseSourceUrl = 'https://poly.cam/explore/capture/3051A780-6C9D-45B7-A1A1-D568C3839F63/Nike+Shoe+V2';
+        $heroShowcaseModelUrl = asset('models/storefront/polycam-nike-shoe-v2/poly.gltf');
+        $heroShowcaseAlt = 'Nike Shoe V2 Polycam 3D hero showcase';
+        $heroShowcaseEyebrow = 'Polycam Capture / Charcoal / White / Orange Accent';
+        $heroShowcaseDescription = 'Nike Shoe V2 shows a charcoal mesh runner with black laces and collar, a crisp white Swoosh, a sculpted white sole, and a small orange eyelet accent taken directly from the Polycam source capture.';
+        $heroShowcaseStats = [
+            ['value' => 'Nike', 'label' => 'Captured shoe'],
+            ['value' => '55,389', 'label' => 'Polycam vertices'],
+            ['value' => 'Mar 2022', 'label' => 'Published'],
+        ];
     @endphp
 
-    <section class="ys-container pb-16 pt-10 lg:pb-24 lg:pt-14">
+    <section class="ys-container pb-16 pt-14 lg:pb-24 lg:pt-20">
         <div class="grid items-center gap-14 lg:grid-cols-[0.95fr_1.05fr] xl:gap-16">
-            <div class="max-w-[36rem]" data-reveal>
-                @if ($heroProduct)
-                    <p class="text-[0.82rem] font-semibold uppercase tracking-[0.4em] text-ys-gold/85">
-                        Featured Product &middot; {{ $heroCategory?->name ?? 'Collection' }}
-                    </p>
-                    <h1 class="ys-hero-heading">
-                        {{ $heroProduct->name }}
-                        <span class="ys-hero-heading-break"></span>
-                        <span class="ys-hero-heading-emphasis-group">
-                            built for a <span class="ys-hero-heading-emphasis">refined</span> stride.
-                        </span>
-                    </h1>
-                    <p class="mt-8 max-w-xl text-[1.08rem] leading-9 text-ys-ivory/58">
-                        Premium footwear engineered for movement and crafted for legacy.
-                        {{ $heroProduct->short_description ?: 'Every pair, a quiet statement of intention.' }}
-                    </p>
-                @else
-                    <p class="text-[0.82rem] font-semibold uppercase tracking-[0.4em] text-ys-gold/85">New Season &middot; 2026</p>
-                    <h1 class="ys-hero-heading">
-                        Step into a
-                        <span class="ys-hero-heading-break"></span>
-                        <span class="ys-hero-heading-emphasis-group">
-                            <span class="ys-hero-heading-emphasis">refined</span> stride.
-                        </span>
-                    </h1>
-                    <p class="mt-8 max-w-xl text-[1.08rem] leading-9 text-ys-ivory/58">
-                        Premium footwear engineered for movement and crafted for legacy. Every pair, a quiet statement of intention.
-                    </p>
-                @endif
+            <div class="ys-hero-copy" data-reveal>
+                <p class="ys-hero-eyebrow">
+                    {{ $heroShowcaseEyebrow }}
+                </p>
+                <h1 class="ys-hero-heading">
+                    <span class="ys-hero-heading-line ys-hero-heading-line-primary">
+                        {{ $heroShowcaseName }} <span class="ys-hero-heading-kicker">Built</span>
+                    </span>
+                    <span class="ys-hero-heading-line ys-hero-heading-line-secondary">
+                        For a <span class="ys-hero-heading-emphasis">Refined</span>
+                    </span>
+                </h1>
+                <p class="ys-hero-description">
+                    {{ $heroShowcaseDescription }}
+                </p>
 
-                <div class="mt-11 flex flex-wrap gap-4">
-                    <a href="{{ $heroProduct ? route('storefront.catalog.products.show', $heroProduct) : route('storefront.shop') }}" class="ys-button-primary">
-                        {{ $heroProduct ? "Shop {$heroProduct->name}" : 'Shop the Collection' }}
+                <div class="ys-hero-actions">
+                    <a href="{{ $heroShowcaseSourceUrl }}" class="ys-button-primary" target="_blank" rel="noreferrer">
+                        View Source Capture
                     </a>
                     <a
                         href="{{ $heroCategory ? route('storefront.shop', ['category' => $heroCategory->slug]) : route('storefront.shop', ['category' => 'running']) }}"
@@ -54,50 +46,47 @@
                     </a>
                 </div>
 
-                <div class="mt-12 grid max-w-lg grid-cols-3 gap-8">
-                    <div class="ys-stat-block">
-                        <p class="ys-stat-value">{{ $heroProduct ? 'PHP '.number_format((float) $heroProduct->base_price, 0) : '20+' }}</p>
-                        <p class="ys-stat-label">{{ $heroProduct ? 'Hero price' : 'Premium styles' }}</p>
-                    </div>
-                    <div class="ys-stat-block">
-                        <p class="ys-stat-value">{{ $heroProduct ? number_format((float) $heroProduct->rating_average, 1).' rating' : '14d' }}</p>
-                        <p class="ys-stat-label">{{ $heroProduct ? 'Rated by clients' : 'Free returns' }}</p>
-                    </div>
-                    <div class="ys-stat-block">
-                        <p class="ys-stat-value">{{ $heroProduct ? $heroStock : '4.9 rating' }}</p>
-                        <p class="ys-stat-label">{{ $heroProduct ? 'Units in stock' : 'Rated by clients' }}</p>
-                    </div>
+                <div class="ys-hero-stats">
+                    @foreach ($heroShowcaseStats as $heroShowcaseStat)
+                        <div class="ys-stat-block">
+                            <p class="ys-stat-value">{{ $heroShowcaseStat['value'] }}</p>
+                            <p class="ys-stat-label">{{ $heroShowcaseStat['label'] }}</p>
+                        </div>
+                    @endforeach
                 </div>
             </div>
 
-            <div class="relative" data-reveal>
-                <div class="absolute inset-6 rounded-full bg-ys-gold/18 blur-3xl"></div>
-                <div class="relative overflow-hidden rounded-[2.5rem] border border-white/7 bg-black p-5 shadow-[0_35px_120px_rgba(0,0,0,0.62)] lg:p-6">
-                    <x-storefront.product-media
-                        :image-url="$heroImageUrl"
-                        :alt="$heroImageAlt"
-                        :title="$heroProduct?->name ?? 'Curated product imagery'"
-                        :eyebrow="$heroCategory?->name ?? 'Ysabelle Retail'"
-                        loading="eager"
-                        fetchpriority="high"
-                        class="aspect-[4/4.35] rounded-[2rem]"
-                        fallback-class="p-7 lg:p-9"
-                    />
-
-                    @if ($heroProduct)
-                        <div class="pointer-events-none absolute inset-x-9 bottom-9 rounded-[1.55rem] border border-white/9 bg-black/62 px-5 py-4 backdrop-blur-xl lg:inset-x-10 lg:bottom-10">
-                            <div class="flex items-end justify-between gap-4">
-                                <div>
-                                    <p class="text-[0.72rem] font-semibold uppercase tracking-[0.3em] text-ys-gold/78">{{ $heroCategory?->name ?? 'Collection' }}</p>
-                                    <p class="mt-2 font-serif text-[1.8rem] leading-none text-ys-ivory">{{ $heroProduct->name }}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-ys-ivory/42">Starting at</p>
-                                    <p class="mt-2 text-[1.2rem] font-semibold text-ys-gold">PHP {{ number_format((float) $heroProduct->base_price, 0) }}</p>
-                                </div>
-                            </div>
-                        </div>
-                    @endif
+            <div
+                class="ys-hero-product-shell"
+                data-reveal
+                data-hero-showcase
+                data-model-src="{{ $heroShowcaseModelUrl }}"
+            >
+                <div class="ys-hero-product-glow" aria-hidden="true"></div>
+                <div class="ys-hero-product-stage">
+                    <div class="ys-hero-product-shadow" aria-hidden="true"></div>
+                    <div class="ys-hero-product-rig">
+                        <div class="ys-hero-product-fallback" aria-hidden="true"></div>
+                        <div class="ys-hero-product-fallback-shadow" aria-hidden="true"></div>
+                        <model-viewer
+                            class="ys-hero-model-viewer"
+                            data-hero-model-viewer
+                            alt="{{ $heroShowcaseAlt }}"
+                            reveal="auto"
+                            loading="lazy"
+                            poster="{{ asset('images/storefront/hero-polycam-nike-shoe-v2.jpg') }}"
+                            interaction-prompt="none"
+                            environment-image="{{ asset('images/storefront/hdri/small_hangar_01_1k.hdr') }}"
+                            tone-mapping="neutral"
+                            exposure="0.96"
+                            shadow-intensity="1.16"
+                            shadow-softness="1.08"
+                            camera-orbit="0deg 78deg 112%"
+                            min-camera-orbit="auto 74deg auto"
+                            max-camera-orbit="auto 84deg auto"
+                            field-of-view="24deg"
+                        ></model-viewer>
+                    </div>
                 </div>
             </div>
         </div>
