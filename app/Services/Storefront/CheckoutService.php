@@ -4,12 +4,17 @@ namespace App\Services\Storefront;
 
 use App\Models\Cart\Cart;
 use App\Models\Orders\Order;
-use App\Models\Payments\Payment;
 use App\Models\User;
+use App\Support\Storefront\ProductMediaResolver;
 use Illuminate\Support\Str;
 
 class CheckoutService
 {
+    public function __construct(
+        private readonly ProductMediaResolver $productMedia,
+    ) {
+    }
+
     public function placeOrder(Cart $cart, User $user, array $payload): Order
     {
         abort_if($cart->items->isEmpty(), 422, 'Your cart is empty.');
@@ -57,6 +62,8 @@ class CheckoutService
                 'metadata' => [
                     'product_slug' => $product?->slug,
                     'option_values' => $variant?->option_values,
+                    'product_image_url' => $this->productMedia->imageUrlFor($product),
+                    'product_image_alt' => $this->productMedia->altTextFor($product, $product?->name),
                 ],
             ]);
         }

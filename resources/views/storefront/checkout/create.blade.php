@@ -70,7 +70,14 @@
                     <div class="mt-6 space-y-4 border-b border-white/6 pb-5">
                         @foreach ($summary['items'] as $item)
                             <div class="flex items-center gap-3">
-                                <img src="{{ $media->pathFor($item->variant->product, 'card') }}" alt="{{ $item->variant->product->name }}" class="h-14 w-14 rounded-xl border border-white/6 object-cover">
+                                <x-storefront.product-media
+                                    :image-url="$media->imageUrlFor($item->variant->product)"
+                                    :alt="$media->altTextFor($item->variant->product)"
+                                    :title="$item->variant->product->name"
+                                    :eyebrow="$item->variant->product->category?->name ?? 'Collection'"
+                                    class="h-14 w-14 rounded-xl border border-white/6"
+                                    fallback-class="p-3"
+                                />
                                 <div class="flex-1">
                                     <p class="text-sm font-semibold text-ys-ivory">{{ $item->variant->product->name }}</p>
                                     <p class="text-xs text-ys-ivory/42">{{ $item->variant->name }} &middot; Qty {{ $item->quantity }}</p>

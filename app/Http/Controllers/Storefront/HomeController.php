@@ -13,9 +13,15 @@ class HomeController extends Controller
         DashboardMetricsService $dashboardMetrics,
         CatalogQueryService $catalogQuery
     ): View {
+        $heroProduct = $catalogQuery->heroProduct();
+        $featuredProducts = $catalogQuery->featuredProducts($heroProduct ? 5 : 4)
+            ->reject(fn ($product) => $heroProduct && $product->is($heroProduct))
+            ->values();
+
         return view('storefront.home', [
             'metrics' => $dashboardMetrics->summary(),
-            'featuredProducts' => $catalogQuery->featuredProducts(),
+            'heroProduct' => $heroProduct,
+            'featuredProducts' => $featuredProducts,
             'featuredCategories' => $catalogQuery->navigationCategories(),
         ]);
     }

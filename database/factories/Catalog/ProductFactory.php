@@ -25,12 +25,18 @@ class ProductFactory extends Factory
             'style_code' => 'YS-'.fake()->unique()->numerify('####'),
             'short_description' => fake()->sentence(),
             'description' => fake()->paragraphs(2, true),
+            'primary_image_url' => 'https://cdn.ysabelle.test/catalog/'.fake()->uuid().'.jpg',
+            'image_alt' => Str::title($name).' product image',
+            'image_gallery' => [
+                'https://cdn.ysabelle.test/catalog/'.fake()->uuid().'.jpg',
+            ],
             'base_price' => fake()->randomFloat(2, 999, 5999),
             'compare_at_price' => fake()->optional()->randomFloat(2, 1999, 6999),
             'rating_average' => fake()->randomFloat(1, 4.2, 5.0),
             'review_count' => fake()->numberBetween(12, 220),
             'status' => 'active',
             'is_featured' => fake()->boolean(30),
+            'featured_rank' => fake()->optional()->numberBetween(1, 20),
             'track_inventory' => true,
         ];
     }

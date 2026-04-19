@@ -4,6 +4,7 @@ namespace App\Services\Catalog;
 
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Collection;
@@ -18,13 +19,21 @@ class CatalogQueryService
             return collect();
         }
 
-        return Product::query()
-            ->with(['category', 'variants.inventoryItem'])
-            ->where('status', 'active')
-            ->where('is_featured', true)
-            ->latest()
+        return $this->featuredProductsQuery()
             ->limit($limit)
             ->get();
+    }
+
+    public function heroProduct(): ?Product
+    {
+        if (! $this->catalogIsAvailable()) {
+            return null;
+        }
+
+        return (clone $this->featuredProductsQuery())
+            ->whereNotNull('primary_image_url')
+            ->first()
+            ?? $this->featuredProductsQuery()->first();
     }
 
     public function categories(int $perPage = 12): LengthAwarePaginator
@@ -113,5 +122,16 @@ class CatalogQueryService
     private function emptyPaginator(int $perPage): LengthAwarePaginator
     {
         return new Paginator([], 0, $perPage);
+    }
+
+    private function featuredProductsQuery(): Builder
+    {
+        return Product::query()
+            ->with(['category', 'variants.inventoryItem'])
+            ->where('status', 'active')
+            ->where('is_featured', true)
+            ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('featured_rank')
+            ->latest();
     }
 }

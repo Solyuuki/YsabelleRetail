@@ -3,6 +3,11 @@
 @inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
 
 @section('content')
+    @php
+        $imageUrl = $media->imageUrlFor($product);
+        $imageAlt = $media->altTextFor($product);
+    @endphp
+
     <section class="ys-container pb-18 pt-10 lg:pt-14">
         <div class="mb-8 flex items-center gap-3 text-xs text-ys-ivory/38">
             <a href="{{ route('storefront.home') }}" class="transition hover:text-ys-gold">Home</a>
@@ -14,7 +19,15 @@
 
         <div class="grid gap-10 lg:grid-cols-[1.02fr_0.98fr] xl:items-start">
             <div class="overflow-hidden rounded-[2rem] border border-white/7 bg-black shadow-[0_24px_90px_rgba(0,0,0,0.52)]" data-reveal>
-                <img src="{{ $media->pathFor($product, 'detail') }}" alt="{{ $product->name }}" class="aspect-[1/1] h-full w-full object-cover">
+                <x-storefront.product-media
+                    :image-url="$imageUrl"
+                    :alt="$imageAlt"
+                    :title="$product->name"
+                    :eyebrow="$product->category?->name ?? 'Collection'"
+                    loading="eager"
+                    fetchpriority="high"
+                    class="aspect-[1/1] h-full w-full"
+                />
             </div>
 
             <div class="max-w-xl" data-reveal>

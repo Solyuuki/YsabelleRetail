@@ -20,12 +20,16 @@ class Product extends Model
         'style_code',
         'short_description',
         'description',
+        'primary_image_url',
+        'image_alt',
+        'image_gallery',
         'base_price',
         'compare_at_price',
         'rating_average',
         'review_count',
         'status',
         'is_featured',
+        'featured_rank',
         'track_inventory',
     ];
 
@@ -36,6 +40,8 @@ class Product extends Model
             'compare_at_price' => 'decimal:2',
             'rating_average' => 'decimal:1',
             'is_featured' => 'boolean',
+            'image_gallery' => 'array',
+            'featured_rank' => 'integer',
             'track_inventory' => 'boolean',
         ];
     }

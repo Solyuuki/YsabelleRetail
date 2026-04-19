@@ -2,13 +2,19 @@ import { initChatWidget } from './modules/chat';
 import { initCheckoutOptions } from './modules/checkout';
 import { initStorefrontFilters } from './modules/filters';
 import { initHeaderMenus } from './modules/header';
+import { initProductMedia } from './modules/media';
+import { initTrustMarquees } from './modules/marquee';
 import { initRevealMotion } from './modules/motion';
 import { initProductDetailForm } from './modules/product-detail';
 import { initCartQuantityForms } from './modules/cart';
+import { initHeroShowcase } from './modules/hero-showcase';
 import { initToasts } from './modules/toasts';
 
 const initStorefront = () => {
     initHeaderMenus();
+    initHeroShowcase();
+    initProductMedia();
+    initTrustMarquees();
     initRevealMotion();
     initStorefrontFilters();
     initProductDetailForm();
