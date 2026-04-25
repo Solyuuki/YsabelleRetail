@@ -28,8 +28,9 @@ function seedShortcutRoles(): array
 test('guest users are redirected away from protected admin and customer areas', function () {
     $this->get(route('storefront.home'))
         ->assertOk()
-        ->assertSee('id="ys-role-shortcuts-config"', escape: false)
-        ->assertSee('"authenticated":false', escape: false);
+        ->assertSee('window.AppAuth =', escape: false)
+        ->assertSee('"isAuthenticated":false', escape: false)
+        ->assertSee('"adminLogin":"http://127.0.0.1:8000/login?intended=http%3A%2F%2F127.0.0.1%3A8000%2Fadmin"', escape: false);
 
     $this->get(route('storefront.account.index'))
         ->assertRedirect(route('login'));
@@ -50,9 +51,9 @@ test('authenticated customers can access customer pages but not admin pages', fu
     $this->actingAs($customer)
         ->get(route('storefront.home'))
         ->assertOk()
-        ->assertSee('"authenticated":true', escape: false)
-        ->assertSee('"customer":true', escape: false)
-        ->assertSee('"admin":false', escape: false);
+        ->assertSee('"isAuthenticated":true', escape: false)
+        ->assertSee('"isCustomer":true', escape: false)
+        ->assertSee('"isAdmin":false', escape: false);
 
     $this->actingAs($customer)
         ->get(route('storefront.account.index'))
@@ -72,9 +73,9 @@ test('admins can access admin pages but not customer-only pages without the cust
     $this->actingAs($admin)
         ->get(route('storefront.home'))
         ->assertOk()
-        ->assertSee('"authenticated":true', escape: false)
-        ->assertSee('"admin":true', escape: false)
-        ->assertSee('"customer":false', escape: false);
+        ->assertSee('"isAuthenticated":true', escape: false)
+        ->assertSee('"isAdmin":true', escape: false)
+        ->assertSee('"isCustomer":false', escape: false);
 
     $this->actingAs($admin)
         ->get(route('admin.dashboard'))
@@ -87,4 +88,42 @@ test('admins can access admin pages but not customer-only pages without the cust
     $this->actingAs($admin)
         ->get(route('storefront.checkout.create'))
         ->assertForbidden();
+});
+
+test('guest admin shortcut login intent redirects admins to the admin dashboard after login', function () {
+    [$adminRole] = seedShortcutRoles();
+
+    $admin = User::factory()->create([
+        'email' => 'admin.shortcut@example.com',
+        'password' => 'password',
+    ]);
+    $admin->roles()->attach($adminRole);
+
+    $this->get(route('login', ['intended' => route('admin.dashboard')]))
+        ->assertOk();
+
+    $this->post(route('login.store'), [
+        'email' => 'admin.shortcut@example.com',
+        'password' => 'password',
+    ])->assertRedirect(route('admin.dashboard'));
+});
+
+test('guest admin shortcut login intent does not grant admin access to non-admin users', function () {
+    [, $customerRole] = seedShortcutRoles();
+
+    $customer = User::factory()->create([
+        'email' => 'customer.shortcut@example.com',
+        'password' => 'password',
+    ]);
+    $customer->roles()->attach($customerRole);
+
+    $this->get(route('login', ['intended' => route('admin.dashboard')]))
+        ->assertOk();
+
+    $this->post(route('login.store'), [
+        'email' => 'customer.shortcut@example.com',
+        'password' => 'password',
+    ])
+        ->assertRedirect(route('storefront.account.index'))
+        ->assertSessionHas('toast', fn (array $toast) => ($toast['title'] ?? null) === 'Admin area unavailable');
 });

@@ -98,6 +98,10 @@
                 <a href="{{ route('storefront.cart.index') }}" class="ys-button-secondary text-[0.95rem]">Shopping bag ({{ $cartCount }})</a>
                 @auth
                     <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary text-[0.95rem]">My account</a>
+                    <form action="{{ route('logout') }}" method="POST" class="contents">
+                        @csrf
+                        <button type="submit" class="ys-button-primary text-[0.95rem]">Sign out</button>
+                    </form>
                 @else
                     <a href="{{ route('login') }}" class="ys-button-primary text-[0.95rem]">Sign in</a>
                 @endauth

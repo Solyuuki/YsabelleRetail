@@ -12,6 +12,10 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/register', [RegisterController::class, 'store'])->name('register.store');
 });
 
+Route::get('/logout', function () {
+    return redirect()->route('storefront.home');
+});
+
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', LogoutController::class)->name('logout');
 });

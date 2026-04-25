@@ -1,24 +1,31 @@
 @php
-    $shortcutConfig = [
+    $adminDashboard = route('admin.dashboard');
+    $customerDashboard = route('storefront.account.index');
+    $storefrontHome = route('storefront.home');
+    $loginRoute = route('login');
+    $adminLoginRoute = \Illuminate\Support\Facades\Route::has('admin.login')
+        ? route('admin.login')
+        : route('login', ['intended' => $adminDashboard]);
+
+    $appAuth = [
+        'isAuthenticated' => auth()->check(),
+        'isAdmin' => auth()->user()?->isAdmin() ?? false,
+        'isCustomer' => auth()->user()?->isCustomer() ?? false,
         'routes' => [
-            'guest' => route('storefront.home'),
-            'user' => route('storefront.account.index'),
-            'admin' => route('admin.dashboard'),
-            'login' => route('login'),
-        ],
-        'user' => [
-            'authenticated' => auth()->check(),
-            'admin' => auth()->user()?->isAdmin() ?? false,
-            'customer' => auth()->user()?->isCustomer() ?? false,
+            'adminDashboard' => $adminDashboard,
+            'adminLogin' => $adminLoginRoute,
+            'login' => $loginRoute,
+            'customerDashboard' => $customerDashboard,
+            'storefront' => $storefrontHome,
         ],
         'messages' => [
             'adminDenied' => 'Admin access requires an authorized admin account.',
-            'guestDenied' => 'Guest mode does not sign you out. Returning to your active area instead.',
+            'guestSignedIn' => 'You are currently signed in.',
             'userDenied' => 'Customer access requires a signed-in customer account.',
         ],
     ];
 @endphp
 
-<script id="ys-role-shortcuts-config" type="application/json">
-    {!! json_encode($shortcutConfig, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
+<script>
+    window.AppAuth = {!! json_encode($appAuth, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!};
 </script>

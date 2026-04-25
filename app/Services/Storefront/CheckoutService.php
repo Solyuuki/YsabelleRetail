@@ -22,12 +22,14 @@ class CheckoutService
         $subtotal = (float) $cart->items->sum(fn ($item): float => (float) $item->line_total);
         $shipping = $subtotal >= 5000 ? 0.0 : 350.0;
         $grandTotal = $subtotal + $shipping;
+        $paymentMethod = $payload['payment_method'];
+        $isSimulatedCard = $paymentMethod === 'card_simulated';
 
         $order = Order::query()->create([
             'user_id' => $user->id,
             'order_number' => $this->generateOrderNumber(),
             'status' => 'pending',
-            'payment_status' => 'pending',
+            'payment_status' => $isSimulatedCard ? 'paid' : 'unpaid',
             'fulfillment_status' => 'unfulfilled',
             'currency' => 'PHP',
             'subtotal_amount' => $subtotal,
@@ -43,7 +45,7 @@ class CheckoutService
             'shipping_city' => $payload['city'],
             'shipping_address_line' => $payload['address'],
             'shipping_postal_code' => $payload['postal_code'],
-            'payment_method' => $payload['payment_method'],
+            'payment_method' => $paymentMethod,
         ]);
 
         foreach ($cart->items as $item) {
@@ -69,13 +71,18 @@ class CheckoutService
         }
 
         $order->payments()->create([
-            'provider' => $payload['payment_method'] === 'card' ? 'card-simulated' : 'cash-on-delivery',
-            'provider_reference' => Str::upper(Str::random(12)),
-            'status' => 'pending',
+            'provider' => $isSimulatedCard ? 'card-simulated' : 'cash-on-delivery',
+            'provider_reference' => $isSimulatedCard ? Str::upper(Str::random(12)) : null,
+            'status' => $isSimulatedCard ? 'succeeded' : 'pending',
             'amount' => $grandTotal,
             'currency' => 'PHP',
+            'paid_at' => $isSimulatedCard ? now() : null,
             'metadata' => [
-                'method' => $payload['payment_method'],
+                'method' => $paymentMethod,
+                'flow' => $isSimulatedCard ? 'simulated-card' : 'offline-manual',
+                'card_last4' => $isSimulatedCard ? substr((string) ($payload['card_number'] ?? ''), -4) : null,
+                'cardholder_name' => $isSimulatedCard ? $payload['cardholder_name'] : null,
+                'simulated' => $isSimulatedCard,
             ],
         ]);
 

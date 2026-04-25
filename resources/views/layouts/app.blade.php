@@ -37,6 +37,10 @@
                         <a href="{{ route('login') }}" class="rounded-full border border-white/10 px-4 py-2 transition hover:border-amber-300/50 hover:text-white">Auth</a>
                     @elseif (auth()->user()?->isAdmin())
                         <a href="{{ route('admin.dashboard') }}" class="rounded-full border border-amber-300/30 px-4 py-2 text-amber-200 transition hover:border-amber-200 hover:text-white">Admin</a>
+                        <form action="{{ route('logout') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="rounded-full border border-white/10 px-4 py-2 transition hover:border-amber-300/50 hover:text-white">Sign out</button>
+                        </form>
                     @endguest
                 </nav>
             </div>

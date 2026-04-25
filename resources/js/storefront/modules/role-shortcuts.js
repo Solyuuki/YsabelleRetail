@@ -9,21 +9,15 @@ const isTypingContext = (target) => {
         return true;
     }
 
-    return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+    return Boolean(target.closest('input, textarea, select, button, [contenteditable="true"]'));
 };
 
-const readShortcutConfig = () => {
-    const node = document.getElementById('ys-role-shortcuts-config');
-
-    if (!node?.textContent) {
+const readAppAuth = () => {
+    if (typeof window.AppAuth !== 'object' || window.AppAuth === null) {
         return null;
     }
 
-    try {
-        return JSON.parse(node.textContent);
-    } catch {
-        return null;
-    }
+    return window.AppAuth;
 };
 
 const redirectTo = (url) => {
@@ -33,16 +27,16 @@ const redirectTo = (url) => {
 };
 
 export const initRoleShortcuts = () => {
-    const config = readShortcutConfig();
+    const config = readAppAuth();
 
     if (!config) {
         return;
     }
 
-    const { routes = {}, user = {}, messages = {} } = config;
-    const isAuthenticated = Boolean(user.authenticated);
-    const isAdmin = Boolean(user.admin);
-    const isCustomer = Boolean(user.customer);
+    const { routes = {}, messages = {} } = config;
+    const isAuthenticated = Boolean(config.isAuthenticated);
+    const isAdmin = Boolean(config.isAdmin);
+    const isCustomer = Boolean(config.isCustomer);
 
     document.addEventListener('keydown', (event) => {
         if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.repeat) {
@@ -63,12 +57,12 @@ export const initRoleShortcuts = () => {
 
         if (key === 'a') {
             if (isAdmin) {
-                redirectTo(routes.admin);
+                redirectTo(routes.adminDashboard);
                 return;
             }
 
             if (!isAuthenticated) {
-                redirectTo(routes.admin);
+                redirectTo(routes.adminLogin || routes.login);
                 return;
             }
 
@@ -82,36 +76,37 @@ export const initRoleShortcuts = () => {
 
         if (key === 'g') {
             if (!isAuthenticated) {
-                redirectTo(routes.guest);
-                return;
-            }
-
-            if (isAdmin) {
-                showToast({
-                    type: 'error',
-                    title: 'Guest shortcut blocked',
-                    message: messages.guestDenied ?? 'Guest mode does not sign you out. Returning to your active area instead.',
-                });
-                redirectTo(routes.admin);
+                redirectTo(routes.storefront);
                 return;
             }
 
             showToast({
                 type: 'error',
                 title: 'Guest shortcut blocked',
-                message: messages.guestDenied ?? 'Guest mode does not sign you out. Returning to your active area instead.',
+                message: messages.guestSignedIn ?? 'You are currently signed in.',
             });
-            redirectTo(routes.user);
+
+            if (isAdmin) {
+                redirectTo(routes.adminDashboard);
+                return;
+            }
+
+            if (isCustomer) {
+                redirectTo(routes.customerDashboard);
+                return;
+            }
+
+            redirectTo(routes.storefront);
             return;
         }
 
         if (isCustomer) {
-            redirectTo(routes.user);
+            redirectTo(routes.customerDashboard);
             return;
         }
 
         if (!isAuthenticated) {
-            redirectTo(routes.user);
+            redirectTo(routes.login);
             return;
         }
 
@@ -120,6 +115,6 @@ export const initRoleShortcuts = () => {
             title: 'Customer area unavailable',
             message: messages.userDenied ?? 'Customer access requires a signed-in customer account.',
         });
-        redirectTo(isAdmin ? routes.admin : routes.guest);
+        redirectTo(isAdmin ? routes.adminDashboard : routes.storefront);
     });
 };

@@ -3,13 +3,29 @@
 @inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
 
 @section('content')
+    @php
+        $selectedPaymentMethod = old('payment_method', 'cod');
+        $usesSimulatedCard = $selectedPaymentMethod === 'card_simulated';
+    @endphp
+
     <section class="ys-container pb-18 pt-10 lg:pt-14">
         <div class="grid gap-10 lg:grid-cols-[1.08fr_0.52fr] xl:gap-14">
             <div data-reveal>
                 <h1 class="font-serif text-5xl text-ys-ivory">Checkout</h1>
 
-                <form action="{{ route('storefront.checkout.store') }}" method="POST" id="checkout-form" class="mt-10 space-y-10">
+                <form action="{{ route('storefront.checkout.store') }}" method="POST" id="checkout-form" class="mt-10 space-y-10" data-checkout-form>
                     @csrf
+                    @if ($errors->any())
+                        <div class="rounded-[1.4rem] border border-[#7c2727] bg-[#361010] px-5 py-4 text-sm text-[#ffd8d8]">
+                            <p class="font-semibold">Checkout needs a quick fix before we can place the order.</p>
+                            <ul class="mt-2 space-y-1 text-[#ffdddd]/85">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <div>
                         <h2 class="font-serif text-3xl text-ys-ivory">Shipping details</h2>
                         <div class="mt-6 grid gap-5 md:grid-cols-2">
@@ -47,17 +63,106 @@
                     <div>
                         <h2 class="font-serif text-3xl text-ys-ivory">Payment method</h2>
                         <div class="mt-6 grid gap-4 md:grid-cols-2" data-payment-options>
-                            <label class="ys-payment-option {{ old('payment_method', 'cod') === 'cod' ? 'ys-payment-option-active' : '' }}">
-                                <input type="radio" name="payment_method" value="cod" class="sr-only" @checked(old('payment_method', 'cod') === 'cod')>
+                            <label class="ys-payment-option {{ $selectedPaymentMethod === 'cod' ? 'ys-payment-option-active' : '' }}">
+                                <input
+                                    type="radio"
+                                    name="payment_method"
+                                    value="cod"
+                                    class="sr-only"
+                                    data-payment-method-option
+                                    @checked($selectedPaymentMethod === 'cod')
+                                >
                                 <span class="block text-sm font-semibold text-ys-ivory">Cash on Delivery</span>
                                 <span class="mt-1 block text-xs text-ys-ivory/45">Pay when you receive</span>
                             </label>
 
-                            <label class="ys-payment-option {{ old('payment_method') === 'card' ? 'ys-payment-option-active' : '' }}">
-                                <input type="radio" name="payment_method" value="card" class="sr-only" @checked(old('payment_method') === 'card')>
+                            <label class="ys-payment-option {{ $usesSimulatedCard ? 'ys-payment-option-active' : '' }}">
+                                <input
+                                    type="radio"
+                                    name="payment_method"
+                                    value="card_simulated"
+                                    class="sr-only"
+                                    data-payment-method-option
+                                    @checked($usesSimulatedCard)
+                                >
                                 <span class="block text-sm font-semibold text-ys-ivory">Card (simulated)</span>
                                 <span class="mt-1 block text-xs text-ys-ivory/45">No real charge</span>
                             </label>
+                        </div>
+
+                        <div
+                            class="mt-6 rounded-[1.6rem] border border-white/8 bg-black/25 p-5 {{ $usesSimulatedCard ? '' : 'hidden' }}"
+                            data-card-payment-section
+                            @if (! $usesSimulatedCard) hidden @endif
+                        >
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h3 class="font-serif text-2xl text-ys-ivory">Simulated card details</h3>
+                                    <p class="mt-2 max-w-xl text-sm leading-7 text-ys-ivory/55">
+                                        Use test details only. This flow marks the payment as successful without making a real charge.
+                                    </p>
+                                </div>
+                                <div class="rounded-2xl border border-ys-gold/20 bg-ys-gold/8 px-4 py-3 text-xs uppercase tracking-[0.24em] text-ys-gold/80">
+                                    Test mode only
+                                </div>
+                            </div>
+
+                            <div class="mt-5 grid gap-5 md:grid-cols-2">
+                                <label class="ys-field md:col-span-2">
+                                    <span>Cardholder name</span>
+                                    <input
+                                        type="text"
+                                        name="cardholder_name"
+                                        class="ys-input"
+                                        value="{{ old('cardholder_name', $user->name) }}"
+                                        placeholder="Ysabelle Test Card"
+                                        autocomplete="cc-name"
+                                    >
+                                </label>
+
+                                <label class="ys-field md:col-span-2">
+                                    <span>Card number</span>
+                                    <input
+                                        type="text"
+                                        name="card_number"
+                                        class="ys-input"
+                                        value="{{ old('card_number') }}"
+                                        placeholder="4242 4242 4242 4242"
+                                        inputmode="numeric"
+                                        autocomplete="cc-number"
+                                    >
+                                </label>
+
+                                <label class="ys-field">
+                                    <span>Expiry</span>
+                                    <input
+                                        type="text"
+                                        name="card_expiry"
+                                        class="ys-input"
+                                        value="{{ old('card_expiry') }}"
+                                        placeholder="12/30"
+                                        inputmode="numeric"
+                                        autocomplete="cc-exp"
+                                    >
+                                </label>
+
+                                <label class="ys-field">
+                                    <span>Security code</span>
+                                    <input
+                                        type="text"
+                                        name="card_cvc"
+                                        class="ys-input"
+                                        value="{{ old('card_cvc') }}"
+                                        placeholder="123"
+                                        inputmode="numeric"
+                                        autocomplete="cc-csc"
+                                    >
+                                </label>
+                            </div>
+
+                            <div class="mt-5 rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-ys-ivory/52">
+                                Recommended test card: <span class="font-semibold text-ys-ivory">4242 4242 4242 4242</span>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -102,8 +207,16 @@
                         </div>
                     </div>
 
-                    <button type="submit" form="checkout-form" class="ys-button-primary mt-8 w-full justify-center">
-                        Place order &middot; &#8369;{{ number_format($summary['total'], 0) }}
+                    <button
+                        type="submit"
+                        form="checkout-form"
+                        class="ys-button-primary mt-8 w-full justify-center"
+                        data-checkout-submit
+                        data-default-label="Place order"
+                        data-card-label="Pay Now"
+                        data-total-label="&#8369;{{ number_format($summary['total'], 0) }}"
+                    >
+                        {{ $usesSimulatedCard ? 'Pay Now' : 'Place order' }} &middot; &#8369;{{ number_format($summary['total'], 0) }}
                     </button>
                 </div>
             </aside>
