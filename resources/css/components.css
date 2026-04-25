@@ -514,6 +514,35 @@
         color: rgba(215, 173, 72, 0.84);
     }
 
+    .ys-featured-empty-state {
+        @apply col-span-full flex min-h-[20rem] flex-col justify-center border border-dashed border-white/10 px-6 py-8 text-center;
+        border-radius: 0.2rem;
+        background:
+            radial-gradient(circle at top, rgba(212, 166, 59, 0.1), rgba(212, 166, 59, 0) 38%),
+            linear-gradient(180deg, rgba(12, 12, 14, 0.96), rgba(16, 16, 18, 0.98));
+    }
+
+    .ys-featured-empty-state-eyebrow {
+        @apply text-[0.64rem] font-semibold uppercase tracking-[0.34em] text-ys-gold/74;
+    }
+
+    .ys-featured-empty-state-title {
+        @apply mt-4 text-[1.6rem] font-semibold text-ys-ivory;
+        letter-spacing: -0.02em;
+    }
+
+    .ys-featured-empty-state-copy {
+        @apply mx-auto mt-3 max-w-[34rem] text-[0.94rem] leading-7 text-ys-ivory/54;
+    }
+
+    .ys-featured-empty-state-action {
+        @apply mt-6 inline-flex self-center rounded-full border border-ys-gold/30 px-5 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-ys-gold transition duration-300;
+    }
+
+    .ys-featured-empty-state-action:hover {
+        @apply border-ys-gold/55 bg-ys-gold/10 text-ys-ivory;
+    }
+
     .ys-featured-banner {
         @apply mt-7 overflow-hidden border border-white/[0.055];
         border-radius: 0.2rem;

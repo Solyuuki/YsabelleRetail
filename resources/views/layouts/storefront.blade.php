@@ -16,17 +16,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $title ?? 'Ysabelle Retail' }}</title>
         <meta name="description" content="{{ $description ?? 'Premium footwear crafted for movement, legacy, and refined performance.' }}">
-        <meta name="theme-color" content="#060606">
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link rel="icon" type="image/png" sizes="32x32" href="{{ $versionedPublicAsset('favicon-32x32.png') }}">
-        <link rel="icon" type="image/png" sizes="16x16" href="{{ $versionedPublicAsset('favicon-16x16.png') }}">
-        <link rel="icon" type="image/png" sizes="48x48" href="{{ $versionedPublicAsset('favicon-48x48.png') }}">
-        <link rel="apple-touch-icon" href="{{ $versionedPublicAsset('apple-touch-icon.png') }}">
-        <link rel="shortcut icon" href="{{ $versionedPublicAsset('favicon.ico') }}">
+        @include('partials.icon-head')
         <link href="https://fonts.bunny.net/css?family=cormorant-garamond:500,600,700|instrument-sans:400,500,600,700" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="bg-ys-ink text-ys-ivory selection:bg-ys-gold/20 selection:text-ys-ivory">
+        @include('partials.role-shortcuts-config')
         <div class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,_rgba(193,145,52,0.12),_transparent_26%),radial-gradient(circle_at_top_left,_rgba(115,85,20,0.1),_transparent_22%),linear-gradient(180deg,_rgba(14,14,15,1),_rgba(8,8,9,1))]"></div>
 
         <x-storefront.header

@@ -58,7 +58,16 @@ class CatalogQueryService
             ->limit($limit - $featured->count())
             ->get();
 
-        return $featured->concat($fallback)->values();
+        $showcase = $featured->concat($fallback)->values();
+
+        if ($heroProduct && ! $showcase->contains(fn (Product $product) => $product->is($heroProduct))) {
+            $showcase->push($heroProduct);
+        }
+
+        return $showcase
+            ->unique(fn (Product $product) => $product->getKey())
+            ->take($limit)
+            ->values();
     }
 
     public function heroProduct(): ?Product

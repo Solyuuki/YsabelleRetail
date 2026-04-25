@@ -25,6 +25,7 @@ class ProductController extends Controller
 
         return view('storefront.catalog.products.show', [
             'product' => $product,
+            'storefrontTrustMarks' => $this->storefrontTrustMarks(),
             'relatedProducts' => Product::query()
                 ->with(['category', 'variants.inventoryItem'])
                 ->where('id', '!=', $product->id)
@@ -32,5 +33,23 @@ class ProductController extends Controller
                 ->limit(4)
                 ->get(),
         ]);
+    }
+
+    private function storefrontTrustMarks(): array
+    {
+        return config('storefront.trust_marks') ?: [
+            [
+                'label' => 'Secure Checkout',
+                'description' => 'Protected payments and safe transactions.',
+            ],
+            [
+                'label' => 'Premium Quality',
+                'description' => 'Carefully selected footwear for everyday performance.',
+            ],
+            [
+                'label' => 'Fast Delivery',
+                'description' => 'Reliable shipping for every confirmed order.',
+            ],
+        ];
     }
 }

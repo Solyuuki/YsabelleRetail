@@ -36,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(Order::class, OrderPolicy::class);
 
-        View::composer('layouts.storefront', StorefrontLayoutComposer::class);
+        View::composer([
+            'layouts.storefront',
+            'storefront.*',
+            'auth.*',
+        ], StorefrontLayoutComposer::class);
     }
 }

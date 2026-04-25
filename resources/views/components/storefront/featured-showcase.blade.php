@@ -23,7 +23,7 @@
         </div>
 
         <div class="ys-featured-showcase-grid">
-            @foreach ($items as $index => $product)
+            @forelse ($items as $index => $product)
                 @php
                     $imageUrl = $media->imageUrlFor($product);
                     $imageAlt = $media->altTextFor($product);
@@ -85,7 +85,18 @@
                         </div>
                     </a>
                 </article>
-            @endforeach
+            @empty
+                <div class="ys-featured-empty-state" data-reveal>
+                    <p class="ys-featured-empty-state-eyebrow">Catalog pending</p>
+                    <h3 class="ys-featured-empty-state-title">No featured products available yet.</h3>
+                    <p class="ys-featured-empty-state-copy">
+                        We are curating the next drop for this collection. Explore the catalog and check back soon for featured releases.
+                    </p>
+                    <a href="{{ route('storefront.shop') }}" class="ys-featured-empty-state-action">
+                        Browse the catalog
+                    </a>
+                </div>
+            @endforelse
         </div>
 
         <div class="ys-featured-banner" data-reveal data-reveal-delay="{{ $bannerDelay }}">

@@ -26,9 +26,27 @@ class StorefrontLayoutComposer
         $view->with([
             'storefrontNavigation' => config('storefront.navigation', []),
             'storefrontFooter' => config('storefront.footer', []),
-            'storefrontTrustMarks' => config('storefront.trust_marks', []),
+            'storefrontTrustMarks' => config('storefront.trust_marks') ?: $this->defaultTrustMarks(),
             'storefrontCategories' => $categories,
             'storefrontCartCount' => $this->cartService->itemCount(),
         ]);
+    }
+
+    private function defaultTrustMarks(): array
+    {
+        return [
+            [
+                'label' => 'Secure Checkout',
+                'description' => 'Protected payments and safe transactions.',
+            ],
+            [
+                'label' => 'Premium Quality',
+                'description' => 'Carefully selected footwear for everyday performance.',
+            ],
+            [
+                'label' => 'Fast Delivery',
+                'description' => 'Reliable shipping for every confirmed order.',
+            ],
+        ];
     }
 }

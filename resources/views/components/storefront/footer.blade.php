@@ -6,7 +6,7 @@
     <div class="ys-container py-18 lg:py-20">
         <div class="grid gap-14 lg:grid-cols-[1.1fr_0.45fr_0.45fr]">
             <div class="max-w-lg">
-                <x-storefront.brand-logo class="block h-11 w-auto" />
+                <x-storefront.brand-logo class="block w-[10rem] sm:w-[10.75rem] lg:w-[11.5rem]" />
                 <p class="mt-3 text-[0.78rem] uppercase tracking-[0.34em] text-ys-ivory/40">Retail Store &middot; Step Into Style</p>
                 <p class="mt-6 text-[1rem] leading-8 text-ys-ivory/58">
                     Premium footwear crafted for those who move with intention. Every pair, a statement of refined performance.

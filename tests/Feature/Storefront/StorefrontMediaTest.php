@@ -98,3 +98,35 @@ test('the featured showcase renders four cards even when the hero comes from the
 
     expect(substr_count($response->getContent(), 'class="ys-featured-card group"'))->toBe(4);
 });
+
+test('the featured showcase falls back to the hero product when it is the only active product', function () {
+    $category = Category::factory()->create([
+        'name' => 'Running',
+        'slug' => 'running',
+        'is_active' => true,
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Aurum Runner',
+        'slug' => 'aurum-runner',
+        'is_featured' => true,
+        'featured_rank' => 1,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/aurum-runner.jpg',
+        'image_alt' => 'Aurum Runner sneaker image',
+    ]);
+
+    $response = $this->get(route('storefront.home'))
+        ->assertOk()
+        ->assertSee('https://cdn.ysabelle.test/catalog/aurum-runner.jpg', escape: false)
+        ->assertSeeText('Aurum Runner');
+
+    expect(substr_count($response->getContent(), 'class="ys-featured-card group"'))->toBe(1);
+});
+
+test('the featured showcase renders a premium empty state when there are no products', function () {
+    $this->get(route('storefront.home'))
+        ->assertOk()
+        ->assertSeeText('No featured products available yet.')
+        ->assertSeeText('Browse the catalog')
+        ->assertDontSee('class="ys-featured-card group"', escape: false);
+});
