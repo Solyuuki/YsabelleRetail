@@ -8,10 +8,9 @@
 @endphp
 
 <header class="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-ys-ink/88 backdrop-blur-xl">
-    <div class="ys-container flex h-22 items-center justify-between gap-7">
-        <a href="{{ route('storefront.home') }}" class="flex shrink-0 items-center gap-2.5 text-[0.94rem] tracking-[0.34em] text-ys-ivory/80 transition hover:text-ys-gold">
-            <span class="font-serif text-[2.1rem] tracking-normal text-ys-gold">Ysabelle</span>
-            <span class="hidden text-[0.7rem] uppercase sm:block">Retail</span>
+    <div class="ys-container flex h-[5.9rem] items-center justify-between gap-7 md:h-[6.3rem] lg:h-[6.75rem]">
+        <a href="{{ route('storefront.home') }}" class="flex shrink-0 items-center overflow-visible py-1.5 transition opacity-95 hover:opacity-100">
+            <x-storefront.brand-logo class="block w-[10.25rem] sm:w-[11rem] md:w-[11.75rem] lg:w-[12.75rem]" />
         </a>
 
         <button
@@ -99,6 +98,10 @@
                 <a href="{{ route('storefront.cart.index') }}" class="ys-button-secondary text-[0.95rem]">Shopping bag ({{ $cartCount }})</a>
                 @auth
                     <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary text-[0.95rem]">My account</a>
+                    <form action="{{ route('logout') }}" method="POST" class="contents">
+                        @csrf
+                        <button type="submit" class="ys-button-primary text-[0.95rem]">Sign out</button>
+                    </form>
                 @else
                     <a href="{{ route('login') }}" class="ys-button-primary text-[0.95rem]">Sign in</a>
                 @endauth

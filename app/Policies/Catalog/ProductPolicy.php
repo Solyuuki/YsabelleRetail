@@ -26,4 +26,9 @@ class ProductPolicy
     {
         return $user->isAdmin();
     }
+
+    public function delete(User $user, Product $product): bool
+    {
+        return $user->isAdmin();
+    }
 }

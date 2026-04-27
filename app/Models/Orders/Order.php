@@ -2,6 +2,9 @@
 
 namespace App\Models\Orders;
 
+use App\Models\Inventory\StockMovement;
+use App\Models\Payments\Payment;
+use App\Models\Shipping\Shipment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +17,8 @@ class Order extends Model
 
     protected $fillable = [
         'user_id',
+        'source',
+        'handled_by_user_id',
         'order_number',
         'status',
         'payment_status',
@@ -33,6 +38,7 @@ class Order extends Model
         'shipping_address_line',
         'shipping_postal_code',
         'payment_method',
+        'metadata',
     ];
 
     protected function casts(): array
@@ -44,12 +50,18 @@ class Order extends Model
             'tax_amount' => 'decimal:2',
             'grand_total' => 'decimal:2',
             'placed_at' => 'datetime',
+            'metadata' => 'array',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function handledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'handled_by_user_id');
     }
 
     public function items(): HasMany
@@ -59,11 +71,16 @@ class Order extends Model
 
     public function payments(): HasMany
     {
-        return $this->hasMany(\App\Models\Payments\Payment::class);
+        return $this->hasMany(Payment::class);
     }
 
     public function shipments(): HasMany
     {
-        return $this->hasMany(\App\Models\Shipping\Shipment::class);
+        return $this->hasMany(Shipment::class);
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
     }
 }

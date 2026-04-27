@@ -2,9 +2,11 @@
 
 namespace App\Models\Inventory;
 
+use App\Models\Catalog\ProductVariant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InventoryItem extends Model
 {
@@ -27,7 +29,12 @@ class InventoryItem extends Model
 
     public function variant(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Catalog\ProductVariant::class, 'product_variant_id');
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
     }
 
     public function getAvailableQuantityAttribute(): int

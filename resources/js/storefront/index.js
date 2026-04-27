@@ -6,6 +6,7 @@ import { initProductMedia } from './modules/media';
 import { initTrustMarquees } from './modules/marquee';
 import { initRevealMotion } from './modules/motion';
 import { initProductDetailForm } from './modules/product-detail';
+import { initRoleShortcuts } from './modules/role-shortcuts';
 import { initCartQuantityForms } from './modules/cart';
 import { initHeroShowcase } from './modules/hero-showcase';
 import { initToasts } from './modules/toasts';
@@ -21,6 +22,7 @@ const initStorefront = () => {
     initCartQuantityForms();
     initCheckoutOptions();
     initToasts();
+    initRoleShortcuts();
     initChatWidget();
 };
 

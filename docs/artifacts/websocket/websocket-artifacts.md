@@ -1,68 +1,88 @@
 # WebSocket Artifacts
 
-## Domain
-Realtime events, broadcast channels, subscriptions, visibility boundaries, and delivery behavior
+## Final Approach
 
-## Artifact Inventory
+Ysabelle Retail currently uses a Laravel-native realtime demo stack built from:
 
-### 1. Channel Map
-- Purpose:
-  list every realtime channel, its audience, and its authorization boundary
-- Owner:
-  platform integration owner
-- Format:
-  channel registry
-- Related sprint:
-  Sprint 4
-- Related modules:
-  WebSocket, Orders, Support, Notifications
-- Completion criteria:
-  every channel has an owner, audience, and privacy classification
+- domain events:
+  `OrderPlaced`, `InventoryStockChanged`
+- listeners:
+  `RecordOrderActivity`, `RecordInventoryActivity`
+- persistence:
+  `audit_logs` table as the admin activity stream
+- delivery:
+  admin-side polling fallback through `GET /admin/realtime/feed`
 
-### 2. Event Payload Catalog
-- Purpose:
-  define event names and payload shape expectations for customer, admin, and support flows
-- Owner:
-  platform integration owner
-- Format:
-  payload catalog
-- Related sprint:
-  Sprint 4
-- Related modules:
-  WebSocket, Orders, Support
-- Completion criteria:
-  payloads are minimal, purpose-driven, and non-sensitive
+This release does not require Reverb, Pusher, or any paid websocket service. Persistent commerce data remains the source of truth, and live updates are additive.
 
-### 3. Authorization Boundary Artifact
-- Purpose:
-  define private and presence channel access rules
-- Owner:
-  security reviewer
-- Format:
-  authorization policy
-- Related sprint:
-  Sprint 4 and Sprint 6
-- Related modules:
-  WebSocket, Accounts, Orders, Support
-- Completion criteria:
-  no realtime access path is ambiguous or permissive by accident
+## Channel Map
 
-### 4. Delivery Failure Behavior Guide
-- Purpose:
-  define what the UI and system should do when realtime delivery is delayed or unavailable
-- Owner:
-  platform integration owner
-- Format:
-  fallback behavior guide
-- Related sprint:
-  Sprint 4
-- Related modules:
-  WebSocket, Orders, Support, Notifications
-- Completion criteria:
-  persistent data remains the source of truth and UI fallbacks are documented
+### Admin Activity Feed
 
-## Acceptance Notes
-WebSocket artifacts are complete only when:
-- realtime behavior is additive, not authoritative
-- privacy boundaries are documented
-- fallback rules are explicit
+- Delivery route:
+  `/admin/realtime/feed`
+- Audience:
+  authenticated admins only
+- Protection:
+  `auth` + `admin` middleware
+- Visibility:
+  private admin-only operational activity
+- Returned data:
+  notification toasts and the latest admin activity feed entries
+
+## Event Payload Catalog
+
+### `commerce.online_order.placed`
+
+- Trigger:
+  successful online checkout commit
+- Payload:
+  `order_number`, `customer_name`, `grand_total`, `payment_method`, `payment_status`
+- Sensitivity:
+  internal admin notification only
+
+### `commerce.walk_in_sale.completed`
+
+- Trigger:
+  successful walk-in POS completion
+- Payload:
+  `order_number`, `customer_name`, `grand_total`, `payment_method`, `payment_status`
+- Sensitivity:
+  internal admin notification only
+
+### `inventory.stock_changed`
+
+- Trigger:
+  any stock movement committed through online sale, walk-in sale, manual stock, product-form adjustment, or batch import
+- Payload:
+  `movement_type`, `quantity_delta`, `sku`, `product_name`, `variant_name`, `current_quantity`, `reorder_level`, `stock_status`, `reference_number`
+- Sensitivity:
+  internal admin notification only
+
+## Authorization Boundary
+
+- Guests:
+  blocked
+- Customers:
+  blocked
+- Admins:
+  allowed
+- Public storefront:
+  no realtime inventory internals exposed
+
+## Delivery Failure Behavior
+
+- Polling interval:
+  10 seconds
+- If polling fails:
+  the admin UI keeps working normally and retries on the next interval
+- Source of truth:
+  dashboard, orders, inventory, and reports still read from the database
+- User experience:
+  the live status badge changes to a retry state instead of breaking the page
+
+## Local Commands
+
+- `php artisan serve`
+- `npm run dev`
+- `composer check`

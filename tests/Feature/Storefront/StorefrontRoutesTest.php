@@ -3,7 +3,7 @@
 test('the storefront home page loads successfully', function () {
     $this->get(route('storefront.home'))
         ->assertOk()
-        ->assertSeeText('Premium footwear engineered for movement and crafted for legacy.');
+        ->assertSeeText('Nike Shoe V2');
 });
 
 test('guest users are redirected to login for admin routes', function () {

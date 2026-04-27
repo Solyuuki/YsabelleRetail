@@ -15,8 +15,7 @@ class CartService
     public function __construct(
         private readonly Request $request,
         private readonly AuthFactory $auth,
-    ) {
-    }
+    ) {}
 
     public function currentCart(): Cart
     {

@@ -3,7 +3,7 @@
 @section('content')
     <section class="ys-container flex min-h-[calc(100vh-20rem)] items-center justify-center pb-18 pt-10 lg:pt-14">
         <div class="w-full max-w-md rounded-[1.9rem] border border-white/7 bg-ys-panel/90 p-8 shadow-[0_20px_80px_rgba(0,0,0,0.5)]" data-reveal>
-            <p class="text-center font-serif text-4xl text-ys-gold">Ysabelle</p>
+            <x-storefront.brand-logo class="mx-auto block w-[10rem]" />
             <h1 class="mt-5 text-center font-serif text-4xl text-ys-ivory">Welcome back</h1>
             <p class="mt-3 text-center text-sm text-ys-ivory/48">Sign in to access your bag and orders.</p>
 

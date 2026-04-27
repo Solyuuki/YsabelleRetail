@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Storefront\Cart\CartController;
 use App\Http\Controllers\Storefront\AccountController;
+use App\Http\Controllers\Storefront\Cart\CartController;
 use App\Http\Controllers\Storefront\Catalog\CategoryController;
 use App\Http\Controllers\Storefront\Catalog\ProductController;
 use App\Http\Controllers\Storefront\CheckoutController;
@@ -29,8 +29,8 @@ Route::prefix('cart')
         Route::delete('/items/{item}', [CartController::class, 'destroy'])->name('items.destroy');
     });
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', 'customer'])->group(function (): void {
     Route::get('/checkout', [CheckoutController::class, 'create'])->name('storefront.checkout.create');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('storefront.checkout.store');
     Route::get('/account', AccountController::class)->name('storefront.account.index');
-    });
+});

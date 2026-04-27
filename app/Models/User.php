@@ -4,11 +4,15 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Access\Role;
+use App\Models\Audit\AuditLog;
+use App\Models\Cart\Cart;
+use App\Models\Inventory\StockMovement;
+use App\Models\Orders\Order;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -64,17 +68,27 @@ class User extends Authenticatable
 
     public function carts(): HasMany
     {
-        return $this->hasMany(\App\Models\Cart\Cart::class);
+        return $this->hasMany(Cart::class);
     }
 
     public function orders(): HasMany
     {
-        return $this->hasMany(\App\Models\Orders\Order::class);
+        return $this->hasMany(Order::class);
+    }
+
+    public function handledOrders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'handled_by_user_id');
     }
 
     public function auditLogs(): HasMany
     {
-        return $this->hasMany(\App\Models\Audit\AuditLog::class, 'actor_id');
+        return $this->hasMany(AuditLog::class, 'actor_id');
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class, 'actor_id');
     }
 
     public function hasRole(string ...$slugs): bool
@@ -87,5 +101,15 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->hasRole('admin', 'super-admin');
+    }
+
+    public function isCustomer(): bool
+    {
+        return $this->hasRole('customer');
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
     }
 }

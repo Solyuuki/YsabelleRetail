@@ -6,6 +6,23 @@
     @php
         $imageUrl = $media->imageUrlFor($product);
         $imageAlt = $media->altTextFor($product);
+        $trustMarks = collect(($storefrontTrustMarks ?? config('storefront.trust_marks')) ?: [
+            [
+                'label' => 'Secure Checkout',
+                'description' => 'Protected payments and safe transactions.',
+            ],
+            [
+                'label' => 'Premium Quality',
+                'description' => 'Carefully selected footwear for everyday performance.',
+            ],
+            [
+                'label' => 'Fast Delivery',
+                'description' => 'Reliable shipping for every confirmed order.',
+            ],
+        ])
+            ->filter(fn ($mark) => filled(data_get($mark, 'label')) || filled(data_get($mark, 'description')))
+            ->values();
+        $productRelatedItems = collect($relatedProducts ?? []);
     @endphp
 
     <section class="ys-container pb-18 pt-10 lg:pt-14">
@@ -95,10 +112,10 @@
                 </form>
 
                 <div class="mt-8 grid gap-4 border-t border-white/7 pt-7 sm:grid-cols-3">
-                    @foreach ($storefrontTrustMarks as $mark)
+                    @foreach ($trustMarks as $mark)
                         <div class="text-sm">
-                            <p class="font-semibold text-ys-ivory">{{ $mark['label'] }}</p>
-                            <p class="mt-1 text-xs text-ys-ivory/45">{{ $mark['description'] }}</p>
+                            <p class="font-semibold text-ys-ivory">{{ data_get($mark, 'label', 'Store Promise') }}</p>
+                            <p class="mt-1 text-xs text-ys-ivory/45">{{ data_get($mark, 'description', 'Premium service at every step.') }}</p>
                         </div>
                     @endforeach
                 </div>
@@ -116,7 +133,7 @@
         </div>
 
         <div class="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            @foreach ($relatedProducts as $relatedProduct)
+            @foreach ($productRelatedItems as $relatedProduct)
                 <x-storefront.product-card :product="$relatedProduct" />
             @endforeach
         </div>

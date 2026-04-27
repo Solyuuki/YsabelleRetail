@@ -2,6 +2,7 @@
 
 namespace App\Models\Cart;
 
+use App\Models\Catalog\ProductVariant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,6 +36,6 @@ class CartItem extends Model
 
     public function variant(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Catalog\ProductVariant::class, 'product_variant_id');
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 }

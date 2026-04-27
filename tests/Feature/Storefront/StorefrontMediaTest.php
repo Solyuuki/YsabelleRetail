@@ -42,3 +42,91 @@ test('the storefront hero renders the isolated Polycam shoe capture and matching
         ->assertSeeText('55,389')
         ->assertSeeText('Published');
 });
+
+test('the featured showcase renders four cards even when the hero comes from the featured pool', function () {
+    $category = Category::factory()->create([
+        'name' => 'Running',
+        'slug' => 'running',
+        'is_active' => true,
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Aurum Runner',
+        'slug' => 'aurum-runner',
+        'is_featured' => true,
+        'featured_rank' => 1,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/aurum-runner.jpg',
+        'image_alt' => 'Aurum Runner sneaker image',
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Shadow Stride',
+        'slug' => 'shadow-stride',
+        'is_featured' => true,
+        'featured_rank' => 2,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/shadow-stride.jpg',
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Ivory Prestige',
+        'slug' => 'ivory-prestige',
+        'is_featured' => true,
+        'featured_rank' => 3,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/ivory-prestige.jpg',
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Volt Edge',
+        'slug' => 'volt-edge',
+        'is_featured' => false,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/volt-edge.jpg',
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Onyx Vector',
+        'slug' => 'onyx-vector',
+        'is_featured' => false,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/onyx-vector.jpg',
+    ]);
+
+    $response = $this->get(route('storefront.home'))
+        ->assertOk()
+        ->assertSee('https://cdn.ysabelle.test/catalog/shadow-stride.jpg', escape: false)
+        ->assertSee('https://cdn.ysabelle.test/catalog/ivory-prestige.jpg', escape: false)
+        ->assertSee('https://cdn.ysabelle.test/catalog/volt-edge.jpg', escape: false)
+        ->assertSee('https://cdn.ysabelle.test/catalog/onyx-vector.jpg', escape: false);
+
+    expect(substr_count($response->getContent(), 'class="ys-featured-card group"'))->toBe(4);
+});
+
+test('the featured showcase falls back to the hero product when it is the only active product', function () {
+    $category = Category::factory()->create([
+        'name' => 'Running',
+        'slug' => 'running',
+        'is_active' => true,
+    ]);
+
+    Product::factory()->for($category)->create([
+        'name' => 'Aurum Runner',
+        'slug' => 'aurum-runner',
+        'is_featured' => true,
+        'featured_rank' => 1,
+        'primary_image_url' => 'https://cdn.ysabelle.test/catalog/aurum-runner.jpg',
+        'image_alt' => 'Aurum Runner sneaker image',
+    ]);
+
+    $response = $this->get(route('storefront.home'))
+        ->assertOk()
+        ->assertSee('https://cdn.ysabelle.test/catalog/aurum-runner.jpg', escape: false)
+        ->assertSeeText('Aurum Runner');
+
+    expect(substr_count($response->getContent(), 'class="ys-featured-card group"'))->toBe(1);
+});
+
+test('the featured showcase renders a premium empty state when there are no products', function () {
+    $this->get(route('storefront.home'))
+        ->assertOk()
+        ->assertSeeText('No featured products available yet.')
+        ->assertSeeText('Browse the catalog')
+        ->assertDontSee('class="ys-featured-card group"', escape: false);
+});

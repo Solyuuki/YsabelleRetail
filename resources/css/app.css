@@ -7,5 +7,8 @@
 
 @import './tokens.css';
 @import './base.css';
+@import './admin/layout.css';
+@import './admin/components.css';
+@import './admin/motion.css';
 @import './components.css';
 @import './motion.css';

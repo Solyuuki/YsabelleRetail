@@ -1,28 +1,75 @@
-@extends('layouts.app', ['title' => 'Admin Products'])
+@extends('layouts.admin', ['title' => 'Products | Ysabelle Retail'])
 
 @section('content')
-    <div class="mb-8">
-        <p class="text-sm uppercase tracking-[0.3em] text-amber-300">Admin Catalog</p>
-        <h1 class="mt-2 text-3xl font-semibold text-white">Product Operations</h1>
-        <p class="mt-3 text-stone-300">Product management now has a dedicated admin controller and route namespace ready for real CRUD, policies, and inventory actions.</p>
-    </div>
+    <x-admin.page-header
+        eyebrow="Catalog"
+        title="Product management"
+        description="Search, filter, and manage products without leaving the back office."
+    >
+        <a href="{{ route('admin.catalog.products.create') }}" class="ys-admin-button-primary">Create product</a>
+    </x-admin.page-header>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        @forelse ($products as $product)
-            <article class="rounded-3xl border border-white/10 bg-white/5 p-6">
-                <p class="text-xs uppercase tracking-[0.25em] text-stone-400">{{ $product->style_code }}</p>
-                <h2 class="mt-3 text-xl font-semibold text-white">{{ $product->name }}</h2>
-                <p class="mt-2 text-sm text-stone-300">{{ $product->category?->name ?? 'Uncategorized' }}</p>
-                <p class="mt-4 text-amber-300">PHP {{ number_format((float) $product->base_price, 2) }}</p>
-            </article>
-        @empty
-            <div class="rounded-3xl border border-dashed border-white/15 bg-white/5 p-6 text-stone-300 md:col-span-2 xl:col-span-3">
-                Product management routes are in place, but no catalog records exist yet.
-            </div>
-        @endforelse
-    </div>
+    <section class="ys-admin-panel" data-admin-panel>
+        <form method="GET" class="ys-admin-toolbar">
+            <input type="text" name="search" value="{{ $filters['search'] }}" class="ys-admin-input" placeholder="Search by product, style code, or SKU">
+            <select name="status" class="ys-admin-select">
+                @foreach (['all' => 'All statuses', 'active' => 'Active', 'draft' => 'Draft', 'archived' => 'Archived'] as $value => $label)
+                    <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <select name="category_id" class="ys-admin-select">
+                <option value="">All categories</option>
+                @foreach ($categories as $category)
+                    <option value="{{ $category->id }}" @selected($filters['category_id'] == $category->id)>{{ $category->name }}</option>
+                @endforeach
+            </select>
+            <button class="ys-admin-button-secondary">Filter</button>
+        </form>
 
-    <div class="mt-8">
-        {{ $products->links() }}
-    </div>
+        <div class="ys-admin-table-wrap mt-5">
+            <table class="ys-admin-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Variants</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($products as $product)
+                        <tr>
+                            <td>
+                                <p class="font-semibold text-ys-ivory">{{ $product->name }}</p>
+                                <p class="text-xs text-ys-ivory/38">{{ $product->style_code ?: 'No style code' }}</p>
+                            </td>
+                            <td>{{ $product->category?->name ?? 'Uncategorized' }}</td>
+                            <td>{{ $product->variants->count() }}</td>
+                            <td>PHP {{ number_format((float) $product->base_price, 2) }}</td>
+                            <td>
+                                <x-admin.status-pill :tone="$product->status === 'active' ? 'success' : ($product->status === 'draft' ? 'warning' : 'danger')">
+                                    {{ $product->status }}
+                                </x-admin.status-pill>
+                            </td>
+                            <td class="text-right">
+                                <a href="{{ route('admin.catalog.products.edit', $product) }}" class="ys-admin-button-secondary">Manage</a>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6">
+                                <div class="ys-admin-empty-panel">No products matched the current filters.</div>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-5">
+            {{ $products->links('vendor.pagination.admin') }}
+        </div>
+    </section>
 @endsection

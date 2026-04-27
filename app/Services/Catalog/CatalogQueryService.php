@@ -4,8 +4,8 @@ namespace App\Services\Catalog;
 
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -22,6 +22,52 @@ class CatalogQueryService
         return $this->featuredProductsQuery()
             ->limit($limit)
             ->get();
+    }
+
+    public function showcaseProducts(?Product $heroProduct = null, int $limit = 4): Collection
+    {
+        if (! $this->catalogIsAvailable()) {
+            return collect();
+        }
+
+        $heroId = $heroProduct?->getKey();
+
+        $featured = (clone $this->featuredProductsQuery())
+            ->when($heroId, fn (Builder $query) => $query->where('id', '!=', $heroId))
+            ->limit($limit)
+            ->get();
+
+        if ($featured->count() >= $limit) {
+            return $featured->values();
+        }
+
+        $excludedIds = $featured->pluck('id');
+
+        if ($heroId) {
+            $excludedIds->push($heroId);
+        }
+
+        $fallback = Product::query()
+            ->with(['category', 'variants.inventoryItem'])
+            ->where('status', 'active')
+            ->whereNotIn('id', $excludedIds->unique()->values()->all())
+            ->orderByDesc('is_featured')
+            ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('featured_rank')
+            ->latest()
+            ->limit($limit - $featured->count())
+            ->get();
+
+        $showcase = $featured->concat($fallback)->values();
+
+        if ($heroProduct && ! $showcase->contains(fn (Product $product) => $product->is($heroProduct))) {
+            $showcase->push($heroProduct);
+        }
+
+        return $showcase
+            ->unique(fn (Product $product) => $product->getKey())
+            ->take($limit)
+            ->values();
     }
 
     public function heroProduct(): ?Product

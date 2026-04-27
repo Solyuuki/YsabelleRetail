@@ -1,0 +1,317 @@
+@layer components {
+    .ys-admin-button-primary {
+        @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-ys-gold/80 bg-gradient-to-r from-[#d8af4c] to-[#bb8a2b] px-5 py-3 text-sm font-semibold text-[#1b140b] shadow-[0_16px_32px_rgba(212,166,59,0.18)];
+    }
+
+    .ys-admin-button-secondary {
+        @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-white/10 bg-white/[0.02] px-5 py-3 text-sm font-semibold text-ys-ivory/70;
+    }
+
+    .ys-admin-button-danger {
+        @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-[#8c3f3f] bg-[#3b1616] px-5 py-3 text-sm font-semibold text-[#ffdede];
+    }
+
+    .ys-admin-input,
+    .ys-admin-select,
+    .ys-admin-textarea {
+        @apply min-h-12 w-full rounded-[1rem] border border-white/9 bg-[#0b1118] px-4 py-3 text-sm text-ys-ivory placeholder:text-ys-ivory/24 focus:border-ys-gold/45 focus:outline-none;
+    }
+
+    .ys-admin-textarea {
+        @apply min-h-32 resize-y;
+    }
+
+    .ys-admin-label {
+        @apply text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-ys-ivory/46;
+    }
+
+    .ys-admin-field {
+        @apply space-y-2;
+    }
+
+    .ys-admin-grid-fields {
+        @apply grid gap-4 md:grid-cols-2 xl:grid-cols-3;
+    }
+
+    .ys-admin-table-wrap {
+        @apply overflow-x-auto rounded-[1.25rem] border border-white/7;
+    }
+
+    .ys-admin-table {
+        @apply min-w-full divide-y divide-white/6 text-left;
+    }
+
+    .ys-admin-table thead {
+        @apply bg-white/[0.03] text-[0.72rem] uppercase tracking-[0.24em] text-ys-ivory/40;
+    }
+
+    .ys-admin-table th,
+    .ys-admin-table td {
+        @apply px-4 py-3.5 align-top text-sm;
+    }
+
+    .ys-admin-table tbody tr {
+        @apply border-t border-white/6 text-ys-ivory/78;
+    }
+
+    .ys-admin-table tbody tr:hover {
+        @apply bg-white/[0.025];
+    }
+
+    .ys-admin-stat-grid {
+        @apply grid gap-4 md:grid-cols-2 xl:grid-cols-4;
+    }
+
+    .ys-admin-stat-card {
+        @apply flex min-h-[9.5rem] flex-col justify-between rounded-[1.4rem] border border-white/7 bg-white/[0.03] p-5;
+    }
+
+    .ys-admin-stat-value {
+        @apply mt-3 text-3xl font-semibold tracking-[-0.03em] text-ys-ivory;
+    }
+
+    .ys-admin-stat-label {
+        @apply text-sm text-ys-ivory/46;
+    }
+
+    .ys-admin-stat-meta {
+        @apply mt-3 text-xs text-ys-ivory/36;
+    }
+
+    .ys-admin-kpi-grid {
+        @apply grid gap-4 xl:grid-cols-[1.3fr_0.9fr];
+    }
+
+    .ys-admin-pill {
+        @apply inline-flex items-center rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em];
+    }
+
+    .ys-admin-pill-success {
+        @apply bg-[#103420] text-[#9ae0b3];
+    }
+
+    .ys-admin-pill-warning {
+        @apply bg-[#3d2c10] text-[#f3c46f];
+    }
+
+    .ys-admin-pill-danger {
+        @apply bg-[#401616] text-[#ffb8b8];
+    }
+
+    .ys-admin-pill-neutral {
+        @apply bg-white/[0.06] text-ys-ivory/65;
+    }
+
+    .ys-admin-filter-row {
+        @apply flex flex-col gap-3 md:flex-row;
+    }
+
+    .ys-admin-toolbar {
+        @apply flex flex-col gap-3 xl:flex-row xl:items-center;
+    }
+
+    .ys-admin-toolbar > * {
+        @apply xl:flex-1;
+    }
+
+    .ys-admin-toolbar > button,
+    .ys-admin-toolbar > a {
+        @apply xl:flex-none;
+    }
+
+    .ys-admin-empty-panel {
+        @apply rounded-[1.1rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-ys-ivory/42;
+    }
+
+    .ys-admin-link-danger {
+        @apply text-sm font-semibold text-[#ffb3b3];
+    }
+
+    .ys-admin-search-card {
+        @apply flex w-full items-center justify-between gap-3 rounded-[1rem] border border-white/7 bg-white/[0.03] px-4 py-3 text-left;
+    }
+
+    .ys-admin-search-card:disabled {
+        @apply cursor-not-allowed opacity-55;
+    }
+
+    .ys-admin-search-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-search-meta,
+    .ys-admin-search-side {
+        @apply text-xs text-ys-ivory/45;
+    }
+
+    .ys-admin-cart-row {
+        @apply grid gap-3 rounded-[1rem] border border-white/7 bg-white/[0.02] p-4 md:grid-cols-[1fr_auto_auto] md:items-center;
+    }
+
+    .ys-admin-cart-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-cart-meta {
+        @apply mt-1 text-xs text-ys-ivory/45;
+    }
+
+    .ys-admin-cart-actions {
+        @apply flex items-center gap-3;
+    }
+
+    .ys-admin-qty-input {
+        @apply h-11 w-20 rounded-[0.85rem] border border-white/9 bg-[#0b1118] px-3 text-sm text-ys-ivory;
+    }
+
+    .ys-admin-cart-price {
+        @apply text-right text-sm font-semibold text-ys-gold;
+    }
+
+    .ys-admin-chart {
+        @apply mt-4 grid grid-cols-7 items-end gap-3;
+    }
+
+    .ys-admin-chart-bar {
+        @apply rounded-t-[0.8rem] bg-gradient-to-t from-[#a5751f] to-[#e3bb65];
+        min-height: 0.65rem;
+    }
+
+    .ys-admin-chart-shell {
+        @apply space-y-5;
+    }
+
+    .ys-admin-chart-grid {
+        @apply overflow-hidden rounded-[1.35rem] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-4;
+    }
+
+    .ys-admin-chart-svg {
+        @apply h-[16rem] w-full;
+    }
+
+    .ys-admin-chart-guide {
+        stroke: rgba(255, 255, 255, 0.08);
+        stroke-dasharray: 5 8;
+    }
+
+    .ys-admin-chart-line {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 4;
+    }
+
+    .ys-admin-chart-line-total {
+        stroke: #e7be63;
+    }
+
+    .ys-admin-chart-line-online {
+        stroke: #8fd1ff;
+        stroke-width: 3;
+    }
+
+    .ys-admin-chart-line-walkin {
+        stroke: #85d0a6;
+        stroke-width: 3;
+    }
+
+    .ys-admin-chart-labels {
+        @apply grid grid-cols-2 gap-3 text-xs text-ys-ivory/42 md:grid-cols-4 xl:grid-cols-7;
+    }
+
+    .ys-admin-chart-labels p {
+        @apply font-semibold text-ys-ivory/68;
+    }
+
+    .ys-admin-chart-labels span {
+        @apply mt-1 block;
+    }
+
+    .ys-admin-legend {
+        @apply flex flex-wrap items-center gap-4 text-xs font-semibold uppercase tracking-[0.18em] text-ys-ivory/42;
+    }
+
+    .ys-admin-legend-item {
+        @apply inline-flex items-center gap-2;
+    }
+
+    .ys-admin-legend-item i {
+        @apply block h-2.5 w-8 rounded-full;
+    }
+
+    .ys-admin-legend-item i.is-total {
+        @apply bg-[#e7be63];
+    }
+
+    .ys-admin-legend-item i.is-online {
+        @apply bg-[#8fd1ff];
+    }
+
+    .ys-admin-legend-item i.is-walkin {
+        @apply bg-[#85d0a6];
+    }
+
+    .ys-admin-form-error {
+        @apply rounded-[1rem] border border-[#7f3030] bg-[#341515] px-4 py-3 text-sm text-[#ffd8d8];
+    }
+
+    .ys-admin-inline-actions {
+        @apply flex flex-wrap items-center gap-2;
+    }
+
+    .ys-admin-subtle {
+        @apply text-sm text-ys-ivory/45;
+    }
+
+    .ys-admin-tab-nav {
+        @apply flex flex-wrap gap-2;
+    }
+
+    .ys-admin-tab-link {
+        @apply inline-flex min-h-11 items-center justify-center rounded-[0.95rem] border border-white/8 bg-white/[0.02] px-4 py-2.5 text-sm font-semibold text-ys-ivory/54 transition hover:text-ys-ivory;
+    }
+
+    .ys-admin-tab-link.is-active {
+        @apply border-ys-gold/25 bg-ys-gold/12 text-ys-gold;
+    }
+
+    .ys-admin-detail-panel {
+        @apply rounded-[1.2rem] border border-white/7 bg-white/[0.03] p-4;
+    }
+
+    .ys-admin-detail-summary {
+        @apply cursor-pointer list-none text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-helper-list {
+        @apply space-y-2 text-sm text-ys-ivory/58;
+    }
+
+    .ys-admin-pagination {
+        @apply flex flex-col gap-3 pt-1 md:flex-row md:items-center md:justify-between;
+    }
+
+    .ys-admin-pagination-summary {
+        @apply text-sm text-ys-ivory/42;
+    }
+
+    .ys-admin-pagination-links {
+        @apply flex flex-wrap items-center gap-2;
+    }
+
+    .ys-admin-pagination-link {
+        @apply inline-flex min-h-10 min-w-10 items-center justify-center rounded-[0.85rem] border border-white/8 bg-white/[0.02] px-3 text-sm font-semibold text-ys-ivory/62 transition hover:text-ys-ivory;
+    }
+
+    .ys-admin-pagination-link.is-active {
+        @apply border-ys-gold/30 bg-ys-gold/12 text-ys-gold;
+    }
+
+    .ys-admin-pagination-link.is-disabled {
+        @apply cursor-not-allowed opacity-45;
+    }
+
+    .ys-admin-pagination-gap {
+        @apply px-1 text-sm text-ys-ivory/34;
+    }
+}
