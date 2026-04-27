@@ -26,4 +26,9 @@ class CategoryPolicy
     {
         return $user->isAdmin();
     }
+
+    public function delete(User $user, Category $category): bool
+    {
+        return $user->isAdmin();
+    }
 }

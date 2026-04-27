@@ -53,13 +53,22 @@ class AdminUserSeeder extends Seeder
         $admin = User::query()->firstOrCreate(
             ['email' => 'admin@ysabelle.store'],
             [
-                'name' => 'Ysabelle Admin',
-                'password' => 'password',
+                'name' => 'Admin',
+                'password' => 'Password123x',
                 'status' => 'active',
             ]
         );
 
+        $admin->fill([
+            'name' => 'Admin',
+            'password' => 'Password123x',
+            'status' => 'active',
+        ])->save();
+
         $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+        $admin->profile()->updateOrCreate([], [
+            'preferred_name' => 'Admin',
+        ]);
     }
 
     private function seedLocalCustomerAccount(Role $customerRole): void
@@ -68,11 +77,14 @@ class AdminUserSeeder extends Seeder
             ['email' => 'customer@ysabelle.store'],
             [
                 'name' => 'Ysabelle Customer',
-                'password' => 'password',
+                'password' => 'Password123x',
                 'status' => 'active',
             ]
         );
 
         $customer->roles()->syncWithoutDetaching([$customerRole->id]);
+        $customer->profile()->updateOrCreate([], [
+            'preferred_name' => 'Ysabelle Customer',
+        ]);
     }
 }

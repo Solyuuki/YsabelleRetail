@@ -1,34 +1,63 @@
-@extends('layouts.app', ['title' => 'Admin Categories'])
+@extends('layouts.admin', ['title' => 'Categories | Ysabelle Retail'])
 
 @section('content')
-    <div class="mb-8">
-        <p class="text-sm uppercase tracking-[0.3em] text-amber-300">Admin Catalog</p>
-        <h1 class="mt-2 text-3xl font-semibold text-white">Category Operations</h1>
-        <p class="mt-3 text-stone-300">Management routes now have their own admin namespace and can grow into full CRUD safely.</p>
-    </div>
+    <x-admin.page-header
+        eyebrow="Catalog"
+        title="Category management"
+        description="Create and maintain category structures with clear safeguards against unsafe deletion."
+    >
+        <a href="{{ route('admin.catalog.categories.create') }}" class="ys-admin-button-primary">Create category</a>
+    </x-admin.page-header>
 
-    <div class="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-        <table class="min-w-full divide-y divide-white/10 text-left">
-            <thead class="bg-white/5 text-xs uppercase tracking-[0.25em] text-stone-400">
-                <tr>
-                    <th class="px-6 py-4">Category</th>
-                    <th class="px-6 py-4">Products</th>
-                    <th class="px-6 py-4">Status</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-white/5 text-sm text-stone-200">
-                @forelse ($categories as $category)
+    <section class="ys-admin-panel" data-admin-panel>
+        <form method="GET" class="ys-admin-filter-row">
+            <input type="text" name="search" value="{{ $search }}" class="ys-admin-input" placeholder="Search categories">
+            <button class="ys-admin-button-secondary">Filter</button>
+        </form>
+
+        <div class="ys-admin-table-wrap mt-5">
+            <table class="ys-admin-table">
+                <thead>
                     <tr>
-                        <td class="px-6 py-4">{{ $category->name }}</td>
-                        <td class="px-6 py-4">{{ $category->products_count ?? 0 }}</td>
-                        <td class="px-6 py-4">{{ $category->is_active ? 'Active' : 'Inactive' }}</td>
+                        <th>Category</th>
+                        <th>Products</th>
+                        <th>Status</th>
+                        <th></th>
                     </tr>
-                @empty
-                    <tr>
-                        <td colspan="3" class="px-6 py-6 text-stone-400">No categories yet.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+                </thead>
+                <tbody>
+                    @forelse ($categories as $category)
+                        <tr>
+                            <td>
+                                <p class="font-semibold text-ys-ivory">{{ $category->name }}</p>
+                                <p class="text-xs text-ys-ivory/38">{{ $category->slug }}</p>
+                            </td>
+                            <td>
+                                <p>{{ $category->products_count }} total</p>
+                                <p class="text-xs text-ys-ivory/38">{{ $category->active_products_count }} active</p>
+                            </td>
+                            <td>
+                                <x-admin.status-pill :tone="$category->is_active ? 'success' : 'danger'">
+                                    {{ $category->is_active ? 'active' : 'inactive' }}
+                                </x-admin.status-pill>
+                            </td>
+                            <td class="text-right">
+                                <a href="{{ route('admin.catalog.categories.edit', $category) }}" class="ys-admin-button-secondary">Manage</a>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4">
+                                <div class="ys-admin-empty-panel">No categories matched the current search.</div>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-5">
+            {{ $categories->links() }}
+        </div>
+    </section>
 @endsection

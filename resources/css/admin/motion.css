@@ -1,0 +1,61 @@
+@layer components {
+    .ys-admin-button-primary,
+    .ys-admin-button-secondary,
+    .ys-admin-button-danger,
+    .ys-admin-search-card,
+    .ys-admin-nav-link,
+    .ys-admin-panel,
+    .ys-admin-input,
+    .ys-admin-select,
+    .ys-admin-textarea {
+        transition:
+            transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 180ms ease,
+            background-color 180ms ease,
+            box-shadow 180ms ease,
+            color 180ms ease,
+            opacity 180ms ease;
+    }
+
+    .ys-admin-button-primary:hover,
+    .ys-admin-button-secondary:hover,
+    .ys-admin-button-danger:hover,
+    .ys-admin-search-card:hover {
+        transform: translateY(-1px);
+    }
+
+    .ys-admin-input:focus,
+    .ys-admin-select:focus,
+    .ys-admin-textarea:focus {
+        box-shadow: 0 0 0 4px rgba(212, 166, 59, 0.08);
+    }
+
+    .ys-admin-panel:hover {
+        box-shadow: 0 20px 65px rgba(0, 0, 0, 0.28);
+    }
+
+    .ys-admin-sidebar,
+    .ys-admin-overlay {
+        transition:
+            transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 220ms ease;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @layer components {
+        .ys-admin-button-primary,
+        .ys-admin-button-secondary,
+        .ys-admin-button-danger,
+        .ys-admin-search-card,
+        .ys-admin-nav-link,
+        .ys-admin-panel,
+        .ys-admin-input,
+        .ys-admin-select,
+        .ys-admin-textarea,
+        .ys-admin-sidebar,
+        .ys-admin-overlay {
+            transition: none;
+        }
+    }
+}

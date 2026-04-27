@@ -20,5 +20,5 @@ test('admins can access the admin dashboard', function () {
     $this->actingAs($user)
         ->get(route('admin.dashboard'))
         ->assertOk()
-        ->assertSee('Operational Dashboard Foundation');
+        ->assertSee('Company-grade retail overview');
 });

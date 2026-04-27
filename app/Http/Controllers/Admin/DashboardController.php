@@ -3,15 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Services\Dashboard\DashboardMetricsService;
+use App\Services\Admin\AdminDashboardService;
 use Illuminate\Contracts\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(DashboardMetricsService $dashboardMetrics): View
+    public function __invoke(AdminDashboardService $dashboard): View
     {
-        return view('admin.dashboard', [
-            'metrics' => $dashboardMetrics->summary(),
-        ]);
+        return view('admin.dashboard', $dashboard->summary());
     }
 }

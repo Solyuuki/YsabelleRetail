@@ -1,0 +1,95 @@
+@layer components {
+    .ys-admin-shell {
+        @apply min-h-screen bg-[#0a0e14] text-ys-ivory;
+        background:
+            radial-gradient(circle at top left, rgba(212, 166, 59, 0.09), transparent 24%),
+            radial-gradient(circle at top right, rgba(64, 121, 140, 0.11), transparent 18%),
+            linear-gradient(180deg, #0b1017 0%, #080c11 100%);
+    }
+
+    .ys-admin-grid {
+        display: grid;
+        grid-template-columns: 18rem minmax(0, 1fr);
+    }
+
+    .ys-admin-sidebar {
+        @apply sticky top-0 flex h-screen flex-col border-r border-white/6 bg-[#0b1017]/96 px-4 py-5 backdrop-blur-xl;
+    }
+
+    .ys-admin-sidebar-brand {
+        @apply flex items-center gap-3 rounded-[1.25rem] border border-white/7 bg-white/[0.02] px-4 py-4;
+    }
+
+    .ys-admin-sidebar-nav {
+        @apply mt-6 flex-1 space-y-1.5 overflow-y-auto pr-1;
+    }
+
+    .ys-admin-nav-link {
+        @apply flex items-center gap-3 rounded-[1rem] px-3.5 py-3 text-sm font-medium text-ys-ivory/58 transition duration-200 hover:bg-white/[0.04] hover:text-ys-ivory;
+    }
+
+    .ys-admin-nav-link.is-active {
+        @apply border border-ys-gold/25 bg-ys-gold/12 text-ys-gold;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .ys-admin-main {
+        @apply min-w-0 px-4 py-4 md:px-6 md:py-5 xl:px-8;
+    }
+
+    .ys-admin-topbar {
+        @apply sticky top-0 z-40 mb-6 flex items-center justify-between gap-4 rounded-[1.5rem] border border-white/7 bg-[#101721]/88 px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl;
+    }
+
+    .ys-admin-page {
+        @apply space-y-6;
+    }
+
+    .ys-admin-page-header {
+        @apply flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between;
+    }
+
+    .ys-admin-page-title {
+        @apply font-serif text-4xl tracking-[-0.03em] text-ys-ivory md:text-5xl;
+    }
+
+    .ys-admin-page-copy {
+        @apply mt-2 max-w-3xl text-sm leading-7 text-ys-ivory/48;
+    }
+
+    .ys-admin-panel {
+        @apply rounded-[1.5rem] border border-white/7 bg-[#111823]/88 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl;
+    }
+
+    .ys-admin-panel-heading {
+        @apply flex flex-col gap-2 border-b border-white/6 pb-4 md:flex-row md:items-center md:justify-between;
+    }
+
+    .ys-admin-panel-title {
+        @apply text-lg font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-overlay {
+        @apply fixed inset-0 z-40 hidden bg-black/55 backdrop-blur-sm;
+    }
+}
+
+@media (max-width: 1024px) {
+    @layer components {
+        .ys-admin-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .ys-admin-sidebar {
+            @apply fixed inset-y-0 left-0 z-50 w-[18rem] -translate-x-[105%] shadow-[0_28px_60px_rgba(0,0,0,0.45)];
+        }
+
+        .ys-admin-shell[data-sidebar-open] .ys-admin-sidebar {
+            transform: translateX(0);
+        }
+
+        .ys-admin-shell[data-sidebar-open] .ys-admin-overlay {
+            display: block;
+        }
+    }
+}

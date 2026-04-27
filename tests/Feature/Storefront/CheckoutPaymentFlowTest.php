@@ -31,6 +31,13 @@ function seedCheckoutCart(User $user): Cart
         'price' => 1899,
     ]);
 
+    $variant->inventoryItem()->create([
+        'quantity_on_hand' => 12,
+        'reserved_quantity' => 0,
+        'reorder_level' => 2,
+        'allow_backorder' => false,
+    ]);
+
     $cart = Cart::query()->create([
         'user_id' => $user->id,
         'status' => 'active',
@@ -168,6 +175,26 @@ test('invalid payment methods are rejected gracefully', function () {
         ]))
         ->assertRedirect(route('storefront.checkout.create'))
         ->assertSessionHasErrors(['payment_method']);
+
+    expect(Order::count())->toBe(0)
+        ->and(Payment::count())->toBe(0);
+});
+
+test('checkout is blocked when requested quantity exceeds available inventory', function () {
+    $user = createCheckoutCustomer();
+    $cart = seedCheckoutCart($user);
+
+    $cart->items->firstOrFail()->variant->inventoryItem()->update([
+        'quantity_on_hand' => 1,
+    ]);
+
+    $this->from(route('storefront.checkout.create'))
+        ->actingAs($user)
+        ->post(route('storefront.checkout.store'), checkoutPayload([
+            'payment_method' => 'cod',
+        ]))
+        ->assertRedirect(route('storefront.checkout.create'))
+        ->assertSessionHasErrors(['inventory']);
 
     expect(Order::count())->toBe(0)
         ->and(Payment::count())->toBe(0);

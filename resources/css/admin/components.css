@@ -1,0 +1,170 @@
+@layer components {
+    .ys-admin-button-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-[1rem] border border-ys-gold/80 bg-gradient-to-r from-[#d8af4c] to-[#bb8a2b] px-5 py-3 text-sm font-semibold text-[#1b140b] shadow-[0_16px_32px_rgba(212,166,59,0.18)];
+    }
+
+    .ys-admin-button-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-[1rem] border border-white/10 bg-white/[0.02] px-5 py-3 text-sm font-semibold text-ys-ivory/70;
+    }
+
+    .ys-admin-button-danger {
+        @apply inline-flex items-center justify-center gap-2 rounded-[1rem] border border-[#8c3f3f] bg-[#3b1616] px-5 py-3 text-sm font-semibold text-[#ffdede];
+    }
+
+    .ys-admin-input,
+    .ys-admin-select,
+    .ys-admin-textarea {
+        @apply w-full rounded-[1rem] border border-white/9 bg-[#0b1118] px-4 py-3 text-sm text-ys-ivory placeholder:text-ys-ivory/24 focus:border-ys-gold/45 focus:outline-none;
+    }
+
+    .ys-admin-textarea {
+        @apply min-h-32 resize-y;
+    }
+
+    .ys-admin-label {
+        @apply text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-ys-ivory/46;
+    }
+
+    .ys-admin-field {
+        @apply space-y-2;
+    }
+
+    .ys-admin-grid-fields {
+        @apply grid gap-4 md:grid-cols-2 xl:grid-cols-3;
+    }
+
+    .ys-admin-table-wrap {
+        @apply overflow-hidden rounded-[1.25rem] border border-white/7;
+    }
+
+    .ys-admin-table {
+        @apply min-w-full divide-y divide-white/6 text-left;
+    }
+
+    .ys-admin-table thead {
+        @apply bg-white/[0.03] text-[0.72rem] uppercase tracking-[0.24em] text-ys-ivory/40;
+    }
+
+    .ys-admin-table th,
+    .ys-admin-table td {
+        @apply px-4 py-3 align-top text-sm;
+    }
+
+    .ys-admin-table tbody tr {
+        @apply border-t border-white/6 text-ys-ivory/78;
+    }
+
+    .ys-admin-table tbody tr:hover {
+        @apply bg-white/[0.025];
+    }
+
+    .ys-admin-stat-grid {
+        @apply grid gap-4 md:grid-cols-2 xl:grid-cols-4;
+    }
+
+    .ys-admin-stat-card {
+        @apply rounded-[1.4rem] border border-white/7 bg-white/[0.03] p-5;
+    }
+
+    .ys-admin-stat-value {
+        @apply mt-3 text-3xl font-semibold tracking-[-0.03em] text-ys-ivory;
+    }
+
+    .ys-admin-stat-label {
+        @apply text-sm text-ys-ivory/46;
+    }
+
+    .ys-admin-kpi-grid {
+        @apply grid gap-4 xl:grid-cols-[1.3fr_0.9fr];
+    }
+
+    .ys-admin-pill {
+        @apply inline-flex items-center rounded-full px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em];
+    }
+
+    .ys-admin-pill-success {
+        @apply bg-[#103420] text-[#9ae0b3];
+    }
+
+    .ys-admin-pill-warning {
+        @apply bg-[#3d2c10] text-[#f3c46f];
+    }
+
+    .ys-admin-pill-danger {
+        @apply bg-[#401616] text-[#ffb8b8];
+    }
+
+    .ys-admin-pill-neutral {
+        @apply bg-white/[0.06] text-ys-ivory/65;
+    }
+
+    .ys-admin-filter-row {
+        @apply flex flex-col gap-3 md:flex-row;
+    }
+
+    .ys-admin-empty-panel {
+        @apply rounded-[1.1rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-ys-ivory/42;
+    }
+
+    .ys-admin-link-danger {
+        @apply text-sm font-semibold text-[#ffb3b3];
+    }
+
+    .ys-admin-search-card {
+        @apply flex w-full items-center justify-between gap-3 rounded-[1rem] border border-white/7 bg-white/[0.03] px-4 py-3 text-left;
+    }
+
+    .ys-admin-search-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-search-meta,
+    .ys-admin-search-side {
+        @apply text-xs text-ys-ivory/45;
+    }
+
+    .ys-admin-cart-row {
+        @apply grid gap-3 rounded-[1rem] border border-white/7 bg-white/[0.02] p-4 md:grid-cols-[1fr_auto_auto] md:items-center;
+    }
+
+    .ys-admin-cart-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-cart-meta {
+        @apply mt-1 text-xs text-ys-ivory/45;
+    }
+
+    .ys-admin-cart-actions {
+        @apply flex items-center gap-3;
+    }
+
+    .ys-admin-qty-input {
+        @apply h-11 w-20 rounded-[0.85rem] border border-white/9 bg-[#0b1118] px-3 text-sm text-ys-ivory;
+    }
+
+    .ys-admin-cart-price {
+        @apply text-right text-sm font-semibold text-ys-gold;
+    }
+
+    .ys-admin-chart {
+        @apply mt-4 grid grid-cols-7 items-end gap-3;
+    }
+
+    .ys-admin-chart-bar {
+        @apply rounded-t-[0.8rem] bg-gradient-to-t from-[#a5751f] to-[#e3bb65];
+        min-height: 0.65rem;
+    }
+
+    .ys-admin-form-error {
+        @apply rounded-[1rem] border border-[#7f3030] bg-[#341515] px-4 py-3 text-sm text-[#ffd8d8];
+    }
+
+    .ys-admin-inline-actions {
+        @apply flex flex-wrap items-center gap-2;
+    }
+
+    .ys-admin-subtle {
+        @apply text-sm text-ys-ivory/45;
+    }
+}

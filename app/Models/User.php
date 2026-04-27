@@ -72,9 +72,19 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\Orders\Order::class);
     }
 
+    public function handledOrders(): HasMany
+    {
+        return $this->hasMany(\App\Models\Orders\Order::class, 'handled_by_user_id');
+    }
+
     public function auditLogs(): HasMany
     {
         return $this->hasMany(\App\Models\Audit\AuditLog::class, 'actor_id');
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(\App\Models\Inventory\StockMovement::class, 'actor_id');
     }
 
     public function hasRole(string ...$slugs): bool

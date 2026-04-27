@@ -36,4 +36,14 @@ class OrderItem extends Model
     {
         return $this->belongsTo(Order::class);
     }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Catalog\Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Catalog\ProductVariant::class, 'product_variant_id');
+    }
 }

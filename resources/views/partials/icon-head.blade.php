@@ -1,3 +1,15 @@
+@php
+    $versionedPublicAsset ??= static function (string $path): string {
+        $absolutePath = public_path($path);
+
+        if (! file_exists($absolutePath)) {
+            return asset($path);
+        }
+
+        return asset($path).'?v='.filemtime($absolutePath);
+    };
+@endphp
+
 <meta name="theme-color" content="#060606">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ $versionedPublicAsset('icon-512.png') }}">
 <link rel="icon" type="image/png" sizes="192x192" href="{{ $versionedPublicAsset('icon-192.png') }}">

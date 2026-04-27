@@ -1,0 +1,30 @@
+@php
+    $currentRoute = request()->route()?->getName();
+@endphp
+
+<aside class="ys-admin-sidebar" data-admin-sidebar>
+    <a href="{{ route('admin.dashboard') }}" class="ys-admin-sidebar-brand">
+        <x-storefront.brand-logo class="block w-[8.5rem]" />
+        <div>
+            <p class="text-[0.72rem] uppercase tracking-[0.3em] text-ys-gold/74">Admin</p>
+            <p class="mt-1 text-sm font-semibold text-ys-ivory">Ysabelle Back Office</p>
+        </div>
+    </a>
+
+    <nav class="ys-admin-sidebar-nav">
+        @foreach (config('admin.navigation', []) as $item)
+            <a
+                href="{{ route($item['route']) }}"
+                class="ys-admin-nav-link {{ str_starts_with((string) $currentRoute, str_replace('.index', '', $item['route'])) || $currentRoute === $item['route'] ? 'is-active' : '' }}"
+            >
+                <x-admin.icon :name="$item['icon']" class="h-5 w-5" />
+                <span>{{ $item['label'] }}</span>
+            </a>
+        @endforeach
+    </nav>
+
+    <div class="rounded-[1.1rem] border border-white/7 bg-white/[0.03] p-4 text-sm text-ys-ivory/48">
+        <p class="font-semibold text-ys-ivory">Operational Mode</p>
+        <p class="mt-2 leading-6">Inventory, orders, POS, and reporting all share the same stock source and audit trail.</p>
+    </div>
+</aside>
