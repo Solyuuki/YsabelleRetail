@@ -26,8 +26,7 @@ class BatchStockImportService
 
     public function __construct(
         private readonly InventoryManager $inventoryManager,
-    ) {
-    }
+    ) {}
 
     public function preview(UploadedFile $file): array
     {
@@ -53,6 +52,8 @@ class BatchStockImportService
             ->map(function (array $row, int $index): array {
                 $normalized = $this->normalizeRow($row);
                 $errors = [];
+                $quantity = $this->parseInteger($normalized['quantity']);
+                $costPrice = $this->parseDecimal($normalized['cost_price']);
 
                 $variant = ProductVariant::query()->with('product')->where('sku', $normalized['sku'])->first();
 
@@ -60,17 +61,31 @@ class BatchStockImportService
                     $errors[] = 'SKU not found.';
                 }
 
-                if ($normalized['quantity'] <= 0) {
+                if ($quantity === null) {
+                    $errors[] = 'Quantity must be a whole number.';
+                } elseif ($quantity <= 0) {
                     $errors[] = 'Quantity must be greater than zero.';
                 }
 
-                if ($normalized['cost_price'] !== null && ! is_numeric((string) $normalized['cost_price'])) {
+                if ($normalized['cost_price'] !== '' && $costPrice === null) {
                     $errors[] = 'Cost price must be numeric.';
+                }
+
+                if ($variant && $normalized['product_name'] !== '' && mb_strtolower($normalized['product_name']) !== mb_strtolower((string) $variant->product->name)) {
+                    $errors[] = 'Product name does not match the SKU record.';
+                }
+
+                if ($variant && $normalized['variant'] !== '' && mb_strtolower($normalized['variant']) !== mb_strtolower((string) $variant->name)) {
+                    $errors[] = 'Variant name does not match the SKU record.';
                 }
 
                 return [
                     'row_number' => $index + 2,
-                    'values' => $normalized,
+                    'values' => [
+                        ...$normalized,
+                        'quantity' => $quantity,
+                        'cost_price' => $costPrice,
+                    ],
                     'variant_id' => $variant?->id,
                     'product_name' => $variant?->product?->name,
                     'variant_name' => $variant?->name,
@@ -231,10 +246,28 @@ class BatchStockImportService
             'sku' => trim((string) Arr::get($row, 'sku')),
             'product_name' => trim((string) Arr::get($row, 'product_name')),
             'variant' => trim((string) Arr::get($row, 'variant')),
-            'quantity' => (int) Arr::get($row, 'quantity'),
-            'cost_price' => Arr::get($row, 'cost_price') === '' ? null : (float) Arr::get($row, 'cost_price'),
+            'quantity' => trim((string) Arr::get($row, 'quantity')),
+            'cost_price' => trim((string) Arr::get($row, 'cost_price')),
             'supplier' => trim((string) Arr::get($row, 'supplier')),
             'notes' => trim((string) Arr::get($row, 'notes')),
         ];
+    }
+
+    private function parseInteger(string $value): ?int
+    {
+        if ($value === '' || ! preg_match('/^-?\d+$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function parseDecimal(string $value): ?float
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (float) $value : null;
     }
 }

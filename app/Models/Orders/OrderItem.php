@@ -2,6 +2,8 @@
 
 namespace App\Models\Orders;
 
+use App\Models\Catalog\Product;
+use App\Models\Catalog\ProductVariant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -39,11 +41,11 @@ class OrderItem extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Catalog\Product::class);
+        return $this->belongsTo(Product::class);
     }
 
     public function variant(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Catalog\ProductVariant::class, 'product_variant_id');
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 }

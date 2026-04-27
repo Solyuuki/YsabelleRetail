@@ -2,9 +2,10 @@
 
 namespace App\Http\Requests\Admin\Catalog;
 
+use App\Models\Catalog\ProductVariant;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class SaveProductRequest extends FormRequest
 {
@@ -93,7 +94,7 @@ class SaveProductRequest extends FormRequest
                     $validator->errors()->add('variants', 'Variant SKUs must be unique within the product form.');
                 }
 
-                $conflicts = \App\Models\Catalog\ProductVariant::query()
+                $conflicts = ProductVariant::query()
                     ->whereIn('sku', $skus->all())
                     ->when(
                         $rows->pluck('id')->filter()->isNotEmpty(),

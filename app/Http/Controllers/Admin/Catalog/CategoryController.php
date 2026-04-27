@@ -21,7 +21,7 @@ class CategoryController extends Controller
             ->when($search !== '', fn ($query) => $query->where('name', 'like', "%{$search}%"))
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->paginate(12)
+            ->paginate(15)
             ->withQueryString();
 
         return view('admin.catalog.categories.index', [

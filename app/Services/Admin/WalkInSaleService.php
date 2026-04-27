@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Events\Admin\OrderPlaced;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Orders\Order;
 use App\Models\User;
@@ -12,10 +13,10 @@ use Illuminate\Support\Facades\DB;
 class WalkInSaleService
 {
     public function __construct(
+        private readonly AdminActivityLogger $activityLogger,
         private readonly InventoryManager $inventoryManager,
         private readonly OrderNumberGenerator $orderNumbers,
-    ) {
-    }
+    ) {}
 
     public function create(array $payload, User $cashier): Order
     {
@@ -106,7 +107,11 @@ class WalkInSaleService
                 ],
             ]);
 
-            return $order->fresh(['items', 'payments', 'handledBy']);
+            $order = $order->fresh(['items', 'payments', 'handledBy']);
+            $this->activityLogger->recordOrder($order);
+            OrderPlaced::dispatch($order);
+
+            return $order;
         });
     }
 }

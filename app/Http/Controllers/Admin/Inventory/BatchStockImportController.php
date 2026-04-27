@@ -5,18 +5,21 @@ namespace App\Http\Controllers\Admin\Inventory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Inventory\BatchStockImportCommitRequest;
 use App\Http\Requests\Admin\Inventory\BatchStockImportUploadRequest;
+use App\Services\Admin\StockManagementService;
 use App\Services\Inventory\BatchStockImportService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BatchStockImportController extends Controller
 {
-    public function create(): View
+    public function create(Request $request, StockManagementService $stock): View
     {
-        return view('admin.inventory.imports.batch', [
+        return view('admin.inventory.index', $stock->buildPageData($request, [
+            'activeTab' => 'batch-import',
             'preview' => session('inventory_import_preview'),
-        ]);
+        ]));
     }
 
     public function preview(
@@ -27,11 +30,11 @@ class BatchStockImportController extends Controller
         session(['inventory_import_preview' => $preview]);
 
         return redirect()
-            ->route('admin.inventory.batch-imports.create')
+            ->route('admin.inventory.batch-imports.create', ['tab' => 'batch-import'])
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Import preview ready',
-                'message' => 'Review the parsed rows before committing inventory changes.',
+                'message' => 'Review the parsed rows before committing stock updates.',
             ]);
     }
 
@@ -47,7 +50,7 @@ class BatchStockImportController extends Controller
         session()->forget('inventory_import_preview');
 
         return redirect()
-            ->route('admin.inventory.index')
+            ->route('admin.inventory.index', ['tab' => 'movements'])
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Stock import completed',

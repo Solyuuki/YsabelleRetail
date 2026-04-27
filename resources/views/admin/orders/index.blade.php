@@ -4,11 +4,11 @@
     <x-admin.page-header
         eyebrow="Orders"
         title="Orders and sales"
-        description="Review online orders and walk-in receipts in one unified sales ledger."
+        description="Review online orders and walk-in receipts in one sales ledger."
     />
 
     <section class="ys-admin-panel" data-admin-panel>
-        <form method="GET" class="ys-admin-filter-row">
+        <form method="GET" class="ys-admin-toolbar">
             <input type="text" name="search" value="{{ $filters['search'] }}" class="ys-admin-input" placeholder="Search order number, customer, or phone">
             <select name="source" class="ys-admin-select">
                 @foreach (['all' => 'All sources', 'online' => 'Online', 'walk_in' => 'Walk-in'] as $value => $label)
@@ -49,7 +49,7 @@
                             </td>
                             <td>
                                 <p>{{ $order->customer_name ?: 'Registered customer' }}</p>
-                                <p class="text-xs text-ys-ivory/38">{{ $order->customer_phone ?: $order->customer_email ?: '—' }}</p>
+                                <p class="text-xs text-ys-ivory/38">{{ $order->customer_phone ?: $order->customer_email ?: '-' }}</p>
                             </td>
                             <td>
                                 <p>{{ strtoupper((string) $order->payment_method) }}</p>
@@ -72,7 +72,7 @@
         </div>
 
         <div class="mt-5">
-            {{ $orders->links() }}
+            {{ $orders->links('vendor.pagination.admin') }}
         </div>
     </section>
 @endsection

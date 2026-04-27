@@ -16,12 +16,13 @@ class ReportController extends Controller
     {
         $filters = $this->normalizedFilters($request->validated());
         $reportKey = $filters['report'];
+        $dataset = $reports->build($reportKey, $filters, 15);
 
         return view('admin.reports.index', [
             'reportKey' => $reportKey,
             'filters' => $filters,
             'lookups' => $reports->filterLookups(),
-            'dataset' => $reports->build($reportKey, $filters),
+            'dataset' => $dataset,
             'reportOptions' => config('admin.reports'),
         ]);
     }
@@ -35,9 +36,11 @@ class ReportController extends Controller
         $dataset = $reports->build($filters['report'], $filters);
         $generatedBy = $request->user()?->email ?? 'admin@ysabelle.store';
 
-        return $filters['format'] === 'pdf'
-            ? $exports->pdf($dataset, $filters, $generatedBy)
-            : $exports->csv($dataset, $filters, $generatedBy);
+        return match ($filters['format']) {
+            'pdf' => $exports->pdf($dataset, $filters, $generatedBy),
+            'xlsx' => $exports->xlsx($dataset, $filters, $generatedBy),
+            default => $exports->csv($dataset, $filters, $generatedBy),
+        };
     }
 
     private function normalizedFilters(array $filters): array

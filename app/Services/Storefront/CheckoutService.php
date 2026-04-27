@@ -2,22 +2,24 @@
 
 namespace App\Services\Storefront;
 
+use App\Events\Admin\OrderPlaced;
 use App\Models\Cart\Cart;
 use App\Models\Orders\Order;
 use App\Models\User;
+use App\Services\Admin\AdminActivityLogger;
 use App\Services\Inventory\InventoryManager;
-use App\Support\Storefront\ProductMediaResolver;
 use App\Support\OrderNumberGenerator;
+use App\Support\Storefront\ProductMediaResolver;
 use Illuminate\Support\Facades\DB;
 
 class CheckoutService
 {
     public function __construct(
+        private readonly AdminActivityLogger $activityLogger,
         private readonly ProductMediaResolver $productMedia,
         private readonly InventoryManager $inventoryManager,
         private readonly OrderNumberGenerator $orderNumbers,
-    ) {
-    }
+    ) {}
 
     public function placeOrder(Cart $cart, User $user, array $payload): Order
     {
@@ -110,7 +112,11 @@ class CheckoutService
                 ],
             ]);
 
-            return $order->load(['items', 'payments']);
+            $order = $order->load(['items', 'payments']);
+            $this->activityLogger->recordOrder($order);
+            OrderPlaced::dispatch($order);
+
+            return $order;
         });
     }
 }

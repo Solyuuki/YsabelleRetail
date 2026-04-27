@@ -54,6 +54,14 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
+        "check": [
+            "@php artisan optimize:clear",
+            "@php artisan route:list --except-vendor",
+            "@php artisan migrate:status",
+            "@php vendor/bin/pint --test",
+            "@php artisan test",
+            "npm run build"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

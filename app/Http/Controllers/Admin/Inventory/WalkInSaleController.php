@@ -13,9 +13,40 @@ use Illuminate\Http\Request;
 
 class WalkInSaleController extends Controller
 {
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('admin.inventory.pos');
+        $oldLines = collect(json_decode((string) $request->old('lines_json', '[]'), true))
+            ->filter(fn (mixed $line): bool => is_array($line) && isset($line['variant_id'], $line['quantity']))
+            ->values();
+
+        $variants = ProductVariant::query()
+            ->with(['product', 'inventoryItem'])
+            ->whereIn('id', $oldLines->pluck('variant_id'))
+            ->get()
+            ->keyBy('id');
+
+        return view('admin.inventory.pos', [
+            'oldLines' => $oldLines
+                ->map(function (array $line) use ($variants): ?array {
+                    $variant = $variants->get((int) $line['variant_id']);
+
+                    if (! $variant) {
+                        return null;
+                    }
+
+                    return [
+                        'id' => $variant->id,
+                        'sku' => $variant->sku,
+                        'name' => $variant->product->name,
+                        'variant_name' => $variant->name,
+                        'price' => (float) $variant->price,
+                        'available_quantity' => $variant->inventoryItem?->available_quantity ?? 0,
+                        'quantity' => (int) $line['quantity'],
+                    ];
+                })
+                ->filter()
+                ->values(),
+        ]);
     }
 
     public function store(WalkInSaleRequest $request, WalkInSaleService $sales): RedirectResponse

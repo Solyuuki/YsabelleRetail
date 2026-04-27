@@ -9,7 +9,7 @@
         />
 
         <div class="mt-10 rounded-[1.8rem] border border-white/7 bg-ys-panel/70 p-4 md:p-5" data-reveal>
-            <form method="GET" action="{{ route('storefront.shop') }}" class="grid gap-4 lg:grid-cols-[1fr_210px]">
+            <form method="GET" action="{{ route('storefront.shop') }}" class="grid gap-4 xl:grid-cols-[1.2fr_170px_170px_210px]">
                 <div class="relative">
                     <span class="pointer-events-none absolute inset-y-0 left-4 inline-flex items-center text-ys-ivory/28">
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
@@ -17,7 +17,12 @@
                             <path d="m16 16 4.5 4.5" stroke-linecap="round" />
                         </svg>
                     </span>
-                    <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" class="ys-input pl-11" placeholder="Search shoes, brands...">
+                    <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" class="ys-input pl-11" placeholder="Search shoes, category, color, SKU, or style...">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-2">
+                    <input type="number" name="min_price" value="{{ $filters['min_price'] ?? '' }}" min="0" class="ys-input" placeholder="Min ₱">
+                    <input type="number" name="max_price" value="{{ $filters['max_price'] ?? '' }}" min="0" class="ys-input" placeholder="Max ₱">
                 </div>
 
                 <div class="flex gap-3">
@@ -46,6 +51,16 @@
                         {{ $category->name }}
                     </a>
                 @endforeach
+            </div>
+
+            <div class="mt-5 flex flex-col gap-3 rounded-[1.35rem] border border-white/7 bg-black/20 px-4.5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-ys-ivory">Need to match a shoe from a photo?</p>
+                    <p class="mt-1 text-xs text-ys-ivory/46">Open the smart assistant and switch to Visual Search for image-based product finding.</p>
+                </div>
+                <button type="button" class="ys-button-ghost justify-center text-[0.88rem]" data-chat-open-visual>
+                    Find similar by image
+                </button>
             </div>
         </div>
 

@@ -4,7 +4,7 @@
     <x-admin.page-header
         eyebrow="Reports"
         title="Operational reports"
-        description="Filter sales, inventory, walk-in, and product performance reports, then export them in branded PDF or CSV formats."
+        description="Filter, review, and export the admin reports you need."
     />
 
     <section class="ys-admin-panel" data-admin-panel>
@@ -48,7 +48,7 @@
             </label>
 
             <div class="ys-admin-inline-actions items-end">
-                <button class="ys-admin-button-primary">Generate report</button>
+                <button class="ys-admin-button-primary">Run report</button>
             </div>
         </form>
     </section>
@@ -61,6 +61,7 @@
             </div>
             <div class="ys-admin-inline-actions">
                 <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'csv'])) }}" class="ys-admin-button-secondary">Export CSV</a>
+                <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'xlsx'])) }}" class="ys-admin-button-secondary">Export XLSX</a>
                 <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'pdf'])) }}" class="ys-admin-button-primary">Export PDF</a>
             </div>
         </div>
@@ -90,6 +91,10 @@
                     @endforelse
                 </tbody>
             </table>
+        </div>
+
+        <div class="mt-5">
+            {{ $dataset['rows']->links('vendor.pagination.admin') }}
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-3">

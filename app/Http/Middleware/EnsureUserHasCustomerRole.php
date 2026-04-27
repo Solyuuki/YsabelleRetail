@@ -12,7 +12,7 @@ class EnsureUserHasCustomerRole
     {
         $user = $request->user();
 
-        abort_unless($user && $user->isCustomer(), Response::HTTP_FORBIDDEN);
+        abort_unless($user && $user->isActive() && $user->isCustomer(), Response::HTTP_FORBIDDEN);
 
         return $next($request);
     }

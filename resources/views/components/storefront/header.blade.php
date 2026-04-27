@@ -72,10 +72,11 @@
                 <a href="{{ route('login') }}" class="text-[0.97rem] font-semibold text-ys-ivory transition hover:text-ys-gold">Sign in</a>
             @endauth
 
-            <a href="{{ route('storefront.cart.index') }}" class="ys-icon-button relative" aria-label="Shopping bag">
+            <a href="{{ route('storefront.cart.index') }}" class="ys-icon-button relative" aria-label="Cart" title="Cart">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                    <path d="M7 8V6a5 5 0 0 1 10 0v2" stroke-linecap="round" />
-                    <path d="M5.5 8.5h13l-.9 10.5H6.4L5.5 8.5Z" />
+                    <circle cx="9" cy="19" r="1.45" />
+                    <circle cx="17" cy="19" r="1.45" />
+                    <path d="M3.5 4h2.2l2.1 9.7a1 1 0 0 0 .98.8h8.9a1 1 0 0 0 .97-.75L21 7.5H6.2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 @if ($cartCount > 0)
                     <span class="absolute -right-1.5 -top-1.5 inline-flex min-h-5.5 min-w-5.5 items-center justify-center rounded-full bg-ys-gold px-1 text-[11px] font-semibold text-ys-ink">
@@ -95,7 +96,7 @@
             @endforeach
 
             <div class="flex items-center gap-3.5 pt-2.5">
-                <a href="{{ route('storefront.cart.index') }}" class="ys-button-secondary text-[0.95rem]">Shopping bag ({{ $cartCount }})</a>
+                <a href="{{ route('storefront.cart.index') }}" class="ys-button-secondary text-[0.95rem]">Cart ({{ $cartCount }})</a>
                 @auth
                     <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary text-[0.95rem]">My account</a>
                     <form action="{{ route('logout') }}" method="POST" class="contents">

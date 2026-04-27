@@ -2,13 +2,14 @@
 
 namespace App\Models\Catalog;
 
-use Database\Factories\Catalog\ProductVariantFactory;
+use App\Models\Inventory\InventoryItem;
 use App\Models\Inventory\StockMovement;
+use Database\Factories\Catalog\ProductVariantFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ProductVariant extends Model
 {
@@ -46,7 +47,7 @@ class ProductVariant extends Model
 
     public function inventoryItem(): HasOne
     {
-        return $this->hasOne(\App\Models\Inventory\InventoryItem::class);
+        return $this->hasOne(InventoryItem::class);
     }
 
     public function stockMovements(): HasMany

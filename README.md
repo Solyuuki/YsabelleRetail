@@ -1,18 +1,17 @@
 # Ysabelle Store Platform
 
-Laravel 12 backend foundation for Ysabelle Store, a premium retail shoe and operations platform.
+Laravel 12 ecommerce demo platform for Ysabelle Retail Shop with a polished storefront, admin back office, shared inventory, walk-in POS, branded reports, and simulated checkout flows.
 
 ## Current State
 
-This repository is now a structured foundation rather than a stock Laravel starter:
+This repository now includes:
 
-- separated route boundaries for `storefront`, `auth`, `admin`, and `api`
-- domain-oriented models for access, catalog, inventory, cart, orders, payments, shipping, discounts, and audit logs
-- dedicated controllers, requests, resources, services, and policies
-- baseline retail schema and seeders for future feature implementation
-- Blade placeholder screens that reflect actual system boundaries instead of the default Laravel welcome page
-
-Business features are not fully implemented yet. The codebase is prepared for them structurally.
+- separate route boundaries for `storefront`, `auth`, `admin`, and `api`
+- Laravel-native services, requests, policies, middleware, events, and listeners for core commerce flows
+- realistic local demo seed data for catalog, customers, online orders, walk-in sales, stock movements, and reports
+- unified stock management with manual updates, batch imports, movement history, and low-stock visibility
+- branded CSV, PDF, and XLSX report exports
+- admin realtime activity alerts using Laravel events plus a safe polling fallback
 
 ## Quick Start
 
@@ -32,6 +31,21 @@ Business features are not fully implemented yet. The codebase is prepared for th
 6. Start local development:
    - `composer dev`
 
+## Demo Accounts
+
+- Admin: `admin@ysabelle.store` / `Password123x`
+- Customer: `customer@ysabelle.store` / `Password123x`
+
+These local demo credentials are only seeded in the `local` environment.
+
+## Realtime Demo
+
+The admin dashboard uses Laravel events and listeners to create a live activity feed. The frontend refreshes it through a polling fallback, so no paid websocket service is required.
+
+- App server: `php artisan serve`
+- Frontend assets: `npm run dev`
+- Full guardrail: `composer check`
+
 ## Developer Entry Points
 
 - `routes/storefront.php`: public storefront route surface
@@ -50,5 +64,6 @@ Business features are not fully implemented yet. The codebase is prepared for th
 Run the automated test suite with:
 
 - `php artisan test`
+- `composer check`
 
 The test environment uses SQLite in memory and does not require the local MariaDB connection.

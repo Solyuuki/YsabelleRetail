@@ -4,13 +4,13 @@
     <x-admin.page-header
         eyebrow="Catalog"
         title="Product management"
-        description="Search, filter, create, and safely archive products while keeping variants and inventory aligned."
+        description="Search, filter, and manage products without leaving the back office."
     >
         <a href="{{ route('admin.catalog.products.create') }}" class="ys-admin-button-primary">Create product</a>
     </x-admin.page-header>
 
     <section class="ys-admin-panel" data-admin-panel>
-        <form method="GET" class="ys-admin-filter-row">
+        <form method="GET" class="ys-admin-toolbar">
             <input type="text" name="search" value="{{ $filters['search'] }}" class="ys-admin-input" placeholder="Search by product, style code, or SKU">
             <select name="status" class="ys-admin-select">
                 @foreach (['all' => 'All statuses', 'active' => 'Active', 'draft' => 'Draft', 'archived' => 'Archived'] as $value => $label)
@@ -69,7 +69,7 @@
         </div>
 
         <div class="mt-5">
-            {{ $products->links() }}
+            {{ $products->links('vendor.pagination.admin') }}
         </div>
     </section>
 @endsection

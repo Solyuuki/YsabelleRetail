@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Database\Seeders\Access\RoleSeeder;
 use Database\Seeders\Catalog\CatalogSeeder;
+use Database\Seeders\Demo\DemoCommerceSeeder;
 use Database\Seeders\Users\AdminUserSeeder;
 use Illuminate\Database\Seeder;
 
@@ -15,6 +16,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             AdminUserSeeder::class,
             CatalogSeeder::class,
+            DemoCommerceSeeder::class,
         ]);
     }
 }

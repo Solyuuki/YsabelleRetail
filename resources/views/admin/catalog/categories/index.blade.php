@@ -4,13 +4,13 @@
     <x-admin.page-header
         eyebrow="Catalog"
         title="Category management"
-        description="Create and maintain category structures with clear safeguards against unsafe deletion."
+        description="Maintain clean product groupings and safe category rules."
     >
         <a href="{{ route('admin.catalog.categories.create') }}" class="ys-admin-button-primary">Create category</a>
     </x-admin.page-header>
 
     <section class="ys-admin-panel" data-admin-panel>
-        <form method="GET" class="ys-admin-filter-row">
+        <form method="GET" class="ys-admin-toolbar">
             <input type="text" name="search" value="{{ $search }}" class="ys-admin-input" placeholder="Search categories">
             <button class="ys-admin-button-secondary">Filter</button>
         </form>
@@ -57,7 +57,7 @@
         </div>
 
         <div class="mt-5">
-            {{ $categories->links() }}
+            {{ $categories->links('vendor.pagination.admin') }}
         </div>
     </section>
 @endsection

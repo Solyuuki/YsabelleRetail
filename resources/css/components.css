@@ -635,6 +635,168 @@
         @apply border-[#6b1a1a] bg-[#3b0d0d] text-[#ffd8d8];
     }
 
+    .ys-chat-panel {
+        @apply overflow-hidden rounded-[1.75rem] border border-white/8 bg-ys-panel shadow-[0_24px_70px_rgba(0,0,0,0.55)];
+        max-height: min(38rem, calc(100vh - 13rem));
+        transform: translateY(16px) scale(0.98);
+        transform-origin: bottom right;
+        transition:
+            opacity 240ms ease,
+            transform 240ms ease;
+    }
+
+    .ys-chat-panel.is-open {
+        @apply pointer-events-auto opacity-100;
+        transform: translateY(0) scale(1);
+    }
+
+    .ys-chat-control {
+        @apply inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-ys-ivory/62 transition duration-300 hover:border-ys-gold/28 hover:text-ys-gold;
+    }
+
+    .ys-chat-tab {
+        @apply rounded-[0.85rem] px-3.5 py-2.5 text-[0.78rem] font-semibold uppercase tracking-[0.22em] text-ys-ivory/42 transition duration-300;
+    }
+
+    .ys-chat-tab.is-active {
+        @apply bg-ys-gold text-[#17110a];
+    }
+
+    .ys-chat-messages {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(212, 166, 59, 0.25) transparent;
+    }
+
+    .ys-chat-message-group {
+        @apply mb-4 flex flex-col gap-3;
+    }
+
+    .ys-chat-message-group.is-user {
+        @apply items-end;
+    }
+
+    .ys-chat-bubble {
+        @apply max-w-[92%] rounded-[1.35rem] px-4 py-3 text-sm leading-7;
+    }
+
+    .ys-chat-bubble.is-assistant {
+        @apply border border-white/8 bg-white/[0.03] text-ys-ivory/76;
+    }
+
+    .ys-chat-bubble.is-user {
+        @apply bg-ys-gold text-[#17110a];
+    }
+
+    .ys-chat-chip {
+        @apply inline-flex items-center rounded-full border border-white/8 bg-white/[0.03] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ys-ivory/56 transition duration-300 hover:border-ys-gold/30 hover:text-ys-gold;
+    }
+
+    .ys-chat-input {
+        @apply min-h-14 w-full rounded-[1.15rem] border border-white/8 bg-black/35 px-4.5 py-4 text-[0.95rem] leading-6 text-ys-ivory placeholder:text-ys-ivory/28 focus:border-ys-gold/45 focus:outline-none;
+        resize: none;
+        max-height: 8rem;
+    }
+
+    .ys-chat-product-grid {
+        @apply grid gap-3;
+    }
+
+    .ys-assistant-product-card {
+        @apply overflow-hidden rounded-[1.35rem] border border-white/8 bg-black/22;
+    }
+
+    .ys-assistant-product-link {
+        @apply block transition duration-300 hover:bg-white/[0.015];
+    }
+
+    .ys-assistant-product-media {
+        @apply h-34 overflow-hidden border-b border-white/6 bg-black;
+    }
+
+    .ys-assistant-product-fallback {
+        @apply flex h-full items-center justify-center px-4 text-center text-sm font-medium text-ys-ivory/54;
+        background:
+            radial-gradient(circle at 50% 42%, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 34%),
+            linear-gradient(180deg, #09090a 0%, #121214 100%);
+    }
+
+    .ys-assistant-product-copy {
+        @apply p-4;
+    }
+
+    .ys-assistant-product-title {
+        @apply text-[0.98rem] font-semibold text-ys-ivory;
+    }
+
+    .ys-assistant-product-meta {
+        @apply mt-1 text-[0.7rem] uppercase tracking-[0.22em] text-ys-ivory/34;
+    }
+
+    .ys-assistant-stock {
+        @apply rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em];
+    }
+
+    .ys-assistant-stock.is-in_stock {
+        @apply bg-[#11311f] text-[#9fe1b1];
+    }
+
+    .ys-assistant-stock.is-low_stock {
+        @apply bg-[#38260c] text-[#f0c36f];
+    }
+
+    .ys-assistant-stock.is-sold_out {
+        @apply bg-[#411415] text-[#ffb0b0];
+    }
+
+    .ys-chat-actions {
+        @apply flex flex-wrap gap-2;
+    }
+
+    .ys-chat-action {
+        @apply inline-flex items-center rounded-full border border-ys-gold/25 bg-ys-gold/8 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ys-gold transition duration-300 hover:border-ys-gold/45 hover:bg-ys-gold/12 hover:text-ys-ivory;
+    }
+
+    .ys-chat-typing-dots {
+        @apply inline-flex items-center gap-1;
+    }
+
+    .ys-chat-typing-dots span {
+        @apply h-1.5 w-1.5 rounded-full bg-ys-gold/75;
+        animation: ys-chat-typing 1s infinite ease-in-out;
+    }
+
+    .ys-chat-typing-dots span:nth-child(2) {
+        animation-delay: 120ms;
+    }
+
+    .ys-chat-typing-dots span:nth-child(3) {
+        animation-delay: 240ms;
+    }
+
+    .ys-visual-dropzone {
+        @apply rounded-[1.35rem] border border-dashed border-white/12 bg-black/22 px-4 py-4 transition duration-300;
+    }
+
+    .ys-visual-dropzone.is-dragging {
+        @apply border-ys-gold/45 bg-ys-gold/6;
+    }
+
+    .ys-visual-preview-empty {
+        @apply rounded-[1rem] border border-white/8 bg-white/[0.025] px-4 py-5 text-sm text-ys-ivory/48;
+    }
+
+    .ys-visual-feedback {
+        @apply rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-ys-ivory/54;
+    }
+
+    .ys-visual-results-empty {
+        @apply rounded-[1.2rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm leading-7 text-ys-ivory/48;
+    }
+
+    .ys-visual-response {
+        @apply space-y-4;
+    }
+
     .ys-chat-trigger {
         @apply inline-flex h-15 w-15 items-center justify-center rounded-full border border-ys-gold/45 bg-ys-gold text-[#17110a] shadow-[0_12px_36px_rgba(212,166,59,0.35)] transition duration-300 hover:-translate-y-1 hover:scale-[1.02];
     }
@@ -648,6 +810,20 @@
 
     50% {
         transform: translateY(-10px) rotateZ(0.8deg) rotateX(0deg);
+    }
+}
+
+@keyframes ys-chat-typing {
+    0%,
+    80%,
+    100% {
+        opacity: 0.35;
+        transform: translateY(0);
+    }
+
+    40% {
+        opacity: 1;
+        transform: translateY(-2px);
     }
 }
 
@@ -845,6 +1021,19 @@
 
         .ys-featured-banner-button {
             @apply px-4.5 py-2.5 text-[0.62rem];
+        }
+
+        .ys-chat-panel {
+            max-width: min(100vw - 2rem, 24rem);
+            max-height: min(36rem, calc(100vh - 10rem));
+        }
+
+        .ys-chat-bubble {
+            max-width: 100%;
+        }
+
+        .ys-chat-trigger {
+            @apply h-13 w-13;
         }
 
     }

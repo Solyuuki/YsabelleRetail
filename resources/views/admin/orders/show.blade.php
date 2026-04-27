@@ -4,7 +4,7 @@
     <x-admin.page-header
         eyebrow="Receipt"
         :title="$order->order_number"
-        description="Printable summary with customer details, line items, payment state, and linked stock movements."
+        description="Printable summary with line items, payment state, and linked stock movements."
     >
         <button type="button" class="ys-admin-button-secondary" data-print-page>Print receipt</button>
     </x-admin.page-header>
@@ -14,7 +14,7 @@
             <div class="ys-admin-panel-heading">
                 <div>
                     <h2 class="ys-admin-panel-title">Line Items</h2>
-                    <p class="ys-admin-subtle">{{ str($order->source)->headline() }} transaction · {{ optional($order->placed_at)->format('M d, Y h:i A') }}</p>
+                    <p class="ys-admin-subtle">{{ str($order->source)->headline() }} transaction / {{ optional($order->placed_at)->format('M d, Y h:i A') }}</p>
                 </div>
             </div>
 
@@ -80,7 +80,7 @@
                     @forelse ($order->stockMovements as $movement)
                         <div class="rounded-[1rem] border border-white/7 bg-white/[0.03] px-4 py-3">
                             <p class="text-sm font-semibold text-ys-ivory">{{ $movement->variant?->sku }}</p>
-                            <p class="text-xs text-ys-ivory/40">{{ str($movement->type)->headline() }} · {{ $movement->quantity_delta }}</p>
+                            <p class="text-xs text-ys-ivory/40">{{ str($movement->type)->headline() }} / {{ $movement->quantity_delta }}</p>
                         </div>
                     @empty
                         <div class="ys-admin-empty-panel">No linked stock movements were found for this order.</div>
