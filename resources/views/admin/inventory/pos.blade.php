@@ -4,7 +4,7 @@
     <x-admin.page-header
         eyebrow="POS"
         title="Walk-in sales"
-        description="Search live inventory, build a receipt, and deduct stock from the same source used by online orders."
+        description="Fast in-store checkout with immediate payment and stock deduction."
     />
 
     @if ($errors->any())
@@ -17,7 +17,21 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('admin.pos.store') }}" class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]" data-admin-form data-admin-pos data-search-endpoint="{{ route('admin.pos.search') }}">
+    <section class="ys-admin-stat-grid">
+        @foreach ([
+            ['label' => 'Flow', 'value' => 'In-store', 'meta' => 'No delivery'],
+            ['label' => 'Customer', 'value' => 'Optional', 'meta' => 'Defaults to Walk-in Customer'],
+            ['label' => 'Inventory', 'value' => 'Instant', 'meta' => 'Deducted after sale'],
+        ] as $card)
+            <article class="ys-admin-stat-card" data-admin-panel>
+                <p class="ys-admin-stat-label">{{ $card['label'] }}</p>
+                <p class="ys-admin-stat-value">{{ $card['value'] }}</p>
+                <p class="ys-admin-stat-meta">{{ $card['meta'] }}</p>
+            </article>
+        @endforeach
+    </section>
+
+    <form method="POST" action="{{ route('admin.pos.store') }}" class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]" data-admin-form data-admin-pos data-search-endpoint="{{ route('admin.pos.search') }}" data-old-lines='@json($oldLines ?? [])'>
         @csrf
         <section class="ys-admin-panel space-y-4" data-admin-panel>
             <div>
@@ -34,12 +48,12 @@
                 <div class="ys-admin-panel-heading">
                     <div>
                         <h2 class="ys-admin-panel-title">Receipt</h2>
-                        <p class="ys-admin-subtle">All quantities are validated against live stock before the sale completes.</p>
+                        <p class="ys-admin-subtle">Only items, quantity, and payment are required.</p>
                     </div>
                 </div>
 
                 <div class="mt-4 space-y-3" data-pos-cart></div>
-                <input type="hidden" name="lines_json" value="[]">
+                <input type="hidden" name="lines_json" value="{{ old('lines_json', '[]') }}">
 
                 <div class="mt-5 flex items-center justify-between border-t border-white/7 pt-4">
                     <span class="text-sm text-ys-ivory/55">Total</span>
@@ -49,16 +63,6 @@
 
             <article class="ys-admin-panel" data-admin-panel>
                 <div class="ys-admin-grid-fields">
-                    <label class="ys-admin-field">
-                        <span class="ys-admin-label">Customer Name</span>
-                        <input type="text" name="customer_name" value="{{ old('customer_name') }}" class="ys-admin-input">
-                    </label>
-
-                    <label class="ys-admin-field">
-                        <span class="ys-admin-label">Customer Phone</span>
-                        <input type="text" name="customer_phone" value="{{ old('customer_phone') }}" class="ys-admin-input">
-                    </label>
-
                     <label class="ys-admin-field">
                         <span class="ys-admin-label">Payment Method</span>
                         <select name="payment_method" class="ys-admin-select">
@@ -78,10 +82,20 @@
                     </label>
                 </div>
 
-                <label class="ys-admin-field mt-4">
-                    <span class="ys-admin-label">Notes</span>
-                    <textarea name="notes" class="ys-admin-textarea">{{ old('notes') }}</textarea>
-                </label>
+                <details class="ys-admin-detail-panel mt-4">
+                    <summary class="ys-admin-detail-summary">Optional details</summary>
+                    <div class="mt-4 space-y-4">
+                        <label class="ys-admin-field">
+                            <span class="ys-admin-label">Customer Name</span>
+                            <input type="text" name="customer_name" value="{{ old('customer_name') }}" class="ys-admin-input" placeholder="Walk-in Customer">
+                        </label>
+
+                        <label class="ys-admin-field">
+                            <span class="ys-admin-label">Notes</span>
+                            <textarea name="notes" class="ys-admin-textarea">{{ old('notes') }}</textarea>
+                        </label>
+                    </div>
+                </details>
 
                 <div class="mt-5 ys-admin-inline-actions">
                     <button type="submit" class="ys-admin-button-primary" data-loading-label="Completing sale...">Complete sale</button>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin\Inventory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Inventory\ManualStockMovementRequest;
 use App\Models\Catalog\ProductVariant;
+use App\Services\Admin\StockManagementService;
 use App\Services\Inventory\InventoryManager;
 use App\Support\Admin\InventoryMovementType;
 use Illuminate\Contracts\View\View;
@@ -13,13 +14,13 @@ use Illuminate\Http\Request;
 
 class ManualStockImportController extends Controller
 {
-    public function create(Request $request): View
+    public function create(Request $request, StockManagementService $stock): View
     {
-        return view('admin.inventory.manual-import', [
+        return view('admin.inventory.index', $stock->buildPageData($request, [
+            'activeTab' => 'add-stock',
             'movementType' => $request->query('type', InventoryMovementType::STOCK_IN),
-            'variants' => ProductVariant::query()->with('product')->orderBy('sku')->get(),
-            'movementTypes' => InventoryMovementType::manualTypes(),
-        ]);
+            'selectedVariantId' => $request->query('variant'),
+        ]));
     }
 
     public function store(
@@ -41,7 +42,7 @@ class ManualStockImportController extends Controller
         );
 
         return redirect()
-            ->route('admin.inventory.index')
+            ->route('admin.inventory.index', ['tab' => 'movements'])
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Inventory updated',

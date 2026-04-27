@@ -32,7 +32,7 @@ class ProductController extends Controller
             ->when($status && $status !== 'all', fn ($query) => $query->where('status', $status))
             ->when($categoryId, fn ($query) => $query->where('category_id', $categoryId))
             ->latest()
-            ->paginate(12)
+            ->paginate(15)
             ->withQueryString();
 
         return view('admin.catalog.products.index', [

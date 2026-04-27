@@ -232,7 +232,7 @@ test('manual stock import records stock in movements and updates on-hand quantit
             'reference_number' => 'MAN-1001',
             'notes' => 'Restocked from warehouse.',
         ])
-        ->assertRedirect(route('admin.inventory.index'));
+        ->assertRedirect(route('admin.inventory.index', ['tab' => 'movements']));
 
     $variant->refresh();
     $variant->load('inventoryItem');
@@ -263,7 +263,7 @@ test('batch stock import previews commits and records inventory movements', func
         ->post(route('admin.inventory.batch-imports.preview'), [
             'file' => $file,
         ])
-        ->assertRedirect(route('admin.inventory.batch-imports.create'));
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']));
 
     $preview = session('inventory_import_preview');
 
@@ -274,7 +274,7 @@ test('batch stock import previews commits and records inventory movements', func
         ->post(route('admin.inventory.batch-imports.store'), [
             'preview_token' => $preview['token'],
         ])
-        ->assertRedirect(route('admin.inventory.index'));
+        ->assertRedirect(route('admin.inventory.index', ['tab' => 'movements']));
 
     $variant->refresh();
     $variant->load('inventoryItem');
@@ -321,8 +321,6 @@ test('walk in pos sale deducts shared inventory and creates audited order record
 
     $response = $this->actingAs($admin)
         ->post(route('admin.pos.store'), [
-            'customer_name' => 'Walk-in Buyer',
-            'customer_phone' => '09170000000',
             'payment_method' => 'cash',
             'payment_status' => 'paid',
             'notes' => 'Counter sale',
@@ -339,6 +337,8 @@ test('walk in pos sale deducts shared inventory and creates audited order record
     expect($order->source)->toBe('walk_in')
         ->and($order->payment_status)->toBe('paid')
         ->and($order->payment_method)->toBe('cash')
+        ->and($order->customer_name)->toBe('Walk-in Customer')
+        ->and($order->customer_phone)->toBeNull()
         ->and((int) $variant->inventoryItem->quantity_on_hand)->toBe(5)
         ->and($response->headers->get('Location'))->toContain(route('admin.orders.show', $order, false));
 

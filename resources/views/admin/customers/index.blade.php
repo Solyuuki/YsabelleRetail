@@ -4,11 +4,11 @@
     <x-admin.page-header
         eyebrow="Customers"
         title="Customer directory"
-        description="See registered customers and walk-in buyers from the same operational view."
+        description="See registered customers and walk-in buyers from one view."
     />
 
     <section class="ys-admin-panel" data-admin-panel>
-        <form method="GET" class="ys-admin-filter-row">
+        <form method="GET" class="ys-admin-toolbar">
             <input type="text" name="search" value="{{ $search }}" class="ys-admin-input" placeholder="Search name, email, or phone">
             <button class="ys-admin-button-secondary">Search</button>
         </form>
@@ -53,7 +53,7 @@
                 </table>
             </div>
 
-            <div class="mt-5">{{ $registeredCustomers->links() }}</div>
+            <div class="mt-5">{{ $registeredCustomers->links('vendor.pagination.admin') }}</div>
         </article>
 
         <article class="ys-admin-panel" data-admin-panel>
@@ -94,7 +94,7 @@
                 </table>
             </div>
 
-            <div class="mt-5">{{ $walkInCustomers->links() }}</div>
+            <div class="mt-5">{{ $walkInCustomers->links('vendor.pagination.admin') }}</div>
         </article>
     </section>
 @endsection

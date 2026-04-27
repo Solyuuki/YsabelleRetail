@@ -23,7 +23,7 @@ const renderCart = (root, lines) => {
         <div class="ys-admin-cart-row">
             <div>
                 <p class="ys-admin-cart-title">${line.name}</p>
-                <p class="ys-admin-cart-meta">${line.variant_name} · ${line.sku}</p>
+                <p class="ys-admin-cart-meta">${line.variant_name} / ${line.sku}</p>
             </div>
             <div class="ys-admin-cart-actions">
                 <input type="number" min="1" max="${line.available_quantity}" value="${line.quantity}" data-pos-quantity="${index}" class="ys-admin-qty-input">
@@ -52,10 +52,15 @@ export const initAdminPos = () => {
     const results = root.querySelector('[data-pos-results]');
     const search = root.querySelector('[data-pos-search]');
     const lines = [];
+    const oldLines = JSON.parse(root.dataset.oldLines || '[]');
 
     const refresh = () => renderCart(root, lines);
 
     const addLine = (item) => {
+        if (item.available_quantity < 1) {
+            return;
+        }
+
         const existing = lines.find((line) => line.id === item.id);
 
         if (existing) {
@@ -88,14 +93,14 @@ export const initAdminPos = () => {
         }
 
         results.innerHTML = items.map((item) => `
-            <button type="button" class="ys-admin-search-card" data-pos-add="${item.id}">
+            <button type="button" class="ys-admin-search-card" data-pos-add="${item.id}" ${item.available_quantity < 1 ? 'disabled' : ''}>
                 <div>
                     <p class="ys-admin-search-title">${item.name}</p>
-                    <p class="ys-admin-search-meta">${item.variant_name} · ${item.sku}</p>
+                    <p class="ys-admin-search-meta">${item.variant_name} / ${item.sku}</p>
                 </div>
                 <div class="ys-admin-search-side">
                     <span>PHP ${currency.format(item.price)}</span>
-                    <span>${item.available_quantity} in stock</span>
+                    <span>${item.available_quantity < 1 ? 'Out of stock' : `${item.available_quantity} in stock`}</span>
                 </div>
             </button>
         `).join('');
@@ -143,6 +148,12 @@ export const initAdminPos = () => {
 
         lines.splice(Number(button.dataset.posRemove), 1);
         refresh();
+    });
+
+    oldLines.forEach((line) => {
+        if (line && typeof line.id === 'number') {
+            lines.push(line);
+        }
     });
 
     refresh();

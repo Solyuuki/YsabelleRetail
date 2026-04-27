@@ -7,7 +7,6 @@ use App\Models\Inventory\StockMovement;
 use App\Models\Orders\Order;
 use App\Models\Catalog\Product;
 use App\Support\Admin\InventoryMovementType;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class AdminDashboardService
@@ -19,28 +18,21 @@ class AdminDashboardService
                 'total_sales' => (float) Order::query()->sum('grand_total'),
                 'online_sales' => (float) Order::query()->where('source', 'online')->sum('grand_total'),
                 'walk_in_sales' => (float) Order::query()->where('source', 'walk_in')->sum('grand_total'),
+                'total_orders' => Order::query()->count(),
                 'total_products' => Product::query()->count(),
                 'low_stock_items' => $this->lowStockItemsQuery()->count(),
                 'out_of_stock_items' => InventoryItem::query()->where('quantity_on_hand', '<=', 0)->count(),
                 'pending_orders' => Order::query()->where('status', 'pending')->count(),
-                'completed_orders' => Order::query()->where('status', 'completed')->count(),
             ],
-            'recent_orders' => Order::query()
-                ->with(['items', 'payments'])
-                ->where('source', 'online')
-                ->latest('placed_at')
-                ->limit(6)
-                ->get(),
-            'recent_walk_in_sales' => Order::query()
+            'recent_sales' => Order::query()
                 ->with(['items', 'payments', 'handledBy'])
-                ->where('source', 'walk_in')
                 ->latest('placed_at')
-                ->limit(6)
+                ->limit(8)
                 ->get(),
             'inventory_alerts' => $this->lowStockItemsQuery()
                 ->with('variant.product')
                 ->orderBy('quantity_on_hand')
-                ->limit(8)
+                ->limit(6)
                 ->get(),
             'sales_chart' => $this->salesChart(),
             'stock_movement_summary' => $this->stockMovementSummary(),
@@ -52,20 +44,25 @@ class AdminDashboardService
         $start = now()->subDays(6)->startOfDay();
 
         $totals = Order::query()
-            ->selectRaw('DATE(placed_at) as order_date, SUM(grand_total) as total')
+            ->selectRaw("DATE(placed_at) as order_date, SUM(grand_total) as total, SUM(CASE WHEN source = 'online' THEN grand_total ELSE 0 END) as online_total, SUM(CASE WHEN source = 'walk_in' THEN grand_total ELSE 0 END) as walk_in_total, COUNT(*) as orders_count")
             ->whereNotNull('placed_at')
             ->where('placed_at', '>=', $start)
             ->groupBy('order_date')
-            ->pluck('total', 'order_date');
+            ->get()
+            ->keyBy('order_date');
 
         return collect(range(0, 6))
             ->map(function (int $offset) use ($start, $totals): array {
                 $date = $start->copy()->addDays($offset);
+                $row = $totals->get($date->toDateString());
 
                 return [
                     'date' => $date->toDateString(),
                     'label' => $date->format('M d'),
-                    'total' => (float) ($totals[$date->toDateString()] ?? 0),
+                    'total' => (float) ($row->total ?? 0),
+                    'online_total' => (float) ($row->online_total ?? 0),
+                    'walk_in_total' => (float) ($row->walk_in_total ?? 0),
+                    'orders_count' => (int) ($row->orders_count ?? 0),
                 ];
             });
     }

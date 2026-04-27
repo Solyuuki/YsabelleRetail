@@ -8,6 +8,7 @@ use App\Services\Reports\ReportExportService;
 use App\Services\Reports\ReportService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -16,12 +17,30 @@ class ReportController extends Controller
     {
         $filters = $this->normalizedFilters($request->validated());
         $reportKey = $filters['report'];
+        $dataset = $reports->build($reportKey, $filters);
+        $rows = collect($dataset['rows'])->values();
+        $pageName = 'report_page';
+        $currentPage = LengthAwarePaginator::resolveCurrentPage($pageName);
+        $perPage = 15;
+
+        $dataset['rows'] = new LengthAwarePaginator(
+            $rows->forPage($currentPage, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $currentPage,
+            [
+                'path' => url()->current(),
+                'pageName' => $pageName,
+            ],
+        );
+
+        $dataset['rows']->appends($request->query());
 
         return view('admin.reports.index', [
             'reportKey' => $reportKey,
             'filters' => $filters,
             'lookups' => $reports->filterLookups(),
-            'dataset' => $reports->build($reportKey, $filters),
+            'dataset' => $dataset,
             'reportOptions' => config('admin.reports'),
         ]);
     }
