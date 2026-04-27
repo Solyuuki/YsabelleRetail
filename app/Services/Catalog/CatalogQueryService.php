@@ -4,6 +4,7 @@ namespace App\Services\Catalog;
 
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
+use App\Services\Storefront\ProductDiscoveryService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
@@ -13,6 +14,10 @@ use Throwable;
 
 class CatalogQueryService
 {
+    public function __construct(
+        private readonly ProductDiscoveryService $productDiscovery,
+    ) {}
+
     public function featuredProducts(int $limit = 6): Collection
     {
         if (! $this->catalogIsAvailable()) {
@@ -117,31 +122,7 @@ class CatalogQueryService
             ->with(['category', 'variants.inventoryItem'])
             ->withCount('variants');
 
-        if (($filters['status'] ?? null) !== null) {
-            $query->where('status', $filters['status']);
-        }
-
-        if ($search = $filters['search'] ?? null) {
-            $query->where(function ($builder) use ($search): void {
-                $builder
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('style_code', 'like', "%{$search}%");
-            });
-        }
-
-        if ($categoryId = $filters['category_id'] ?? null) {
-            $query->where('category_id', $categoryId);
-        }
-
-        if ($categorySlug = $filters['category'] ?? null) {
-            $query->whereHas('category', function ($builder) use ($categorySlug): void {
-                $builder->where('slug', $categorySlug);
-            });
-        }
-
-        if ($featured = $filters['featured'] ?? null) {
-            $query->where('is_featured', (bool) $featured);
-        }
+        $this->productDiscovery->applyBrowseFilters($query, $filters);
 
         match ($filters['sort'] ?? 'featured') {
             'price_asc' => $query->orderBy('base_price'),

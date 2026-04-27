@@ -17,6 +17,8 @@ class ProductBrowseRequest extends FormRequest
             'search' => ['nullable', 'string', 'max:100'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'category' => ['nullable', 'string', 'exists:categories,slug'],
+            'min_price' => ['nullable', 'numeric', 'min:0'],
+            'max_price' => ['nullable', 'numeric', 'min:0'],
             'featured' => ['nullable', 'boolean'],
             'status' => ['nullable', 'in:draft,active,archived'],
             'sort' => ['nullable', 'in:featured,price_asc,price_desc,newest,name'],

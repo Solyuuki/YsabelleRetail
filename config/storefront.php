@@ -55,4 +55,40 @@ return [
             ['label' => 'Contact', 'href' => '#contact'],
         ],
     ],
+
+    'assistant' => [
+        'prompt_chips' => [
+            'Find running shoes',
+            'Shoes under ₱3,000',
+            'Black sneakers',
+            'Check my cart',
+            'Find similar by image',
+        ],
+
+        'visual_search' => [
+            'colors' => [
+                'black' => 'Black',
+                'white' => 'White',
+                'ivory' => 'Ivory',
+                'blue' => 'Blue',
+                'graphite' => 'Graphite',
+                'gold' => 'Gold',
+                'volt' => 'Volt',
+            ],
+            'use_cases' => [
+                'daily' => 'Daily use',
+                'running' => 'Running',
+                'walking' => 'Walking',
+                'gym' => 'Gym / training',
+                'performance' => 'Performance',
+            ],
+        ],
+
+        'policies' => [
+            'shipping' => 'Shipping is free for orders above PHP 5,000. Orders below that threshold use a PHP 350 delivery fee.',
+            'returns' => 'Ysabelle Retail supports a 14-day return window for demo-ready storefront flows.',
+            'authenticity' => 'All catalog items are presented as 100% genuine Ysabelle Retail merchandise.',
+            'care' => 'Premium care includes sizing help, product guidance, and post-purchase assistance through the storefront helper.',
+        ],
+    ],
 ];
