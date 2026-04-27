@@ -61,6 +61,7 @@
             </div>
             <div class="ys-admin-inline-actions">
                 <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'csv'])) }}" class="ys-admin-button-secondary">Export CSV</a>
+                <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'xlsx'])) }}" class="ys-admin-button-secondary">Export XLSX</a>
                 <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'pdf'])) }}" class="ys-admin-button-primary">Export PDF</a>
             </div>
         </div>

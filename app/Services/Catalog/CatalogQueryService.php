@@ -4,8 +4,8 @@ namespace App\Services\Catalog;
 
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;

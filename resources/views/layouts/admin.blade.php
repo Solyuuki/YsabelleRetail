@@ -9,7 +9,7 @@
         <link href="https://fonts.bunny.net/css?family=cormorant-garamond:500,600,700|instrument-sans:400,500,600,700" rel="stylesheet" />
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="ys-admin-shell" data-admin-app>
+    <body class="ys-admin-shell" data-admin-app data-admin-activity-endpoint="{{ route('admin.realtime.feed') }}">
         <div class="ys-admin-overlay" data-admin-overlay></div>
 
         <div class="ys-admin-grid">

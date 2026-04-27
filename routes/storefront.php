@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Storefront\Cart\CartController;
 use App\Http\Controllers\Storefront\AccountController;
+use App\Http\Controllers\Storefront\Cart\CartController;
 use App\Http\Controllers\Storefront\Catalog\CategoryController;
 use App\Http\Controllers\Storefront\Catalog\ProductController;
 use App\Http\Controllers\Storefront\CheckoutController;

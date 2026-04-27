@@ -12,7 +12,7 @@ class EnsureUserHasAdminRole
     {
         $user = $request->user();
 
-        abort_unless($user && $user->isAdmin(), Response::HTTP_FORBIDDEN);
+        abort_unless($user && $user->isActive() && $user->isAdmin(), Response::HTTP_FORBIDDEN);
 
         return $next($request);
     }

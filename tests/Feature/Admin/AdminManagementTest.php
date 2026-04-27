@@ -5,7 +5,6 @@ use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Inventory\InventoryImportBatch;
-use App\Models\Inventory\StockMovement;
 use App\Models\Orders\Order;
 use App\Models\User;
 use App\Support\Admin\InventoryMovementType;
@@ -136,6 +135,13 @@ test('admin can create update and archive products with tracked inventory', func
     expect($product->track_inventory)->toBeTrue()
         ->and((int) $variant->inventoryItem->quantity_on_hand)->toBe(14);
 
+    $this->assertDatabaseHas('stock_movements', [
+        'product_variant_id' => $variant->id,
+        'type' => InventoryMovementType::STOCK_IN,
+        'quantity_delta' => 14,
+        'actor_id' => $admin->id,
+    ]);
+
     $updatePayload = $payload;
     $updatePayload['name'] = 'Production Runner II';
     $updatePayload['variants'][0]['id'] = $variant->id;
@@ -153,6 +159,13 @@ test('admin can create update and archive products with tracked inventory', func
     expect($product->name)->toBe('Production Runner II')
         ->and((float) $variant->cost_price)->toBe(1450.0)
         ->and((int) $variant->inventoryItem->quantity_on_hand)->toBe(18);
+
+    $this->assertDatabaseHas('stock_movements', [
+        'product_variant_id' => $variant->id,
+        'type' => InventoryMovementType::ADJUSTMENT,
+        'quantity_delta' => 4,
+        'actor_id' => $admin->id,
+    ]);
 
     $this->actingAs($admin)
         ->delete(route('admin.catalog.products.destroy', $product))
@@ -306,6 +319,29 @@ test('batch stock import rejects files with missing required columns', function 
         ->assertSessionHasErrors(['file']);
 });
 
+test('batch stock import rejects non numeric quantity and cost values without coercing them', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(4, ['sku' => 'YSV-IMPORT-002']);
+
+    $file = UploadedFile::fake()->createWithContent(
+        'stock-import.csv',
+        "sku,product_name,variant,quantity,cost_price,supplier,notes\nYSV-IMPORT-002,{$variant->product->name},{$variant->name},six,abc,Import Supplier,Bad row\n",
+    );
+
+    $this->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.preview'), [
+            'file' => $file,
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']));
+
+    $preview = session('inventory_import_preview');
+
+    expect($preview['summary']['valid_rows'])->toBe(0)
+        ->and($preview['summary']['invalid_rows'])->toBe(1)
+        ->and($preview['rows'][0]['errors'])->toContain('Quantity must be a whole number.')
+        ->and($preview['rows'][0]['errors'])->toContain('Cost price must be numeric.');
+});
+
 test('batch stock template downloads successfully', function () {
     $admin = createAdminUser();
 
@@ -417,6 +453,14 @@ test('report pages and exports are available to admins with valid filters', func
         ]))
         ->assertOk()
         ->assertHeader('content-type', 'application/pdf');
+
+    $this->actingAs($admin)
+        ->get(route('admin.reports.export', [
+            'report' => 'walk_in_sales',
+            'format' => 'xlsx',
+        ]))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
 test('report filters reject invalid date ranges', function () {
@@ -429,4 +473,52 @@ test('report filters reject invalid date ranges', function () {
             'date_to' => '2026-04-01',
         ]))
         ->assertSessionHasErrors(['date_to']);
+});
+
+test('admin realtime feed returns new inventory and walk in notifications while blocking customers', function () {
+    $admin = createAdminUser();
+    $customer = createCustomerUser();
+    $variant = createInventoryVariant(6, ['price' => 1899]);
+
+    $bootstrap = $this->actingAs($admin)
+        ->getJson(route('admin.realtime.feed'))
+        ->assertOk()
+        ->json();
+
+    $cursor = $bootstrap['cursor'];
+
+    $this->actingAs($admin)
+        ->post(route('admin.inventory.manual-import.store'), [
+            'product_variant_id' => $variant->id,
+            'type' => InventoryMovementType::STOCK_OUT,
+            'quantity' => 1,
+            'reference_number' => 'LIVE-2001',
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($admin)
+        ->post(route('admin.pos.store'), [
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'notes' => 'Live activity seed',
+            'lines_json' => json_encode([
+                ['variant_id' => $variant->id, 'quantity' => 1],
+            ], JSON_THROW_ON_ERROR),
+        ])
+        ->assertRedirect();
+
+    $feed = $this->actingAs($admin)
+        ->getJson(route('admin.realtime.feed', ['after' => $cursor]))
+        ->assertOk()
+        ->json();
+
+    $titles = collect($feed['notifications'])->pluck('title');
+
+    expect($feed['mode'])->toBe('polling_fallback')
+        ->and($titles)->toContain('New walk-in sale')
+        ->and($titles->intersect(['Inventory updated', 'Low stock alert', 'Out of stock alert'])->isNotEmpty())->toBeTrue();
+
+    $this->actingAs($customer)
+        ->get(route('admin.realtime.feed'))
+        ->assertForbidden();
 });

@@ -18,7 +18,7 @@
             'compare_at_price' => 'Compare Price',
             'cost_price' => 'Cost Price',
             'weight_grams' => 'Weight (g)',
-            'quantity_on_hand' => 'Quantity On Hand',
+            'quantity_on_hand' => 'Target On Hand',
             'reorder_level' => 'Reorder Level',
         ] as $field => $label)
             <label class="ys-admin-field">
@@ -28,6 +28,9 @@
                     name="variants[{{ $index }}][{{ $field }}]"
                     value="{{ $variant[$field] }}"
                     class="ys-admin-input">
+                @if ($field === 'quantity_on_hand')
+                    <span class="mt-2 text-xs text-ys-ivory/45">Saving a new value records a stock movement instead of silently rewriting inventory.</span>
+                @endif
             </label>
         @endforeach
 

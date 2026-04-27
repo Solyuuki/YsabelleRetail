@@ -147,7 +147,7 @@
         <div class="ys-admin-panel-heading">
             <div>
                 <h2 class="ys-admin-panel-title">Variants and Stock</h2>
-                <p class="ys-admin-subtle">Each variant keeps its own SKU, pricing, supplier, and stock controls.</p>
+                <p class="ys-admin-subtle">Each variant keeps its own SKU, pricing, supplier, and stock controls. Quantity changes made here are recorded as audited stock movements.</p>
             </div>
             <button type="button" class="ys-admin-button-secondary" data-variant-add data-variant-target="#variant-list" data-variant-template="#variant-template">Add variant</button>
         </div>

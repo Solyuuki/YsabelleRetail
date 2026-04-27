@@ -59,7 +59,7 @@ class ProductController extends Controller
 
     public function store(SaveProductRequest $request, ProductUpsertService $products): RedirectResponse
     {
-        $product = $products->store($request->validated());
+        $product = $products->store($request->validated(), $request->user());
 
         return redirect()
             ->route('admin.catalog.products.edit', $product)
@@ -83,7 +83,7 @@ class ProductController extends Controller
         Product $product,
         ProductUpsertService $products,
     ): RedirectResponse {
-        $product = $products->update($product, $request->validated());
+        $product = $products->update($product, $request->validated(), $request->user());
 
         return redirect()
             ->route('admin.catalog.products.edit', $product)

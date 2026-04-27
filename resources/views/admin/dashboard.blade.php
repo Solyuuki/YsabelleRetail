@@ -192,4 +192,32 @@
             </div>
         </article>
     </section>
+
+    <section class="ys-admin-panel mt-6" data-admin-panel>
+        <div class="ys-admin-panel-heading">
+            <div>
+                <h2 class="ys-admin-panel-title">Live Activity</h2>
+                <p class="ys-admin-subtle">Sales and inventory alerts refresh automatically without a full page reload.</p>
+            </div>
+            <div class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs uppercase tracking-[0.24em] text-ys-ivory/48" data-admin-live-status>
+                Live via polling
+            </div>
+        </div>
+
+        <div class="mt-5 space-y-3" data-admin-live-feed-list>
+            @forelse ($live_activity as $activity)
+                <div class="rounded-[1rem] border border-white/7 bg-white/[0.03] px-4 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-semibold text-ys-ivory">{{ $activity['title'] }}</p>
+                            <p class="mt-1 text-sm leading-6 text-ys-ivory/58">{{ $activity['message'] }}</p>
+                        </div>
+                        <span class="shrink-0 text-xs uppercase tracking-[0.2em] text-ys-ivory/36">{{ $activity['timestamp'] }}</span>
+                    </div>
+                </div>
+            @empty
+                <div class="ys-admin-empty-panel">Live activity will appear here once sales or stock updates happen.</div>
+            @endforelse
+        </div>
+    </section>
 @endsection

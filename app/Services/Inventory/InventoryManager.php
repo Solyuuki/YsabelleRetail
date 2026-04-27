@@ -2,6 +2,7 @@
 
 namespace App\Services\Inventory;
 
+use App\Events\Admin\InventoryStockChanged;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Inventory\InventoryImportBatch;
 use App\Models\Inventory\InventoryItem;
@@ -201,7 +202,7 @@ class InventoryManager
                 $variant->forceFill(['supplier_name' => $supplierName])->save();
             }
 
-            return $inventoryItem->stockMovements()->create([
+            $movement = $inventoryItem->stockMovements()->create([
                 'product_variant_id' => $variant->id,
                 'order_id' => $order?->id,
                 'import_batch_id' => $importBatch?->id,
@@ -215,6 +216,13 @@ class InventoryManager
                 'metadata' => $metadata,
                 'occurred_at' => now(),
             ]);
+
+            InventoryStockChanged::dispatch(
+                $movement,
+                (int) $inventoryItem->quantity_on_hand,
+            );
+
+            return $movement;
         });
     }
 

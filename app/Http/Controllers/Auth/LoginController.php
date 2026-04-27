@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Contracts\View\View;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -24,15 +24,29 @@ class LoginController extends Controller
 
     public function store(LoginRequest $request): RedirectResponse
     {
+        $request->ensureIsNotRateLimited();
         $credentials = $request->validated();
 
         if (! Auth::attempt($credentials, true)) {
+            $request->hitRateLimiter();
+
             throw ValidationException::withMessages([
                 'email' => 'Invalid email or password.',
             ]);
         }
 
+        $request->clearRateLimiter();
         $request->session()->regenerate();
+
+        if (! $request->user()?->isActive()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => 'This account is inactive. Please contact an administrator.',
+            ]);
+        }
 
         $intended = $request->session()->get('url.intended');
         $adminDashboard = route('admin.dashboard');

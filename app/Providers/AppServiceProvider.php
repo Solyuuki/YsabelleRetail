@@ -10,8 +10,8 @@ use App\Policies\Catalog\ProductPolicy;
 use App\Policies\Orders\OrderPolicy;
 use App\View\Composers\StorefrontLayoutComposer;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {

@@ -20,7 +20,7 @@ class ReportFilterRequest extends FormRequest
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'stock_status' => ['nullable', Rule::in(['all', 'low', 'out'])],
-            'format' => ['nullable', Rule::in(['csv', 'pdf'])],
+            'format' => ['nullable', Rule::in(['csv', 'pdf', 'xlsx'])],
         ];
     }
 }

@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\Inventory\InventoryController;
 use App\Http\Controllers\Admin\Inventory\ManualStockImportController;
 use App\Http\Controllers\Admin\Inventory\WalkInSaleController;
 use App\Http\Controllers\Admin\Orders\OrderController;
+use App\Http\Controllers\Admin\Realtime\ActivityFeedController;
 use App\Http\Controllers\Admin\Reports\ReportController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,7 @@ Route::prefix('admin')
     ->middleware(['auth', 'admin'])
     ->group(function (): void {
         Route::get('/', DashboardController::class)->name('dashboard');
+        Route::get('/realtime/feed', ActivityFeedController::class)->name('realtime.feed');
 
         Route::prefix('catalog')
             ->as('catalog.')

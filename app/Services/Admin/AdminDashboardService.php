@@ -2,15 +2,19 @@
 
 namespace App\Services\Admin;
 
+use App\Models\Catalog\Product;
 use App\Models\Inventory\InventoryItem;
 use App\Models\Inventory\StockMovement;
 use App\Models\Orders\Order;
-use App\Models\Catalog\Product;
 use App\Support\Admin\InventoryMovementType;
 use Illuminate\Support\Collection;
 
 class AdminDashboardService
 {
+    public function __construct(
+        private readonly AdminActivityFeedService $activityFeed,
+    ) {}
+
     public function summary(): array
     {
         return [
@@ -34,6 +38,7 @@ class AdminDashboardService
                 ->orderBy('quantity_on_hand')
                 ->limit(6)
                 ->get(),
+            'live_activity' => $this->activityFeed->latestActivity(),
             'sales_chart' => $this->salesChart(),
             'stock_movement_summary' => $this->stockMovementSummary(),
         ];

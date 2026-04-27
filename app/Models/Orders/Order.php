@@ -2,8 +2,10 @@
 
 namespace App\Models\Orders;
 
-use App\Models\User;
 use App\Models\Inventory\StockMovement;
+use App\Models\Payments\Payment;
+use App\Models\Shipping\Shipment;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -69,12 +71,12 @@ class Order extends Model
 
     public function payments(): HasMany
     {
-        return $this->hasMany(\App\Models\Payments\Payment::class);
+        return $this->hasMany(Payment::class);
     }
 
     public function shipments(): HasMany
     {
-        return $this->hasMany(\App\Models\Shipping\Shipment::class);
+        return $this->hasMany(Shipment::class);
     }
 
     public function stockMovements(): HasMany
