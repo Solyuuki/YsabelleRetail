@@ -17,7 +17,18 @@
     }
 
     .ys-admin-sidebar-brand {
-        @apply flex items-center gap-3 rounded-[1.25rem] border border-white/7 bg-white/[0.02] px-4 py-4;
+        @apply flex flex-col items-center gap-2.5 rounded-[1.25rem] border-b border-white/7 px-4 py-4 text-center transition duration-200 hover:bg-white/[0.02];
+    }
+
+    .ys-admin-sidebar-brand-logo {
+        @apply block h-auto w-auto max-w-full object-contain;
+        max-width: 11rem;
+        max-height: 2.5rem;
+    }
+
+    .ys-admin-sidebar-brand-label {
+        @apply text-[0.7rem] uppercase tracking-[0.28em] text-ys-ivory/44;
+        line-height: 1.35;
     }
 
     .ys-admin-sidebar-nav {
