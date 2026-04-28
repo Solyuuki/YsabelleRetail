@@ -7,6 +7,10 @@
         @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-white/10 bg-white/[0.02] px-5 py-3 text-sm font-semibold text-ys-ivory/70;
     }
 
+    .ys-admin-button-secondary:hover {
+        @apply border-ys-gold/25 bg-ys-gold/8 text-ys-gold;
+    }
+
     .ys-admin-button-danger {
         @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-[1rem] border border-[#8c3f3f] bg-[#3b1616] px-5 py-3 text-sm font-semibold text-[#ffdede];
     }
@@ -63,19 +67,51 @@
     }
 
     .ys-admin-stat-card {
-        @apply flex min-h-[9.5rem] flex-col justify-between rounded-[1.4rem] border border-white/7 bg-white/[0.03] p-5;
+        @apply flex min-h-[10.5rem] flex-col justify-between rounded-[1.4rem] border border-white/7 bg-white/[0.03] p-5;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .ys-admin-stat-card.is-primary {
+        @apply border-ys-gold/20 bg-[linear-gradient(180deg,rgba(212,166,59,0.14),rgba(17,24,35,0.92))];
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 24px 70px rgba(0, 0, 0, 0.26);
+    }
+
+    .ys-admin-stat-topline {
+        @apply flex items-start justify-between gap-4;
+    }
+
+    .ys-admin-stat-bottomline {
+        @apply flex items-center justify-between gap-3;
+    }
+
+    .ys-admin-stat-icon {
+        @apply inline-flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/8 bg-white/[0.04] text-ys-ivory/52;
+    }
+
+    .ys-admin-stat-icon.is-primary {
+        @apply border-ys-gold/20 bg-ys-gold/10 text-ys-gold;
     }
 
     .ys-admin-stat-value {
         @apply mt-3 text-3xl font-semibold tracking-[-0.03em] text-ys-ivory;
     }
 
+    .ys-admin-stat-value.is-primary {
+        @apply text-[2.35rem] text-[#f4d486] md:text-[2.6rem];
+    }
+
     .ys-admin-stat-label {
-        @apply text-sm text-ys-ivory/46;
+        @apply text-sm uppercase tracking-[0.2em] text-ys-ivory/44;
     }
 
     .ys-admin-stat-meta {
-        @apply mt-3 text-xs text-ys-ivory/36;
+        @apply text-xs text-ys-ivory/38;
+    }
+
+    .ys-admin-stat-badge {
+        @apply inline-flex items-center rounded-full border border-ys-gold/18 bg-ys-gold/10 px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-ys-gold;
     }
 
     .ys-admin-kpi-grid {
@@ -178,20 +214,63 @@
     }
 
     .ys-admin-chart-shell {
-        @apply space-y-5;
+        @apply mt-5 space-y-5;
+    }
+
+    .ys-admin-chart-summary {
+        @apply mt-5 grid gap-3 md:grid-cols-3;
+    }
+
+    .ys-admin-chart-summary-card {
+        @apply rounded-[1.05rem] border border-white/7 bg-white/[0.025] px-4 py-3;
+    }
+
+    .ys-admin-chart-summary-label {
+        @apply text-[0.68rem] uppercase tracking-[0.22em] text-ys-ivory/38;
+    }
+
+    .ys-admin-chart-summary-value {
+        @apply mt-2 block text-lg font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-chart-summary-meta {
+        @apply mt-1 block text-xs text-ys-ivory/44;
     }
 
     .ys-admin-chart-grid {
-        @apply overflow-hidden rounded-[1.35rem] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-4;
+        @apply relative overflow-visible px-4 pb-4 pt-6;
+        min-height: 21rem;
+        z-index: 0;
+    }
+
+    .ys-admin-chart-surface {
+        @apply relative overflow-hidden rounded-[1.35rem] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] px-4 pb-4 pt-6;
+        min-height: 21rem;
     }
 
     .ys-admin-chart-svg {
-        @apply h-[16rem] w-full;
+        @apply relative z-[1] h-[18rem] w-full;
     }
 
     .ys-admin-chart-guide {
         stroke: rgba(255, 255, 255, 0.08);
         stroke-dasharray: 5 8;
+    }
+
+    .ys-admin-chart-area {
+        opacity: 0.9;
+    }
+
+    .ys-admin-chart-area-total {
+        fill: url(#ys-admin-chart-area-total);
+    }
+
+    .ys-admin-chart-area-online {
+        fill: url(#ys-admin-chart-area-online);
+    }
+
+    .ys-admin-chart-area-walkin {
+        fill: url(#ys-admin-chart-area-walkin);
     }
 
     .ys-admin-chart-line {
@@ -206,17 +285,104 @@
     }
 
     .ys-admin-chart-line-online {
-        stroke: #8fd1ff;
+        stroke: rgba(245, 235, 214, 0.92);
         stroke-width: 3;
     }
 
     .ys-admin-chart-line-walkin {
-        stroke: #85d0a6;
+        stroke: #9ae0b3;
         stroke-width: 3;
+    }
+
+    .ys-admin-chart-dot {
+        stroke: rgba(11, 16, 23, 0.95);
+        stroke-width: 2;
+    }
+
+    .ys-admin-chart-dot-total {
+        fill: #e7be63;
+    }
+
+    .ys-admin-chart-dot-online {
+        fill: rgba(245, 235, 214, 0.96);
+    }
+
+    .ys-admin-chart-dot-walkin {
+        fill: #9ae0b3;
+    }
+
+    .ys-admin-chart-hit-area {
+        fill: transparent;
+        cursor: pointer;
+    }
+
+    .ys-admin-chart-axis {
+        @apply pointer-events-none absolute inset-y-0 left-0 z-[2] hidden w-20 md:block;
+    }
+
+    .ys-admin-chart-axis span {
+        @apply absolute left-0 -translate-y-1/2 text-[0.65rem] uppercase tracking-[0.18em] text-ys-ivory/24;
+    }
+
+    .ys-admin-chart-tooltip {
+        @apply pointer-events-none absolute min-w-[13rem] max-w-[15rem] rounded-[1rem] border border-white/10 bg-[#0c131d]/96 px-3 py-2.5 text-sm text-ys-ivory shadow-[0_18px_44px_rgba(0,0,0,0.34)] backdrop-blur-xl;
+        z-index: 9999;
+        opacity: 0;
+        visibility: hidden;
+        transform: translate3d(0, 8px, 0);
+        transition:
+            opacity 160ms ease,
+            transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+            visibility 160ms ease;
+        will-change: left, top, opacity, transform;
+    }
+
+    .ys-admin-chart-tooltip.is-active {
+        opacity: 1;
+        visibility: visible;
+        transform: translate3d(0, 0, 0);
+    }
+
+    .ys-admin-chart-tooltip strong {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-chart-tooltip p {
+        @apply mt-1 text-xs uppercase tracking-[0.18em] text-ys-ivory/42;
+    }
+
+    .ys-admin-chart-tooltip ul {
+        @apply mt-3 space-y-1.5 text-xs text-ys-ivory/68;
+    }
+
+    .ys-admin-chart-tooltip::after {
+        content: '';
+        position: absolute;
+        left: var(--tooltip-arrow-left, 50%);
+        bottom: -6px;
+        width: 12px;
+        height: 12px;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(12, 19, 29, 0.96);
+        transform: translateX(-50%) rotate(45deg);
+    }
+
+    .ys-admin-chart-tooltip.is-below::after {
+        top: -6px;
+        bottom: auto;
+        border-right: 0;
+        border-bottom: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .ys-admin-chart-labels {
         @apply grid grid-cols-2 gap-3 text-xs text-ys-ivory/42 md:grid-cols-4 xl:grid-cols-7;
+    }
+
+    .ys-admin-chart-label-card {
+        @apply rounded-[1rem] border border-white/6 bg-white/[0.02] px-3 py-3;
     }
 
     .ys-admin-chart-labels p {
@@ -224,7 +390,11 @@
     }
 
     .ys-admin-chart-labels span {
-        @apply mt-1 block;
+        @apply mt-1 block text-ys-ivory;
+    }
+
+    .ys-admin-chart-labels small {
+        @apply mt-1 block text-[0.68rem] uppercase tracking-[0.16em] text-ys-ivory/30;
     }
 
     .ys-admin-legend {
@@ -244,11 +414,422 @@
     }
 
     .ys-admin-legend-item i.is-online {
-        @apply bg-[#8fd1ff];
+        background: rgba(245, 235, 214, 0.92);
     }
 
     .ys-admin-legend-item i.is-walkin {
-        @apply bg-[#85d0a6];
+        @apply bg-[#9ae0b3];
+    }
+
+    .ys-admin-flow-list {
+        @apply mt-5 space-y-3;
+    }
+
+    .ys-admin-flow-item {
+        @apply grid gap-3 rounded-[1.1rem] border border-white/7 bg-white/[0.025] px-4 py-3 md:grid-cols-[auto_1fr_auto] md:items-center;
+    }
+
+    .ys-admin-flow-icon {
+        @apply inline-flex h-10 w-10 items-center justify-center rounded-[0.95rem] border border-white/8 bg-white/[0.04] text-ys-ivory/58;
+    }
+
+    .ys-admin-flow-icon.is-incoming {
+        @apply border-ys-gold/18 bg-ys-gold/8 text-ys-gold;
+    }
+
+    .ys-admin-flow-icon.is-outgoing {
+        @apply border-white/8 bg-white/[0.04] text-[#9ae0b3];
+    }
+
+    .ys-admin-flow-title-row {
+        @apply flex flex-wrap items-center justify-between gap-2;
+    }
+
+    .ys-admin-flow-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-flow-records {
+        @apply text-[0.68rem] uppercase tracking-[0.18em] text-ys-ivory/32;
+    }
+
+    .ys-admin-flow-caption {
+        @apply mt-1 text-xs leading-5 text-ys-ivory/42;
+    }
+
+    .ys-admin-flow-quantity {
+        @apply text-right text-lg font-semibold tracking-[-0.02em] text-ys-ivory;
+    }
+
+    .ys-admin-flow-quantity.is-incoming {
+        @apply text-ys-gold;
+    }
+
+    .ys-admin-flow-quantity.is-outgoing {
+        @apply text-[#9ae0b3];
+    }
+
+    .ys-admin-flow-quantity.is-neutral {
+        @apply text-ys-ivory/70;
+    }
+
+    .ys-admin-feed-panel {
+        @apply min-h-[24rem];
+    }
+
+    .ys-admin-feed-list {
+        @apply mt-5 space-y-3;
+    }
+
+    .ys-admin-feed-item {
+        @apply rounded-[1.1rem] border border-white/7 bg-white/[0.025] px-4 py-3;
+    }
+
+    .ys-admin-feed-item.is-alert {
+        @apply bg-white/[0.03];
+    }
+
+    .ys-admin-feed-item-top {
+        @apply flex items-start justify-between gap-3;
+    }
+
+    .ys-admin-feed-item-bottom {
+        @apply mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/6 pt-3 text-xs text-ys-ivory/40;
+    }
+
+    .ys-admin-feed-title {
+        @apply text-sm font-semibold text-ys-ivory transition hover:text-ys-gold;
+    }
+
+    .ys-admin-feed-copy {
+        @apply mt-1 text-xs text-ys-ivory/42;
+    }
+
+    .ys-admin-feed-amount {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-empty-state {
+        @apply flex items-start gap-4 rounded-[1.15rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-5 text-left;
+    }
+
+    .ys-admin-empty-state.is-compact {
+        @apply px-4 py-4;
+    }
+
+    .ys-admin-empty-state-icon {
+        @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-ys-gold/18 bg-ys-gold/8 text-ys-gold;
+    }
+
+    .ys-admin-empty-state-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-empty-state-copy {
+        @apply mt-1 text-sm leading-6 text-ys-ivory/44;
+    }
+
+    .ys-admin-live-list {
+        @apply mt-5 space-y-3;
+    }
+
+    .ys-admin-live-item {
+        @apply flex flex-col gap-3 rounded-[1.1rem] border border-white/7 bg-white/[0.025] px-4 py-3 md:flex-row md:items-start md:justify-between;
+    }
+
+    .ys-admin-live-item-main {
+        @apply flex items-start gap-3;
+    }
+
+    .ys-admin-live-indicator {
+        @apply mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-ys-gold;
+        box-shadow: 0 0 0 4px rgba(212, 166, 59, 0.12);
+    }
+
+    .ys-admin-live-indicator.is-success {
+        @apply bg-[#9ae0b3];
+        box-shadow: 0 0 0 4px rgba(154, 224, 179, 0.12);
+    }
+
+    .ys-admin-live-indicator.is-error {
+        @apply bg-[#f3c46f];
+        box-shadow: 0 0 0 4px rgba(243, 196, 111, 0.12);
+    }
+
+    .ys-admin-live-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-live-copy {
+        @apply mt-1 text-sm leading-6 text-ys-ivory/52;
+    }
+
+    .ys-admin-live-time {
+        @apply shrink-0 text-xs uppercase tracking-[0.18em] text-ys-ivory/32;
+    }
+
+    .ys-admin-pos-layout {
+        @apply mx-auto grid max-w-[96rem] gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(22rem,0.95fr)];
+    }
+
+    .ys-admin-pos-catalog,
+    .ys-admin-pos-sidebar {
+        @apply p-6;
+    }
+
+    .ys-admin-pos-sidebar {
+        @apply xl:sticky xl:top-24;
+        align-self: start;
+    }
+
+    .ys-admin-pos-sidebar-inner {
+        @apply space-y-5;
+    }
+
+    .ys-admin-pos-sidebar-section + .ys-admin-pos-sidebar-section {
+        @apply border-t border-white/7 pt-5;
+    }
+
+    .ys-admin-pos-search-row {
+        @apply w-full;
+    }
+
+    .ys-admin-pos-search-field {
+        @apply relative block;
+    }
+
+    .ys-admin-pos-search-icon {
+        @apply pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ys-ivory/34;
+    }
+
+    .ys-admin-pos-search-input {
+        @apply min-h-14 w-full rounded-[1.15rem] border border-white/9 bg-[#0b1118] pl-12 pr-4 text-base text-ys-ivory placeholder:text-ys-ivory/28 focus:border-ys-gold/45 focus:outline-none;
+    }
+
+    .ys-admin-pos-results-meta {
+        @apply mt-4 flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-[0.18em] text-ys-ivory/34;
+    }
+
+    .ys-admin-pos-results-grid {
+        @apply mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4;
+    }
+
+    .ys-admin-pos-results-pagination {
+        @apply mt-6;
+    }
+
+    .ys-admin-pos-results-empty {
+        @apply col-span-full rounded-[1.2rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-10 text-center;
+    }
+
+    .ys-admin-pos-card {
+        @apply flex h-full flex-col overflow-hidden rounded-[1.2rem] border border-white/7 bg-white/[0.02] text-left transition;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .ys-admin-pos-card:hover {
+        @apply border-ys-gold/22 bg-white/[0.03];
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 18px 44px rgba(0, 0, 0, 0.22);
+    }
+
+    .ys-admin-pos-card.is-selected {
+        @apply border-ys-gold/28 bg-ys-gold/6;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 20px 48px rgba(0, 0, 0, 0.24);
+    }
+
+    .ys-admin-pos-card.is-disabled {
+        @apply cursor-not-allowed opacity-60;
+    }
+
+    .ys-admin-pos-card.is-pressed {
+        transform: scale(0.985);
+    }
+
+    .ys-admin-pos-card.is-skeleton {
+        @apply pointer-events-none;
+    }
+
+    .ys-admin-pos-card-media {
+        @apply relative overflow-hidden border-b border-white/6 bg-[#070a0f];
+        aspect-ratio: 1 / 0.95;
+    }
+
+    .ys-admin-pos-card-image,
+    .ys-admin-pos-card-placeholder {
+        @apply h-full w-full transition duration-200;
+    }
+
+    .ys-admin-pos-card-image {
+        @apply object-cover;
+    }
+
+    .ys-admin-pos-card:hover .ys-admin-pos-card-image {
+        transform: scale(1.04);
+    }
+
+    .ys-admin-pos-card-placeholder {
+        @apply flex items-center justify-center text-ys-ivory/24;
+        background:
+            radial-gradient(circle at top, rgba(212, 166, 59, 0.08), transparent 44%),
+            linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    }
+
+    .ys-admin-pos-card-badge {
+        @apply absolute right-3 top-3 inline-flex items-center rounded-full border border-ys-gold/20 bg-[#17120a]/88 px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-ys-gold;
+    }
+
+    .ys-admin-pos-card-body {
+        @apply flex flex-1 flex-col justify-between gap-4 p-4;
+    }
+
+    .ys-admin-pos-card-title {
+        @apply text-base font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-pos-card-subtitle {
+        @apply mt-1 text-xs uppercase tracking-[0.18em] text-ys-ivory/34;
+    }
+
+    .ys-admin-pos-card-variant {
+        @apply mt-3 text-sm font-medium text-ys-ivory/72;
+    }
+
+    .ys-admin-pos-card-sku {
+        @apply mt-2 text-xs text-ys-ivory/38;
+    }
+
+    .ys-admin-pos-card-foot {
+        @apply flex items-end justify-between gap-3;
+    }
+
+    .ys-admin-pos-card-price {
+        @apply text-xl font-semibold tracking-[-0.02em] text-ys-gold;
+    }
+
+    .ys-admin-pos-card-stock {
+        @apply text-xs text-ys-ivory/44;
+    }
+
+    .ys-admin-pos-skeleton-line {
+        @apply block h-3.5 rounded-full bg-white/[0.05];
+    }
+
+    .ys-admin-pos-cart-list {
+        @apply mt-5 space-y-3;
+    }
+
+    .ys-admin-pos-empty-state {
+        @apply flex items-center gap-4 rounded-[1.15rem] border border-dashed border-white/10 bg-white/[0.02] px-4 py-8;
+    }
+
+    .ys-admin-pos-empty-icon {
+        @apply inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-ys-gold;
+    }
+
+    .ys-admin-pos-empty-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-pos-empty-copy {
+        @apply mt-1 text-sm leading-6 text-ys-ivory/42;
+    }
+
+    .ys-admin-pos-cart-item {
+        @apply rounded-[1.1rem] border border-white/7 bg-white/[0.025] px-4 py-4;
+    }
+
+    .ys-admin-pos-cart-main {
+        @apply flex items-start justify-between gap-3;
+    }
+
+    .ys-admin-pos-cart-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-pos-cart-meta {
+        @apply mt-1 text-xs text-ys-ivory/42;
+    }
+
+    .ys-admin-pos-cart-remove {
+        @apply text-xs font-semibold uppercase tracking-[0.18em] text-[#ffbdbd] transition hover:text-[#ffd3d3];
+    }
+
+    .ys-admin-pos-cart-foot {
+        @apply mt-4 flex items-center justify-between gap-4 border-t border-white/6 pt-4;
+    }
+
+    .ys-admin-pos-stepper {
+        @apply inline-grid grid-cols-[2.5rem_4rem_2.5rem] overflow-hidden rounded-[1rem] border border-white/8 bg-[#0b1118];
+    }
+
+    .ys-admin-pos-stepper-btn {
+        @apply inline-flex h-11 items-center justify-center text-lg text-ys-ivory/72 transition hover:bg-white/[0.04] hover:text-ys-gold;
+    }
+
+    .ys-admin-pos-stepper-input {
+        @apply h-11 border-x border-white/8 bg-transparent px-2 text-center text-sm text-ys-ivory outline-none;
+    }
+
+    .ys-admin-pos-stepper-input::-webkit-outer-spin-button,
+    .ys-admin-pos-stepper-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .ys-admin-pos-stepper-input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    .ys-admin-pos-cart-price {
+        @apply text-base font-semibold text-ys-gold;
+    }
+
+    .ys-admin-pos-cart-stock {
+        @apply mt-1 text-xs text-ys-ivory/36;
+    }
+
+    .ys-admin-pos-field-grid {
+        @apply grid gap-4 md:grid-cols-2;
+    }
+
+    .ys-admin-pos-field-grid.is-single {
+        @apply mt-4 md:grid-cols-1;
+    }
+
+    .ys-admin-pos-summary {
+        @apply space-y-4;
+    }
+
+    .ys-admin-pos-summary-row {
+        @apply flex items-center justify-between text-sm text-ys-ivory/62;
+    }
+
+    .ys-admin-pos-summary-row strong {
+        @apply font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-pos-summary-total {
+        @apply flex items-center justify-between border-t border-white/7 pt-4 text-lg;
+    }
+
+    .ys-admin-pos-summary-total span {
+        @apply font-semibold text-ys-ivory;
+    }
+
+    .ys-admin-pos-summary-total strong {
+        @apply text-[1.6rem] font-semibold tracking-[-0.03em] text-ys-gold;
+    }
+
+    .ys-admin-pos-submit {
+        @apply mt-2 w-full justify-center text-base;
+    }
+
+    .ys-admin-pos-submit:disabled {
+        @apply cursor-not-allowed border-white/8 bg-[#4f411f] text-[#e6d4a2] opacity-75 shadow-none;
     }
 
     .ys-admin-form-error {

@@ -17,90 +17,139 @@
         </div>
     @endif
 
-    <section class="ys-admin-stat-grid">
-        @foreach ([
-            ['label' => 'Flow', 'value' => 'In-store', 'meta' => 'No delivery'],
-            ['label' => 'Customer', 'value' => 'Optional', 'meta' => 'Defaults to Walk-in Customer'],
-            ['label' => 'Inventory', 'value' => 'Instant', 'meta' => 'Deducted after sale'],
-        ] as $card)
-            <article class="ys-admin-stat-card" data-admin-panel>
-                <p class="ys-admin-stat-label">{{ $card['label'] }}</p>
-                <p class="ys-admin-stat-value">{{ $card['value'] }}</p>
-                <p class="ys-admin-stat-meta">{{ $card['meta'] }}</p>
-            </article>
-        @endforeach
-    </section>
-
-    <form method="POST" action="{{ route('admin.pos.store') }}" class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]" data-admin-form data-admin-pos data-search-endpoint="{{ route('admin.pos.search') }}" data-old-lines='@json($oldLines ?? [])'>
+    <form
+        method="POST"
+        action="{{ route('admin.pos.store') }}"
+        class="ys-admin-pos-layout"
+        data-admin-form
+        data-admin-pos
+        data-search-endpoint="{{ route('admin.pos.search') }}"
+        data-old-lines='@json($oldLines ?? [])'
+    >
         @csrf
-        <section class="ys-admin-panel space-y-4" data-admin-panel>
-            <div>
-                <h2 class="ys-admin-panel-title">Search products</h2>
-                <p class="ys-admin-subtle mt-2">Look up active products by name, variant, or SKU.</p>
+
+        <section class="ys-admin-panel ys-admin-pos-catalog" data-admin-panel>
+            <div class="ys-admin-pos-search-row">
+                <label class="ys-admin-pos-search-field">
+                    <span class="sr-only">Search products</span>
+                    <svg class="ys-admin-pos-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <circle cx="11" cy="11" r="6"></circle>
+                        <path d="m16 16 4 4" stroke-linecap="round"></path>
+                    </svg>
+                    <input
+                        type="text"
+                        class="ys-admin-pos-search-input"
+                        placeholder="Search products by name, SKU, or category..."
+                        autocomplete="off"
+                        data-pos-search
+                    >
+                </label>
             </div>
 
-            <input type="text" class="ys-admin-input" placeholder="Search live inventory..." data-pos-search>
-            <div class="space-y-3" data-pos-results></div>
+            <div class="ys-admin-pos-results-meta">
+                <span data-pos-results-label>Showing live inventory</span>
+                <span data-pos-results-summary>8 per page</span>
+            </div>
+
+            <div class="ys-admin-pos-results-grid" data-pos-results></div>
+            <div class="ys-admin-pos-results-pagination" data-pos-pagination></div>
         </section>
 
-        <section class="space-y-6">
-            <article class="ys-admin-panel" data-admin-panel>
-                <div class="ys-admin-panel-heading">
-                    <div>
-                        <h2 class="ys-admin-panel-title">Receipt</h2>
-                        <p class="ys-admin-subtle">Only items, quantity, and payment are required.</p>
+        <aside class="ys-admin-panel ys-admin-pos-sidebar" data-admin-panel>
+            <div class="ys-admin-pos-sidebar-inner">
+                <div class="ys-admin-pos-sidebar-section">
+                    <div class="ys-admin-pos-sidebar-header">
+                        <div>
+                            <h2 class="ys-admin-panel-title">Current sale</h2>
+                            <p class="ys-admin-subtle">Build the receipt from live stock only.</p>
+                        </div>
                     </div>
+
+                    <div class="ys-admin-pos-cart-list" data-pos-cart></div>
+                    <input type="hidden" name="lines_json" value="{{ old('lines_json', '[]') }}">
                 </div>
 
-                <div class="mt-4 space-y-3" data-pos-cart></div>
-                <input type="hidden" name="lines_json" value="{{ old('lines_json', '[]') }}">
-
-                <div class="mt-5 flex items-center justify-between border-t border-white/7 pt-4">
-                    <span class="text-sm text-ys-ivory/55">Total</span>
-                    <span class="text-xl font-semibold text-ys-gold">PHP <span data-pos-total>0.00</span></span>
-                </div>
-            </article>
-
-            <article class="ys-admin-panel" data-admin-panel>
-                <div class="ys-admin-grid-fields">
-                    <label class="ys-admin-field">
-                        <span class="ys-admin-label">Payment Method</span>
-                        <select name="payment_method" class="ys-admin-select">
-                            @foreach (['cash', 'gcash', 'card', 'other'] as $method)
-                                <option value="{{ $method }}" @selected(old('payment_method', 'cash') === $method)>{{ strtoupper($method) }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-
-                    <label class="ys-admin-field">
-                        <span class="ys-admin-label">Payment Status</span>
-                        <select name="payment_status" class="ys-admin-select">
-                            @foreach (['paid', 'pending', 'unpaid'] as $status)
-                                <option value="{{ $status }}" @selected(old('payment_status', 'paid') === $status)>{{ ucfirst($status) }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-                </div>
-
-                <details class="ys-admin-detail-panel mt-4">
-                    <summary class="ys-admin-detail-summary">Optional details</summary>
-                    <div class="mt-4 space-y-4">
+                <div class="ys-admin-pos-sidebar-section">
+                    <div class="ys-admin-pos-field-grid">
                         <label class="ys-admin-field">
-                            <span class="ys-admin-label">Customer Name</span>
-                            <input type="text" name="customer_name" value="{{ old('customer_name') }}" class="ys-admin-input" placeholder="Walk-in Customer">
+                            <span class="ys-admin-label">Customer</span>
+                            <input type="text" name="customer_name" value="{{ old('customer_name') }}" class="ys-admin-input" placeholder="Name">
                         </label>
 
                         <label class="ys-admin-field">
-                            <span class="ys-admin-label">Notes</span>
-                            <textarea name="notes" class="ys-admin-textarea">{{ old('notes') }}</textarea>
+                            <span class="ys-admin-label">Phone</span>
+                            <input type="text" name="customer_phone" value="{{ old('customer_phone') }}" class="ys-admin-input" placeholder="Phone">
                         </label>
                     </div>
-                </details>
 
-                <div class="mt-5 ys-admin-inline-actions">
-                    <button type="submit" class="ys-admin-button-primary" data-loading-label="Completing sale...">Complete sale</button>
+                    <div class="ys-admin-pos-field-grid">
+                        <label class="ys-admin-field">
+                            <span class="ys-admin-label">Payment</span>
+                            <select name="payment_method" class="ys-admin-select">
+                                @foreach (['cash', 'gcash', 'card', 'other'] as $method)
+                                    <option value="{{ $method }}" @selected(old('payment_method', 'cash') === $method)>{{ strtoupper($method) }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+
+                        <label class="ys-admin-field">
+                            <span class="ys-admin-label">Discount PHP</span>
+                            <input
+                                type="number"
+                                name="discount_amount"
+                                value="{{ old('discount_amount', '0') }}"
+                                min="0"
+                                step="0.01"
+                                class="ys-admin-input"
+                                placeholder="0"
+                                data-pos-discount
+                            >
+                        </label>
+                    </div>
+
+                    <div class="ys-admin-pos-field-grid is-single">
+                        <label class="ys-admin-field">
+                            <span class="ys-admin-label">Payment Status</span>
+                            <select name="payment_status" class="ys-admin-select">
+                                @foreach (['paid', 'pending', 'unpaid'] as $status)
+                                    <option value="{{ $status }}" @selected(old('payment_status', 'paid') === $status)>{{ ucfirst($status) }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                    </div>
+
+                    <label class="ys-admin-field">
+                        <span class="ys-admin-label">Notes</span>
+                        <textarea name="notes" class="ys-admin-textarea" placeholder="Optional notes">{{ old('notes') }}</textarea>
+                    </label>
                 </div>
-            </article>
-        </section>
+
+                <div class="ys-admin-pos-sidebar-section ys-admin-pos-summary">
+                    <div class="ys-admin-pos-summary-row">
+                        <span>Subtotal</span>
+                        <strong>PHP <span data-pos-subtotal>0.00</span></strong>
+                    </div>
+
+                    <div class="ys-admin-pos-summary-row">
+                        <span>Discount</span>
+                        <strong>- PHP <span data-pos-discount-total>0.00</span></strong>
+                    </div>
+
+                    <div class="ys-admin-pos-summary-total">
+                        <span>Total</span>
+                        <strong>PHP <span data-pos-total>0.00</span></strong>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="ys-admin-button-primary ys-admin-pos-submit"
+                        data-pos-submit
+                        data-loading-label="Completing sale..."
+                    >
+                        Cart is empty
+                    </button>
+                </div>
+            </div>
+        </aside>
     </form>
 @endsection
