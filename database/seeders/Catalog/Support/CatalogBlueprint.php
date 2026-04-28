@@ -272,6 +272,7 @@ final class CatalogBlueprint
                 ->values()
                 ->map(fn (array $product, int $index): array => self::buildProduct(
                     product: $product,
+                    categorySlug: $slug,
                     categoryName: $name,
                     supplier: $supplier,
                     weightGrams: $weightGrams,
@@ -285,6 +286,7 @@ final class CatalogBlueprint
 
     private static function buildProduct(
         array $product,
+        string $categorySlug,
         string $categoryName,
         string $supplier,
         int $weightGrams,
@@ -294,7 +296,12 @@ final class CatalogBlueprint
     ): array {
         $colors = $product['colors'] ?? [self::defaultColorFor($categoryName, $productIndex)];
         $sizes = $product['sizes'] ?? $defaultSizes;
-        $primaryImage = $imagePool[$product['image_slot'] ?? ($productIndex % count($imagePool))];
+        $media = CatalogProductImageFactory::build(
+            categorySlug: $categorySlug,
+            categoryName: $categoryName,
+            product: $product,
+            colors: $colors,
+        );
 
         return [
             'name' => $product['name'],
@@ -307,9 +314,9 @@ final class CatalogBlueprint
             'featured_rank' => $product['featured_rank'] ?? null,
             'short_description' => rtrim($product['tagline'], '.').'.',
             'description' => "{$product['name']} is a {$categoryName} style designed for {$product['story']}",
-            'primary_image_url' => $primaryImage,
-            'image_alt' => "{$product['name']} {$categoryName} product image",
-            'image_gallery' => self::galleryFor($imagePool, $productIndex),
+            'primary_image_url' => $media['primary_image_url'],
+            'image_alt' => $media['image_alt'],
+            'image_gallery' => $media['image_gallery'],
             'variants' => self::buildVariants(
                 product: $product,
                 supplier: $supplier,
@@ -359,14 +366,6 @@ final class CatalogBlueprint
         }
 
         return $variants;
-    }
-
-    private static function galleryFor(array $imagePool, int $productIndex): array
-    {
-        $first = $imagePool[$productIndex % count($imagePool)];
-        $second = $imagePool[($productIndex + 1) % count($imagePool)];
-
-        return array_values(array_unique([$first, $second]));
     }
 
     private static function defaultColorFor(string $categoryName, int $productIndex): string

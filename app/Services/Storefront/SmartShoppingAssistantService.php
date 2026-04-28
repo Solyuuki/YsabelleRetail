@@ -2,60 +2,216 @@
 
 namespace App\Services\Storefront;
 
+use App\Services\Storefront\Assistant\StorefrontAssistantGuidanceService;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 class SmartShoppingAssistantService
 {
+    private const INTENT_GREETING = 'greeting';
+
+    private const INTENT_SMALL_TALK = 'small_talk';
+
+    private const INTENT_CART = 'ecommerce_cart';
+
+    private const INTENT_CHECKOUT = 'ecommerce_checkout';
+
+    private const INTENT_SUPPORT = 'ecommerce_support';
+
+    private const INTENT_VISUAL_SEARCH = 'visual_search';
+
+    private const INTENT_PRODUCT_SEARCH = 'ecommerce_product_search';
+
+    private const INTENT_OUT_OF_SCOPE = 'out_of_scope';
+
+    private const INTENT_FALLBACK = 'fallback';
+
+    private const GREETING_PHRASES = [
+        'good afternoon',
+        'good evening',
+        'good morning',
+        'hello',
+        'hello there',
+        'hey',
+        'hi',
+        'hi there',
+    ];
+
+    private const SMALL_TALK_PHRASES = [
+        'appreciate it',
+        'how are you',
+        'how are you doing',
+        'how is it going',
+        'thank you',
+        'thanks',
+    ];
+
+    private const PRODUCT_KEYWORDS = [
+        'boot',
+        'boots',
+        'catalog',
+        'collection',
+        'footwear',
+        'pair',
+        'pairs',
+        'product',
+        'products',
+        'runner',
+        'runners',
+        'shoe',
+        'shoes',
+        'sneaker',
+        'sneakers',
+    ];
+
+    private const AVAILABILITY_KEYWORDS = [
+        'availability',
+        'available',
+        'in stock',
+        'low stock',
+        'sold out',
+        'stock',
+    ];
+
+    private const OUT_OF_SCOPE_KEYWORDS = [
+        'bitcoin',
+        'capital',
+        'code',
+        'coding',
+        'crypto',
+        'football',
+        'history',
+        'joke',
+        'math',
+        'movie',
+        'music',
+        'news',
+        'physics',
+        'politics',
+        'president',
+        'recipe',
+        'science',
+        'stock market',
+        'translate',
+        'weather',
+    ];
+
     public function __construct(
         private readonly ProductDiscoveryService $productDiscovery,
         private readonly CartService $cartService,
         private readonly AuthFactory $auth,
+        private readonly StorefrontAssistantGuidanceService $guidance,
     ) {}
 
     public function respond(string $message): array
     {
+        $resolution = $this->resolveMessage($message);
+
+        return $this->guidance->complete(
+            intent: $resolution['intent'],
+            userMessage: $resolution['message'],
+            response: $resolution['response'],
+            context: $resolution['context'],
+        );
+    }
+
+    public function stream(string $message): iterable
+    {
+        $resolution = $this->resolveMessage($message);
+
+        return $this->guidance->stream(
+            intent: $resolution['intent'],
+            userMessage: $resolution['message'],
+            response: $resolution['response'],
+            context: $resolution['context'],
+        );
+    }
+
+    private function resolveMessage(string $message): array
+    {
         $message = trim($message);
         $normalized = Str::lower($message);
+        $criteria = $this->productDiscovery->buildCriteriaFromText($message);
+        $intent = $this->classifyIntent($message, $normalized, $criteria);
 
-        if ($this->isVisualSearchIntent($normalized)) {
-            return $this->response(
-                answer: 'Open Visual Search and upload a shoe photo. You can add color, category, or use-case hints to narrow the matches.',
-                actions: [
-                    ['label' => 'Open Visual Search', 'type' => 'panel', 'target' => 'visual-search'],
-                    ['label' => 'Show sneakers', 'type' => 'message', 'message' => 'Show me sneakers'],
-                ],
-            );
+        $response = match ($intent['intent']) {
+            self::INTENT_GREETING => $this->greetingResponse(),
+            self::INTENT_SMALL_TALK => $this->smallTalkResponse($normalized),
+            self::INTENT_CART => $this->cartResponse(),
+            self::INTENT_CHECKOUT => $this->checkoutResponse(),
+            self::INTENT_SUPPORT => $this->supportResponse($intent['topic'] ?? 'care'),
+            self::INTENT_VISUAL_SEARCH => $this->visualSearchResponse(),
+            self::INTENT_PRODUCT_SEARCH => $this->productIntentResponse($message, $normalized, $criteria),
+            self::INTENT_OUT_OF_SCOPE => $this->outOfScopeResponse(),
+            default => $this->clarificationResponse(),
+        };
+
+        return [
+            'intent' => $intent['intent'],
+            'message' => $message,
+            'response' => $response,
+            'context' => $this->guidanceContext(
+                intent: $intent,
+                criteria: $criteria,
+                response: $response,
+            ),
+        ];
+    }
+
+    private function classifyIntent(string $message, string $normalized, array $criteria): array
+    {
+        if ($this->isGreetingIntent($message, $normalized, $criteria)) {
+            return ['intent' => self::INTENT_GREETING];
+        }
+
+        if ($this->isSmallTalkIntent($message, $normalized, $criteria)) {
+            return ['intent' => self::INTENT_SMALL_TALK];
         }
 
         if ($this->isCartIntent($normalized)) {
-            return $this->cartResponse();
-        }
-
-        if ($topic = $this->policyTopic($normalized)) {
-            return $this->policyResponse($topic);
+            return ['intent' => self::INTENT_CART];
         }
 
         if ($this->isCheckoutIntent($normalized)) {
-            return $this->checkoutResponse();
+            return ['intent' => self::INTENT_CHECKOUT];
         }
 
-        if ($this->isLowStockIntent($normalized)) {
+        if ($topic = $this->supportTopic($normalized)) {
+            return [
+                'intent' => self::INTENT_SUPPORT,
+                'topic' => $topic,
+            ];
+        }
+
+        if ($this->isVisualSearchIntent($normalized)) {
+            return ['intent' => self::INTENT_VISUAL_SEARCH];
+        }
+
+        if ($this->hasHighConfidenceProductIntent($normalized, $criteria)) {
+            return ['intent' => self::INTENT_PRODUCT_SEARCH];
+        }
+
+        if ($this->isOutOfScopeIntent($normalized, $criteria)) {
+            return ['intent' => self::INTENT_OUT_OF_SCOPE];
+        }
+
+        return ['intent' => self::INTENT_FALLBACK];
+    }
+
+    private function productIntentResponse(string $message, string $normalized, array $criteria): array
+    {
+        if ($this->isAvailabilityIntent($normalized) && ! $this->hasStructuredProductSignal($criteria)) {
             return $this->lowStockResponse();
         }
 
-        if ($this->isSizeIntent($normalized)) {
-            return $this->sizeGuidanceResponse($message);
-        }
-
-        return $this->productResponse($message);
+        return $this->productResponse($message, $criteria);
     }
 
-    private function productResponse(string $message): array
+    private function productResponse(string $message, array $criteria): array
     {
         $matchSet = $this->productDiscovery->findMatches(
-            criteria: $this->productDiscovery->buildCriteriaFromText($message),
+            criteria: $criteria,
             limit: 4,
         );
 
@@ -88,33 +244,13 @@ class SmartShoppingAssistantService
         );
     }
 
-    private function sizeGuidanceResponse(string $message): array
+    private function sizeSupportResponse(): array
     {
-        $matchSet = $this->productDiscovery->findMatches(
-            criteria: $this->productDiscovery->buildCriteriaFromText($message),
-            limit: 3,
-        );
-
-        $products = $matchSet['products']->map(fn ($product): array => $this->productDiscovery->formatProduct($product))->all();
-        $criteria = $matchSet['criteria'];
-
-        $answer = match ($criteria['category'] ?? $criteria['use_case']) {
-            'running' => 'For running shoes, start with your usual size and leave a little toe room for longer movement sessions.',
-            'daily' => 'For daily-use pairs, your usual size is the safest starting point unless you prefer a roomier fit.',
-            'gym' => 'For training pairs, keep the fit secure through the midfoot and avoid going too loose.',
-            default => 'If you are between sizes, choose the size that gives you secure heel hold and a little room in front of the toes.',
-        };
-
-        if ($products !== []) {
-            $answer .= ' I also pulled a few options that show the sizes currently listed in stock.';
-        }
-
         return $this->response(
-            answer: $answer,
-            products: $products,
+            answer: 'For sizing help, tell me the product type, color, price range, or size you want and I will narrow the catalog for you.',
             actions: [
                 ['label' => 'Find running shoes', 'type' => 'message', 'message' => 'Find running shoes'],
-                ['label' => 'Check availability', 'type' => 'message', 'message' => 'What shoes are low stock?'],
+                ['label' => 'Show size 9 options', 'type' => 'message', 'message' => 'Show me size 9 shoes'],
             ],
         );
     }
@@ -212,8 +348,12 @@ class SmartShoppingAssistantService
         );
     }
 
-    private function policyResponse(string $topic): array
+    private function supportResponse(string $topic): array
     {
+        if ($topic === 'size') {
+            return $this->sizeSupportResponse();
+        }
+
         $policies = config('storefront.assistant.policies', []);
 
         $answer = Arr::get($policies, $topic, 'I can help with shipping, returns, authenticity, or general store guidance.');
@@ -240,6 +380,53 @@ class SmartShoppingAssistantService
         ];
     }
 
+    private function greetingResponse(): array
+    {
+        return $this->response(
+            answer: 'Hello. I can help you find products, check stock, review your cart, or guide you through checkout.',
+            actions: $this->defaultActions(),
+        );
+    }
+
+    private function smallTalkResponse(string $message): array
+    {
+        $answer = str_contains($message, 'thank')
+            ? 'You are welcome. I can help you find products, check stock, review your cart, or guide you through checkout.'
+            : 'I am ready to help with products, stock, cart, and checkout. Tell me what you need.';
+
+        return $this->response(
+            answer: $answer,
+            actions: $this->defaultActions(),
+        );
+    }
+
+    private function visualSearchResponse(): array
+    {
+        return $this->response(
+            answer: 'Use Visual Search to upload a shoe image, then I can match it against the current catalog.',
+            actions: [
+                ['label' => 'Open Visual Search', 'type' => 'panel', 'target' => 'visual-search'],
+                ['label' => 'Browse catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+            ],
+        );
+    }
+
+    private function outOfScopeResponse(): array
+    {
+        return $this->response(
+            answer: 'I can only help with Ysabelle Retail products, stock, cart, checkout, and store support.',
+            actions: $this->defaultActions(),
+        );
+    }
+
+    private function clarificationResponse(): array
+    {
+        return $this->response(
+            answer: 'I can help you find products, check stock, or assist with your order. What would you like to do?',
+            actions: $this->defaultActions(),
+        );
+    }
+
     private function defaultActions(): array
     {
         return [
@@ -254,6 +441,7 @@ class SmartShoppingAssistantService
         return str_contains($message, 'image')
             || str_contains($message, 'photo')
             || str_contains($message, 'picture')
+            || str_contains($message, 'upload')
             || str_contains($message, 'visual search')
             || str_contains($message, 'find similar');
     }
@@ -273,29 +461,160 @@ class SmartShoppingAssistantService
             || str_contains($message, 'buy');
     }
 
-    private function isLowStockIntent(string $message): bool
+    private function isAvailabilityIntent(string $message): bool
     {
-        return str_contains($message, 'low stock')
-            || str_contains($message, 'sold out')
-            || str_contains($message, 'almost sold out')
-            || str_contains($message, 'availability alert');
+        return $this->containsAny($message, self::AVAILABILITY_KEYWORDS);
     }
 
-    private function isSizeIntent(string $message): bool
-    {
-        return str_contains($message, 'size')
-            || str_contains($message, 'fit')
-            || str_contains($message, 'true to size');
-    }
-
-    private function policyTopic(string $message): ?string
+    private function supportTopic(string $message): ?string
     {
         return match (true) {
             str_contains($message, 'shipping') || str_contains($message, 'delivery') => 'shipping',
             str_contains($message, 'return') || str_contains($message, 'refund') => 'returns',
             str_contains($message, 'authentic') || str_contains($message, 'genuine') => 'authenticity',
+            str_contains($message, 'size') || str_contains($message, 'fit') || str_contains($message, 'true to size') => 'size',
             str_contains($message, 'care') || str_contains($message, 'policy') || str_contains($message, 'support') => 'care',
             default => null,
         };
+    }
+
+    private function isGreetingIntent(string $message, string $normalized, array $criteria): bool
+    {
+        if ($this->hasDomainSignal($normalized, $criteria)) {
+            return false;
+        }
+
+        $simplified = $this->simplifyMessage($message);
+
+        if (in_array($simplified, self::GREETING_PHRASES, true)) {
+            return true;
+        }
+
+        return $this->startsWithAny($simplified, ['hello ', 'hey ', 'hi ']) && $this->tokenCount($simplified) <= 3;
+    }
+
+    private function isSmallTalkIntent(string $message, string $normalized, array $criteria): bool
+    {
+        if ($this->hasDomainSignal($normalized, $criteria)) {
+            return false;
+        }
+
+        $simplified = $this->simplifyMessage($message);
+
+        return in_array($simplified, self::SMALL_TALK_PHRASES, true);
+    }
+
+    private function hasHighConfidenceProductIntent(string $message, array $criteria): bool
+    {
+        return $this->hasStructuredProductSignal($criteria) || $this->hasProductKeywordMatch($message);
+    }
+
+    private function hasStructuredProductSignal(array $criteria): bool
+    {
+        return filled($criteria['category'])
+            || filled($criteria['color'])
+            || filled($criteria['size'])
+            || filled($criteria['use_case'])
+            || $criteria['max_price'] !== null
+            || $criteria['min_price'] !== null;
+    }
+
+    private function hasProductKeywordMatch(string $message): bool
+    {
+        return $this->containsAny($message, self::PRODUCT_KEYWORDS);
+    }
+
+    private function isOutOfScopeIntent(string $message, array $criteria): bool
+    {
+        if ($this->hasDomainSignal($message, $criteria)) {
+            return false;
+        }
+
+        if ($this->containsAny($message, self::OUT_OF_SCOPE_KEYWORDS)) {
+            return true;
+        }
+
+        return (bool) preg_match('/^(what|who|when|where|why|how|tell|explain|solve|write)\b/i', $message);
+    }
+
+    private function hasDomainSignal(string $message, array $criteria): bool
+    {
+        return $this->hasStructuredProductSignal($criteria)
+            || $this->hasProductKeywordMatch($message)
+            || $this->isCartIntent($message)
+            || $this->isCheckoutIntent($message)
+            || $this->isVisualSearchIntent($message)
+            || $this->isAvailabilityIntent($message)
+            || $this->supportTopic($message) !== null;
+    }
+
+    private function containsAny(string $message, array $phrases): bool
+    {
+        foreach ($phrases as $phrase) {
+            if (str_contains($message, $phrase)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function startsWithAny(string $message, array $prefixes): bool
+    {
+        foreach ($prefixes as $prefix) {
+            if (str_starts_with($message, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function simplifyMessage(string $message): string
+    {
+        $normalized = Str::lower($message);
+        $normalized = preg_replace('/[^a-z0-9\s]+/i', ' ', $normalized) ?? $normalized;
+
+        return trim((string) preg_replace('/\s+/', ' ', $normalized));
+    }
+
+    private function tokenCount(string $message): int
+    {
+        if ($message === '') {
+            return 0;
+        }
+
+        return count(explode(' ', $message));
+    }
+
+    private function guidanceContext(array $intent, array $criteria, array $response): array
+    {
+        return [
+            'intent' => $intent['intent'],
+            'topic' => $intent['topic'] ?? null,
+            'criteria' => Arr::only($criteria, [
+                'brand_style',
+                'category',
+                'color',
+                'max_price',
+                'min_price',
+                'size',
+                'use_case',
+            ]),
+            'products' => collect($response['products'] ?? [])
+                ->map(fn (array $product): array => Arr::only($product, [
+                    'name',
+                    'category',
+                    'price_label',
+                    'availability',
+                    'short_description',
+                ]))
+                ->values()
+                ->all(),
+            'actions' => collect($response['actions'] ?? [])
+                ->map(fn (array $action): array => Arr::only($action, ['label', 'type', 'message', 'target', 'url']))
+                ->values()
+                ->all(),
+        ];
     }
 }

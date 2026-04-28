@@ -34,7 +34,8 @@ Route::prefix('cart')
 Route::prefix('assistant')
     ->as('storefront.assistant.')
     ->group(function (): void {
-        Route::post('/message', StorefrontAssistantController::class)->name('message');
+        Route::post('/message', [StorefrontAssistantController::class, 'message'])->name('message');
+        Route::post('/message/stream', [StorefrontAssistantController::class, 'stream'])->name('message.stream');
         Route::post('/visual-search', StorefrontVisualSearchController::class)->name('visual-search');
     });
 

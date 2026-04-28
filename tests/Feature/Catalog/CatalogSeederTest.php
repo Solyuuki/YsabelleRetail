@@ -25,11 +25,19 @@ test('catalog seeder creates a large deterministic shoe catalog with mapped inve
     expect(Product::query()->count())->toBeGreaterThanOrEqual(100)
         ->and(Product::query()->distinct('name')->count('name'))->toBe(Product::query()->count())
         ->and(Product::query()->whereNull('style_code')->count())->toBe(0)
-        ->and(Product::query()->distinct('style_code')->count('style_code'))->toBe(Product::query()->count());
+        ->and(Product::query()->distinct('style_code')->count('style_code'))->toBe(Product::query()->count())
+        ->and(Product::query()->whereNull('primary_image_url')->count())->toBe(0)
+        ->and(Product::query()->distinct('primary_image_url')->count('primary_image_url'))->toBe(Product::query()->count());
 
     expect(ProductVariant::query()->count())->toBeGreaterThan(500)
         ->and(ProductVariant::query()->distinct('sku')->count('sku'))->toBe(ProductVariant::query()->count())
         ->and(ProductVariant::query()->doesntHave('inventoryItem')->count())->toBe(0);
+
+    expect(Product::query()->get()->every(function (Product $product): bool {
+        return is_array($product->image_gallery)
+            && count($product->image_gallery) >= 3
+            && str_contains((string) $product->primary_image_url, '/images/catalog/generated/');
+    }))->toBeTrue();
 
     $variant = ProductVariant::query()
         ->where('sku', 'YS-AUR-7490-9')
