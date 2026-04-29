@@ -177,19 +177,12 @@ class ClipEmbeddingService:
         return merged.convert("RGB")
 
     def _trim_background(self, image: Image.Image) -> Image.Image:
-        rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-        alpha = np.asarray(image.getchannel("A"), dtype=np.uint8)
-        distance_from_white = np.sqrt(np.sum((255 - rgb.astype(np.float32)) ** 2, axis=2))
-        non_white = distance_from_white > 18
-        opaque = alpha > 10
-        mask = np.logical_or(non_white, opaque)
+        bounds = self._foreground_bounds(image)
 
-        coordinates = np.argwhere(mask)
-        if coordinates.size == 0:
+        if bounds is None:
             return image
 
-        y0, x0 = coordinates.min(axis=0)
-        y1, x1 = coordinates.max(axis=0) + 1
+        x0, y0, x1, y1 = bounds
         width = x1 - x0
         height = y1 - y0
 
@@ -207,11 +200,52 @@ class ClipEmbeddingService:
 
         return image.crop(crop_box)
 
+    def _foreground_bounds(self, image: Image.Image) -> tuple[int, int, int, int] | None:
+        rgba = np.asarray(image.convert("RGBA"), dtype=np.uint8)
+        rgb = rgba[:, :, :3].astype(np.float32)
+        alpha = rgba[:, :, 3]
+        background_rgb, tolerance = self._background_reference(rgba)
+
+        distance_from_background = np.sqrt(np.sum((rgb - background_rgb) ** 2, axis=2))
+
+        has_transparency = bool(np.any(alpha < 245))
+        if has_transparency:
+            mask = np.logical_and(alpha > 10, np.logical_or(distance_from_background > (tolerance * 0.65), alpha < 245))
+        else:
+            mask = distance_from_background > tolerance
+
+        coordinates = np.argwhere(mask)
+        if coordinates.size == 0:
+            return None
+
+        y0, x0 = coordinates.min(axis=0)
+        y1, x1 = coordinates.max(axis=0) + 1
+
+        return int(x0), int(y0), int(x1), int(y1)
+
+    def _background_reference(self, rgba: np.ndarray) -> tuple[np.ndarray, float]:
+        top = rgba[0, :, :]
+        bottom = rgba[-1, :, :]
+        left = rgba[:, 0, :]
+        right = rgba[:, -1, :]
+        border = np.concatenate([top, bottom, left, right], axis=0)
+
+        opaque_border = border[border[:, 3] > 10]
+        samples = opaque_border if opaque_border.size > 0 else border
+        colors = samples[:, :3].astype(np.float32)
+        background_rgb = np.median(colors, axis=0)
+        spread = np.median(np.sqrt(np.sum((colors - background_rgb) ** 2, axis=1)))
+        tolerance = float(np.clip(18.0 + (spread * 2.2), 30.0, 60.0))
+
+        return background_rgb, tolerance
+
     def _prepare_crops(self, image: Image.Image) -> list[PreparedImage]:
         crops = [
             PreparedImage("full", self._pad_to_square(image)),
             PreparedImage("center", self._center_crop(image)),
             PreparedImage("focus", self._focus_crop(image)),
+            PreparedImage("tilt_left", self._tilt_crop(image, -12)),
+            PreparedImage("tilt_right", self._tilt_crop(image, 12)),
         ]
 
         return [
@@ -270,6 +304,16 @@ class ClipEmbeddingService:
         top = min(top, max(0, image.height - side))
 
         return image.crop((left, top, left + side, top + side))
+
+    def _tilt_crop(self, image: Image.Image, degrees: float) -> Image.Image:
+        rotated = image.rotate(
+            degrees,
+            resample=Image.Resampling.BICUBIC,
+            expand=True,
+            fillcolor=(255, 255, 255),
+        )
+
+        return self._pad_to_square(rotated)
 
     def _blur_score(self, image: Image.Image) -> float:
         gray = np.asarray(image.convert("L"), dtype=np.float32) / 255.0

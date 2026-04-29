@@ -6,6 +6,10 @@ use App\Models\Catalog\Product;
 
 class ProductMediaResolver
 {
+    public function __construct(
+        private readonly ProductMediaPath $mediaPath,
+    ) {}
+
     public function imageUrlFor(?Product $product): ?string
     {
         if (! $product) {
@@ -43,27 +47,21 @@ class ProductMediaResolver
 
     public function pathFor(?Product $product, string $variant = 'primary'): ?string
     {
-        return $this->imageUrlFor($product);
+        if (! $product) {
+            return null;
+        }
+
+        if ($variant === 'primary') {
+            return $this->mediaPath->toRelativePath($product->primary_image_url);
+        }
+
+        $galleryIndex = max(0, ((int) str_replace('gallery-', '', $variant)) - 1);
+
+        return $this->mediaPath->toRelativePath($product->image_gallery[$galleryIndex] ?? null);
     }
 
     private function normalizeUrl(mixed $url): ?string
     {
-        if (! is_string($url)) {
-            return null;
-        }
-
-        $url = trim($url);
-
-        if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)) {
-            return null;
-        }
-
-        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-
-        if (! in_array($scheme, ['http', 'https'], true)) {
-            return null;
-        }
-
-        return $url;
+        return $this->mediaPath->toUrl($url);
     }
 }

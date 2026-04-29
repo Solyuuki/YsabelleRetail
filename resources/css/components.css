@@ -449,10 +449,20 @@
     }
 
     .ys-featured-card-fallback {
-        @apply flex h-full w-full items-center justify-center px-6 text-center text-[1rem] font-medium text-ys-ivory/54;
+        @apply pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-[1rem] font-medium text-ys-ivory/54;
         background:
             radial-gradient(circle at 50% 42%, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 34%),
             linear-gradient(180deg, #09090a 0%, #121214 100%);
+        opacity: 0;
+        transition: opacity 220ms ease;
+    }
+
+    .ys-featured-card-media.is-fallback-visible .ys-featured-card-image {
+        opacity: 0;
+    }
+
+    .ys-featured-card-media.is-fallback-visible .ys-featured-card-fallback {
+        opacity: 1;
     }
 
     .ys-featured-card-body {

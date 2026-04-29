@@ -26,13 +26,7 @@ final class CatalogProductImageFactory
         $urls = [];
 
         foreach ($variants as $variantKey => $variant) {
-            $relativePath = sprintf(
-                'images/catalog/generated/%s/%s/%s-%s.png',
-                self::VERSION,
-                $categorySlug,
-                $productSlug,
-                $variantKey,
-            );
+            $relativePath = self::relativePathFor($categorySlug, $productSlug, $variantKey);
 
             self::renderImage(
                 absolutePath: public_path($relativePath),
@@ -43,7 +37,7 @@ final class CatalogProductImageFactory
                 seed: $seed.'|'.$variantKey,
             );
 
-            $urls[$variantKey] = url($relativePath);
+            $urls[$variantKey] = $relativePath;
         }
 
         return [
@@ -55,6 +49,15 @@ final class CatalogProductImageFactory
                 $urls['gallery-3'],
             ],
         ];
+    }
+
+    private static function relativePathFor(string $categorySlug, string $productSlug, string $variantKey): string
+    {
+        if ($variantKey === 'primary') {
+            return sprintf('images/products/%s/%s.png', $categorySlug, $productSlug);
+        }
+
+        return sprintf('images/products/%s/%s-%s.png', $categorySlug, $productSlug, $variantKey);
     }
 
     private static function renderImage(
@@ -299,6 +302,8 @@ final class CatalogProductImageFactory
         $hash = hexdec(substr(hash('sha256', $seed.'|'.$productName), 0, 8));
         $lineColor = self::allocateHex($image, $palette['background_deep']);
         $dotColor = self::allocateHex($image, $palette['upper_dark']);
+        $accentColor = self::allocateHex($image, $palette['accent']);
+        $accentSoftColor = self::allocateHex($image, $palette['accent_soft']);
 
         if ($scene === 'studio') {
             imagesetthickness($image, 6);
@@ -317,6 +322,19 @@ final class CatalogProductImageFactory
                 $y = 180 + (($hash + ($index * 41)) % 520);
                 imagefilledellipse($image, $x, $y, 18, 18, $dotColor);
             }
+        }
+
+        imagesetthickness($image, 5);
+        $markerOffset = $hash % 180;
+        imageline($image, 130 + $markerOffset, 140, 290 + $markerOffset, 140, $accentColor);
+        imageline($image, 130 + $markerOffset, 172, 250 + $markerOffset, 172, $accentSoftColor);
+
+        if (($hash % 3) === 0) {
+            imagefilledellipse($image, 1080, 160 + ($hash % 120), 26, 26, $accentColor);
+        } elseif (($hash % 3) === 1) {
+            imagefilledrectangle($image, 1040, 120 + ($hash % 110), 1080, 152 + ($hash % 110), $accentSoftColor);
+        } else {
+            imagerectangle($image, 1028, 118 + ($hash % 108), 1084, 174 + ($hash % 108), $accentColor);
         }
     }
 

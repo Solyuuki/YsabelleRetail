@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Services\Catalog\CatalogImageAuditService;
+use App\Services\Catalog\CatalogProductImageSyncService;
 use App\Services\Storefront\Assistant\StorefrontAssistantGuidanceService;
 use App\Services\Storefront\VisualSearchEmbeddingService;
 use App\Services\Storefront\VisualSearchIndexService;
@@ -130,6 +131,43 @@ Artisan::command('catalog:images:audit', function (): int {
 
     return $audit['status'] === 'red' ? 1 : 0;
 })->purpose('Audit catalog image quality, uniqueness, and visual-search index coverage');
+
+Artisan::command('catalog:images:sync {--dry-run : Preview the normalization without updating the database}', function (): int {
+    $persist = ! (bool) $this->option('dry-run');
+    $stats = app(CatalogProductImageSyncService::class)->sync($persist);
+
+    $this->table(
+        ['Metric', 'Value'],
+        [
+            ['Products scanned', $stats['products_scanned']],
+            ['Products updated', $persist ? $stats['products_updated'] : 'dry-run'],
+            ['Images copied', $stats['images_copied']],
+            ['Images already present', $stats['images_already_present']],
+            ['Missing sources', count($stats['missing_sources'])],
+        ],
+    );
+
+    if ($stats['missing_sources'] !== []) {
+        $this->components->error('Some product images could not be synced.');
+
+        foreach ($stats['missing_sources'] as $row) {
+            $this->line(sprintf(
+                '  - %s [%s] source: %s',
+                $row['product'],
+                $row['variant'],
+                $row['source'] ?? 'n/a',
+            ));
+        }
+
+        return 1;
+    }
+
+    $this->components->info($persist
+        ? 'Catalog product images are normalized to public/images/products and the database now stores local asset paths.'
+        : 'Dry run completed. Re-run without --dry-run to persist the normalized asset paths.');
+
+    return 0;
+})->purpose('Copy catalog product images into public/images/products and normalize product image paths');
 
 Artisan::command('assistant:ollama-health', function (): void {
     $health = app(StorefrontAssistantGuidanceService::class)->health();

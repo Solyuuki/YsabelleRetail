@@ -5,6 +5,7 @@ namespace App\Services\Catalog;
 use App\Models\Catalog\Product;
 use App\Models\Storefront\VisualSearchIndexEntry;
 use App\Services\Storefront\ImageFeatureExtractor;
+use App\Support\Storefront\ProductMediaPath;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -12,6 +13,7 @@ class CatalogImageAuditService
 {
     public function __construct(
         private readonly ImageFeatureExtractor $featureExtractor,
+        private readonly ProductMediaPath $mediaPath,
     ) {}
 
     public function audit(): array
@@ -59,7 +61,7 @@ class CatalogImageAuditService
             ->filter(fn (mixed $url): bool => is_string($url) && $url !== '')
             ->values();
 
-        $catalogImageUrls = $rawPrimaryUrls
+        $catalogImageUrls = $normalizedPrimaryUrls
             ->concat($galleryUrls)
             ->filter()
             ->unique()
@@ -163,7 +165,8 @@ class CatalogImageAuditService
         $entriesWithEmbeddings = VisualSearchIndexEntry::query()->whereNotNull('embedding_vector')->count();
         $indexedUrls = VisualSearchIndexEntry::query()
             ->pluck('image_url')
-            ->filter(fn (mixed $url): bool => is_string($url) && $url !== '')
+            ->map(fn (mixed $url): ?string => $this->mediaPath->toIdentity($url))
+            ->filter()
             ->unique()
             ->values();
 
@@ -250,8 +253,8 @@ class CatalogImageAuditService
     private function normalizePrimary(mixed $url): array
     {
         $raw = $this->normalizeUrlString($url);
-        $normalized = $this->normalizedIdentityUrl($raw);
-        $localPath = $this->localPublicPath($normalized ?? $raw);
+        $normalized = $this->mediaPath->toIdentity($raw);
+        $localPath = $this->mediaPath->toLocalPublicPath($raw);
 
         return [
             'raw' => $raw,
@@ -268,7 +271,7 @@ class CatalogImageAuditService
         }
 
         return collect($gallery)
-            ->map(fn (mixed $url): ?string => $this->normalizedIdentityUrl($this->normalizeUrlString($url)))
+            ->map(fn (mixed $url): ?string => $this->mediaPath->toIdentity($this->normalizeUrlString($url)))
             ->filter()
             ->unique()
             ->values()
@@ -284,58 +287,6 @@ class CatalogImageAuditService
         $url = trim($url);
 
         return $url !== '' ? $url : null;
-    }
-
-    private function normalizedIdentityUrl(?string $url): ?string
-    {
-        if (! is_string($url) || ! filter_var($url, FILTER_VALIDATE_URL)) {
-            return null;
-        }
-
-        $parts = parse_url($url);
-
-        if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'], $parts['path'])) {
-            return null;
-        }
-
-        $scheme = strtolower($parts['scheme']);
-        $host = strtolower($parts['host']);
-        $path = rtrim($parts['path'], '/');
-
-        if ($path === '') {
-            $path = '/';
-        }
-
-        return "{$scheme}://{$host}{$path}";
-    }
-
-    private function localPublicPath(?string $url): ?string
-    {
-        if (! is_string($url) || $url === '') {
-            return null;
-        }
-
-        $parsedHost = parse_url($url, PHP_URL_HOST);
-        $parsedPath = parse_url($url, PHP_URL_PATH);
-        $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
-
-        if (! is_string($parsedPath) || $parsedPath === '') {
-            return null;
-        }
-
-        $allowedHosts = array_filter([
-            is_string($appHost) ? strtolower($appHost) : null,
-            '127.0.0.1',
-            'localhost',
-        ]);
-
-        if ($parsedHost !== null && ! in_array(strtolower((string) $parsedHost), $allowedHosts, true)) {
-            return null;
-        }
-
-        $candidate = public_path(ltrim($parsedPath, '/'));
-
-        return is_file($candidate) ? $candidate : null;
     }
 
     private function indexTableExists(): bool
