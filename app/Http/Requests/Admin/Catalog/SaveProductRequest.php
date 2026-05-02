@@ -72,7 +72,7 @@ class SaveProductRequest extends FormRequest
                     $path = app(ProductMediaPath::class);
 
                     if ($path->toUrl($value) === null) {
-                        $fail('The primary image must be a valid HTTP(S) URL or a local public asset path such as images/products/example.png.');
+                        $fail('The primary image must be a valid HTTP(S) URL or a local public asset path such as images/products/example.jpg.');
                     }
                 },
             ],

@@ -83,7 +83,7 @@ return [
                 'python_binary' => env('STOREFRONT_VISUAL_SEARCH_PYTHON', 'python'),
                 'script' => env('STOREFRONT_VISUAL_SEARCH_SCRIPT') ?: base_path('tools/visual_search_embedding_service.py'),
                 'model' => env('STOREFRONT_VISUAL_SEARCH_EMBEDDING_MODEL', 'openai/clip-vit-base-patch32'),
-                'version' => env('STOREFRONT_VISUAL_SEARCH_EMBEDDING_VERSION', 'clip-b32-v1'),
+                'version' => env('STOREFRONT_VISUAL_SEARCH_EMBEDDING_VERSION', 'clip-b32-v2'),
                 'timeout' => (int) env('STOREFRONT_VISUAL_SEARCH_EMBEDDING_TIMEOUT', 120),
             ],
             'thresholds' => [

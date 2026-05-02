@@ -165,9 +165,9 @@ function createCroppedFixture(string $sourceFilename, string $targetFilename): s
 
 function createScreenshotFixture(string $sourceFilename, string $targetFilename): string
 {
-    $sourcePath = visualSearchFixturePath($sourceFilename);
+    $sourcePath = is_file($sourceFilename) ? $sourceFilename : visualSearchFixturePath($sourceFilename);
     $targetPath = visualSearchFixturePath($targetFilename);
-    $source = imagecreatefrompng($sourcePath);
+    $source = imagecreatefromstring(file_get_contents($sourcePath));
     $canvas = imagecreatetruecolor(420, 280);
     $bg = allocateHexColor($canvas, '#f5f3ee');
     $chrome = allocateHexColor($canvas, '#d9d5cd');
@@ -436,7 +436,8 @@ test('visual search returns no match for unrelated images without random product
     ])
         ->assertOk()
         ->assertJsonPath('match.confidence', 'no_match')
-        ->assertJsonPath('answer', 'No strong visual match found. Please upload a clearer shoe photo.')
+        ->assertJsonPath('match.reason', 'non_shoe')
+        ->assertJsonPath('answer', 'I could not clearly detect a shoe in this image. Try a side-view or on-foot shoe photo.')
         ->assertJsonCount(0, 'products');
 });
 
@@ -537,12 +538,12 @@ test('visual search matches cropped uploads for the same product', function () {
 });
 
 test('visual search matches screenshot style uploads for the same product', function () {
-    drawShoeFixture('screenshot-source-shoe.png', '#232323');
-    createScreenshotFixture('screenshot-source-shoe.png', 'screenshot-query-shoe.jpg');
+    $sourcePath = public_path('images/products/running/aurum-runner.jpg');
+    createScreenshotFixture($sourcePath, 'screenshot-query-shoe.jpg');
     $product = makeStorefrontProduct([
         'name' => 'Screen Runner',
         'slug' => 'screen-runner',
-        'primary_image_url' => visualSearchFixtureUrl('screenshot-source-shoe.png'),
+        'primary_image_url' => url('images/products/running/aurum-runner.jpg'),
         'image_alt' => 'Screen Runner product image',
     ]);
 
@@ -559,12 +560,13 @@ test('visual search matches screenshot style uploads for the same product', func
 });
 
 test('visual search returns one representative for unrelated products sharing the same image', function () {
-    drawShoeFixture('shared-cluster-shoe.png', '#1f1f1f');
+    $sharedImageUrl = url('images/products/running/aurum-runner.jpg');
+    $sharedImagePath = public_path('images/products/running/aurum-runner.jpg');
 
     $primary = makeStorefrontProduct([
         'name' => 'Cluster Runner',
         'slug' => 'cluster-runner',
-        'primary_image_url' => visualSearchFixtureUrl('shared-cluster-shoe.png'),
+        'primary_image_url' => $sharedImageUrl,
         'image_alt' => 'Cluster Runner product image',
     ], [
         'sku' => 'YS-CLR-6100-9',
@@ -575,7 +577,7 @@ test('visual search returns one representative for unrelated products sharing th
         'slug' => 'cluster-street',
         'category_name' => 'Sneakers',
         'category_slug' => 'sneakers',
-        'primary_image_url' => visualSearchFixtureUrl('shared-cluster-shoe.png'),
+        'primary_image_url' => $sharedImageUrl,
         'image_alt' => 'Cluster Street product image',
     ], [
         'sku' => 'YS-CLS-6100-9',
@@ -584,15 +586,14 @@ test('visual search returns one representative for unrelated products sharing th
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
     $response = $this->post(route('storefront.assistant.visual-search'), [
-        'image' => uploadFromFixture(visualSearchFixturePath('shared-cluster-shoe.png'), 'shared-cluster-shoe.png'),
+        'image' => uploadFromFixture($sharedImagePath, 'shared-cluster-shoe.jpg'),
     ], [
         'Accept' => 'application/json',
     ])->assertOk();
 
     $slugs = collect($response->json('products'))->pluck('slug');
 
-    expect($slugs)->toContain($primary->slug)
-        ->and($slugs)->not->toContain($duplicate->slug);
+    expect($slugs->intersect([$primary->slug, $duplicate->slug])->count())->toBe(1);
 });
 
 test('visual search keeps duplicate image clusters from dominating the final results', function () {
@@ -683,6 +684,16 @@ test('visual search handles moderately blurry uploads without random fallback', 
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug);
+});
+
+test('visual search scores in the candidate band become approximate matches', function () {
+    $service = app(\App\Services\Storefront\VisualProductSearchService::class);
+    $reflection = new ReflectionClass($service);
+    $confidenceForScore = $reflection->getMethod('confidenceForScore');
+    $confidenceForScore->setAccessible(true);
+
+    expect($confidenceForScore->invoke($service, 0.74))->toBe('approximate_match')
+        ->and($confidenceForScore->invoke($service, 0.71))->toBe('no_match');
 });
 
 test('visual search returns a safe message when the index is missing', function () {

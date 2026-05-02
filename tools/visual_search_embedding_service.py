@@ -19,6 +19,9 @@ POSITIVE_PROMPTS = [
     "a product photo of a sneaker",
     "a product photo of a running shoe",
     "an athletic shoe on a clean background",
+    "a sneaker worn on foot in a real-world photo",
+    "a casual photo of footwear with background clutter",
+    "a close-up photo of a shoe taken on a phone camera",
 ]
 
 NEGATIVE_PROMPTS = [
@@ -244,6 +247,7 @@ class ClipEmbeddingService:
             PreparedImage("full", self._pad_to_square(image)),
             PreparedImage("center", self._center_crop(image)),
             PreparedImage("focus", self._focus_crop(image)),
+            PreparedImage("lower_center", self._lower_center_crop(image)),
             PreparedImage("tilt_left", self._tilt_crop(image, -12)),
             PreparedImage("tilt_right", self._tilt_crop(image, 12)),
         ]

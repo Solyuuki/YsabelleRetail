@@ -61,6 +61,8 @@ class VisualProductSearchService
             'embedding_generated' => $embeddingGenerated,
             'index_count' => $indexEntries->count(),
             'indexed_embedding_count' => $indexedEmbeddingEntries->count(),
+            'upload_shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
+            'upload_blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
         ];
 
         if ($indexEntries->isEmpty()) {
@@ -83,29 +85,37 @@ class VisualProductSearchService
 
         if ($scoredProducts->isEmpty()) {
             $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, null);
-            $this->debugLog('no_match', $context + ['reason' => $reason]);
+            $this->debugLog('no_match', $context + [
+                'reason' => $reason,
+                'top_products' => [],
+            ]);
 
             return $this->noMatchResponse($reason);
         }
 
         $topCandidate = $scoredProducts->first();
         $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate);
+        $topProducts = $this->debugCandidates($scoredProducts);
 
         if ($this->shouldRejectAsNonShoe($embeddingPayload, $fallbackFeatures, $topCandidate)) {
             $this->debugLog('non_shoe_rejected', $context + [
                 'top_similarity' => $topCandidate['visual_score'] ?? 0.0,
+                'top_products' => $topProducts,
             ]);
 
             return $this->noMatchResponse('non_shoe');
         }
 
-        if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold() || $topCandidate['confidence'] === 'no_match') {
-            $this->debugLog('no_match', $context + ['reason' => $reason]);
+        if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold()) {
+            $this->debugLog('no_match', $context + [
+                'reason' => $reason,
+                'top_products' => $topProducts,
+            ]);
 
             return $this->noMatchResponse($reason);
         }
 
-        $products = $scoredProducts
+        $products = $this->presentableCandidates($scoredProducts)
             ->take(4)
             ->map(function (array $candidate): array {
                 $product = $this->productDiscovery->formatProduct($candidate['product']);
@@ -123,11 +133,7 @@ class VisualProductSearchService
 
         $this->debugLog('match', $context + [
             'engine' => $engine,
-            'top_products' => $scoredProducts->take(5)->map(fn (array $candidate): array => [
-                'product_id' => $candidate['product']->id,
-                'similarity' => round($candidate['visual_score'], 4),
-                'confidence' => $candidate['confidence'],
-            ])->values()->all(),
+            'top_products' => $topProducts,
         ]);
 
         return [
@@ -138,6 +144,7 @@ class VisualProductSearchService
                 'score' => round((float) $topCandidate['visual_score'], 4),
                 'score_percent' => (int) round($topCandidate['visual_score'] * 100),
                 'engine' => $engine,
+                'reason' => $topCandidate['confidence'],
             ],
             'products' => $products,
             'actions' => [
@@ -253,8 +260,6 @@ class VisualProductSearchService
 
                 return $best;
             })
-            ->filter(fn (array $candidate): bool => $candidate['visual_score'] >= $this->minCandidateThreshold())
-            ->filter(fn (array $candidate): bool => $candidate['confidence'] !== 'no_match')
             ->sortByDesc('score')
             ->values();
     }
@@ -520,6 +525,7 @@ class VisualProductSearchService
             $score >= $this->strongMatchThreshold() => 'strong_match',
             $score >= $this->likelyMatchThreshold() => 'likely_match',
             $score >= $this->similarMatchThreshold() => 'similar_match',
+            $score >= $this->minCandidateThreshold() => 'approximate_match',
             default => 'no_match',
         };
     }
@@ -530,6 +536,7 @@ class VisualProductSearchService
             'strong_match' => 'Strong visual match',
             'likely_match' => 'Likely visual match',
             'similar_match' => 'Similar product',
+            'approximate_match' => 'Closest catalog styles',
             default => 'No strong match',
         };
     }
@@ -540,6 +547,7 @@ class VisualProductSearchService
             'strong_match' => "This looks like a strong match for {$product->name}.",
             'likely_match' => "This looks like a likely match for {$product->name}.",
             'similar_match' => 'I did not find an exact match, but these look visually similar.',
+            'approximate_match' => 'I did not find a close exact match, but these are the closest catalog styles.',
             default => 'No strong visual match found. Please upload a clearer shoe photo.',
         };
     }
@@ -548,6 +556,9 @@ class VisualProductSearchService
     {
         $answer = match ($reason) {
             'index_unavailable' => 'Visual search is still building its product index. Please try again shortly.',
+            'blurred_upload' => 'This photo looks too blurry. Try a clearer shoe photo with the full shoe visible.',
+            'non_shoe' => 'I could not clearly detect a shoe in this image. Try a side-view or on-foot shoe photo.',
+            'low_similarity', 'no_visual_candidate', 'no_match' => 'I could not find a close catalog match. Try a clearer shoe photo or add color and category hints.',
             default => 'No strong visual match found. Please upload a clearer shoe photo.',
         };
 
@@ -558,6 +569,7 @@ class VisualProductSearchService
                 'label' => $this->confidenceLabel('no_match'),
                 'score' => 0.0,
                 'score_percent' => 0,
+                'reason' => $reason,
             ],
             'products' => [],
             'actions' => [
@@ -630,6 +642,26 @@ class VisualProductSearchService
         $shoeProbability = (float) ($embeddingPayload['shoe_probability'] ?? 0.0);
 
         return $shoeProbability < $this->shoeProbabilityFloor();
+    }
+
+    private function presentableCandidates(Collection $candidates): Collection
+    {
+        return $candidates
+            ->filter(fn (array $candidate): bool => ($candidate['visual_score'] ?? 0.0) >= $this->minCandidateThreshold())
+            ->values();
+    }
+
+    private function debugCandidates(Collection $candidates, int $limit = 5): array
+    {
+        return $candidates
+            ->take($limit)
+            ->map(fn (array $candidate): array => [
+                'product_id' => $candidate['product']->id,
+                'similarity' => round($candidate['visual_score'], 4),
+                'confidence' => $candidate['confidence'],
+            ])
+            ->values()
+            ->all();
     }
 
     private function debugLog(string $event, array $context): void

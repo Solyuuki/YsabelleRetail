@@ -35,8 +35,9 @@ test('catalog seeder creates a large deterministic shoe catalog with mapped inve
 
     expect(Product::query()->get()->every(function (Product $product): bool {
         return is_array($product->image_gallery)
-            && count($product->image_gallery) >= 3
-            && str_contains((string) $product->primary_image_url, '/images/catalog/generated/');
+            && $product->image_gallery === []
+            && preg_match('/\.(jpg|jpeg|webp)$/i', (string) $product->primary_image_url) === 1
+            && ! str_ends_with((string) $product->primary_image_url, '.png');
     }))->toBeTrue();
 
     $variant = ProductVariant::query()

@@ -11,8 +11,6 @@ use Illuminate\Support\Facades\Schema;
 
 class VisualSearchIndexService
 {
-    private const CACHE_KEY = 'storefront.visual-search.index.v2';
-
     public function __construct(
         private readonly ImageFeatureExtractor $featureExtractor,
         private readonly ProductMediaResolver $productMedia,
@@ -30,7 +28,7 @@ class VisualSearchIndexService
             return $this->queryIndexedEntries();
         }
 
-        return Cache::rememberForever(self::CACHE_KEY, fn (): Collection => $this->queryIndexedEntries());
+        return Cache::rememberForever($this->cacheKey(), fn (): Collection => $this->queryIndexedEntries());
     }
 
     public function rebuildIndex(bool $fresh = false): array
@@ -207,7 +205,7 @@ class VisualSearchIndexService
             $stats['entries_deleted'] += VisualSearchIndexEntry::query()->whereIn('id', $chunk)->delete();
         }
 
-        Cache::forget(self::CACHE_KEY);
+        Cache::forget($this->cacheKey());
 
         return $stats;
     }
@@ -219,7 +217,7 @@ class VisualSearchIndexService
         }
 
         $deleted = VisualSearchIndexEntry::query()->delete();
-        Cache::forget(self::CACHE_KEY);
+        Cache::forget($this->cacheKey());
 
         return $deleted;
     }
@@ -237,12 +235,29 @@ class VisualSearchIndexService
 
         $entries = VisualSearchIndexEntry::query()->count();
         $embeddedEntries = VisualSearchIndexEntry::query()->whereNotNull('embedding_vector')->count();
+        $currentModel = $this->embeddingService->model();
+        $currentVersion = $this->embeddingService->embeddingVersion();
+        $outdatedEmbeddedEntries = VisualSearchIndexEntry::query()
+            ->whereNotNull('embedding_vector')
+            ->where(function ($query) use ($currentModel, $currentVersion): void {
+                $query
+                    ->where('embedding_model', '!=', $currentModel)
+                    ->orWhere('embedding_version', '!=', $currentVersion);
+            })
+            ->count();
+        $staleSourceEntries = VisualSearchIndexEntry::query()
+            ->whereColumn('source_updated_at', '>', 'indexed_at')
+            ->count();
 
         return [
             'table_exists' => true,
             'entries' => $entries,
             'embedded_entries' => $embeddedEntries,
             'fallback_only_entries' => max(0, $entries - $embeddedEntries),
+            'current_model' => $currentModel,
+            'current_embedding_version' => $currentVersion,
+            'outdated_embedded_entries' => $outdatedEmbeddedEntries,
+            'stale_source_entries' => $staleSourceEntries,
         ];
     }
 
@@ -272,9 +287,34 @@ class VisualSearchIndexService
 
     private function queryIndexedEntries(): Collection
     {
-        return VisualSearchIndexEntry::query()
+        $query = VisualSearchIndexEntry::query()
             ->with(['product.category', 'product.variants.inventoryItem', 'variant'])
-            ->whereHas('product', fn ($query) => $query->where('status', 'active'))
-            ->get();
+            ->whereHas('product', fn ($query) => $query->where('status', 'active'));
+
+        if ($this->embeddingService->enabled()) {
+            $model = $this->embeddingService->model();
+            $version = $this->embeddingService->embeddingVersion();
+
+            $query->where(function ($query) use ($model, $version): void {
+                $query
+                    ->whereNull('embedding_vector')
+                    ->orWhere(function ($embeddedQuery) use ($model, $version): void {
+                        $embeddedQuery
+                            ->where('embedding_model', $model)
+                            ->where('embedding_version', $version);
+                    });
+            });
+        }
+
+        return $query->get();
+    }
+
+    private function cacheKey(): string
+    {
+        return 'storefront.visual-search.index.'.hash('sha256', implode('|', [
+            $this->embeddingService->enabled() ? 'embedding' : 'fallback',
+            $this->embeddingService->model(),
+            $this->embeddingService->embeddingVersion(),
+        ]));
     }
 }

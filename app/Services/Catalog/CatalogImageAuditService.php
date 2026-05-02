@@ -44,6 +44,12 @@ class CatalogImageAuditService
         $productsMissingPrimary = $totalProducts - $productsWithPrimary;
         $productsWithGallery = $productRows->filter(fn (array $row): bool => $row['gallery'] !== [])->count();
         $galleryImageCount = $productRows->sum(fn (array $row): int => count($row['gallery']));
+        $pngPrimaryCount = $productRows->filter(fn (array $row): bool => str_ends_with(strtolower((string) ($row['primary']['normalized'] ?? '')), '.png'))->count();
+        $pngGalleryCount = $productRows->sum(
+            fn (array $row): int => collect($row['gallery'])
+                ->filter(fn (string $url): bool => str_ends_with(strtolower($url), '.png'))
+                ->count()
+        );
 
         $rawPrimaryUrls = $productRows
             ->pluck('primary.raw')
@@ -87,6 +93,14 @@ class CatalogImageAuditService
             $errors[] = "{$productsMissingPrimary} products are missing a primary image.";
         }
 
+        if ($pngPrimaryCount > 0) {
+            $errors[] = "{$pngPrimaryCount} products still point to PNG primary assets instead of real product photos.";
+        }
+
+        if ($pngGalleryCount > 0) {
+            $errors[] = "{$pngGalleryCount} gallery image references still point to PNG assets.";
+        }
+
         if ($duplicates['normalized_url'] !== []) {
             $errors[] = count($duplicates['normalized_url']).' duplicate normalized primary image groups detected.';
         }
@@ -105,14 +119,6 @@ class CatalogImageAuditService
 
         if ($indexMetrics['entries'] > 0 && $indexMetrics['entries_with_embeddings'] < $indexMetrics['entries']) {
             $errors[] = 'Some indexed images are missing embeddings.';
-        }
-
-        if ($productsWithGallery < $totalProducts) {
-            $warnings[] = ($totalProducts - $productsWithGallery).' products are missing gallery images.';
-        }
-
-        if ($galleryImageCount > 0 && ($galleryImageCount / max($totalProducts, 1)) < 2) {
-            $warnings[] = 'Average gallery coverage is below 2 images per product.';
         }
 
         if ($indexMetrics['entries'] === 0) {

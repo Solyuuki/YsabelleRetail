@@ -46,8 +46,9 @@ test('seeded catalog maintains high primary image uniqueness and gallery coverag
 
     expect($audit['products']['total'])->toBeGreaterThanOrEqual(100)
         ->and($audit['products']['missing_primary'])->toBe(0)
-        ->and($audit['products']['with_gallery'])->toBe($audit['products']['total'])
-        ->and($audit['products']['average_gallery_images'])->toBeGreaterThanOrEqual(3.0)
+        ->and($audit['products']['with_gallery'])->toBe(0)
+        ->and($audit['products']['average_gallery_images'])->toBe(0.0)
         ->and($audit['primary_images']['uniqueness_ratio'])->toBeGreaterThanOrEqual(0.95)
-        ->and($audit['duplicates']['normalized_url'])->toBe([]);
+        ->and($audit['duplicates']['normalized_url'])->toBe([])
+        ->and($audit['errors'])->toBe([]);
 });

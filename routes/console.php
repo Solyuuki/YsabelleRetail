@@ -59,6 +59,10 @@ Artisan::command('visual-search:health', function (): void {
             ['Index entries', $index['entries']],
             ['Entries with embeddings', $index['embedded_entries']],
             ['Fallback-only entries', $index['fallback_only_entries']],
+            ['Indexed model', $index['current_model'] ?? 'n/a'],
+            ['Indexed version', $index['current_embedding_version'] ?? 'n/a'],
+            ['Outdated embedded entries', $index['outdated_embedded_entries'] ?? 0],
+            ['Source-stale entries', $index['stale_source_entries'] ?? 0],
         ],
     );
 })->purpose('Check the local visual search embedding service and index coverage');
