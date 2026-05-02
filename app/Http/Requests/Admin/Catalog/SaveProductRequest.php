@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin\Catalog;
 
 use App\Models\Catalog\ProductVariant;
+use App\Support\Storefront\ProductMediaPath;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -41,6 +42,7 @@ class SaveProductRequest extends FormRequest
 
         $this->merge([
             'slug' => trim((string) $this->input('slug')),
+            'primary_image_url' => trim((string) $this->input('primary_image_url', '')),
             'variants' => $variants,
             'is_featured' => $this->boolean('is_featured'),
             'track_inventory' => $this->boolean('track_inventory', true),
@@ -58,7 +60,22 @@ class SaveProductRequest extends FormRequest
             'style_code' => ['nullable', 'string', 'max:255', Rule::unique('products', 'style_code')->ignore($productId)],
             'short_description' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
-            'primary_image_url' => ['nullable', 'url', 'max:2048'],
+            'primary_image_url' => [
+                'nullable',
+                'string',
+                'max:2048',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+
+                    $path = app(ProductMediaPath::class);
+
+                    if ($path->toUrl($value) === null) {
+                        $fail('The primary image must be a valid HTTP(S) URL or a local public asset path such as images/products/example.jpg.');
+                    }
+                },
+            ],
             'image_alt' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['draft', 'active', 'archived'])],
             'is_featured' => ['required', 'boolean'],

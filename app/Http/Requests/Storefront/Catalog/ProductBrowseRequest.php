@@ -22,6 +22,7 @@ class ProductBrowseRequest extends FormRequest
             'featured' => ['nullable', 'boolean'],
             'status' => ['nullable', 'in:draft,active,archived'],
             'sort' => ['nullable', 'in:featured,price_asc,price_desc,newest,name'],
+            'per_page' => ['nullable', 'integer', 'in:8,12'],
         ];
     }
 }

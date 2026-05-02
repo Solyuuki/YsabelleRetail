@@ -36,6 +36,11 @@ class WalkInSaleService
                 $this->inventoryManager->ensureSufficientStock($variant, $line['quantity']);
             }
 
+            $discountAmount = min(
+                max((float) ($payload['discount_amount'] ?? 0), 0),
+                max($subtotal, 0),
+            );
+            $grandTotal = max($subtotal - $discountAmount, 0);
             $paymentStatus = $payload['payment_status'];
             $order = Order::query()->create([
                 'user_id' => null,
@@ -47,10 +52,10 @@ class WalkInSaleService
                 'fulfillment_status' => 'fulfilled',
                 'currency' => 'PHP',
                 'subtotal_amount' => $subtotal,
-                'discount_amount' => 0,
+                'discount_amount' => $discountAmount,
                 'shipping_amount' => 0,
                 'tax_amount' => 0,
-                'grand_total' => $subtotal,
+                'grand_total' => $grandTotal,
                 'placed_at' => now(),
                 'notes' => $payload['notes'] ?: null,
                 'customer_name' => $payload['customer_name'] ?: 'Walk-in Customer',
@@ -97,13 +102,14 @@ class WalkInSaleService
                 'provider' => $payload['payment_method'],
                 'provider_reference' => null,
                 'status' => $paymentStatus === 'paid' ? 'succeeded' : 'pending',
-                'amount' => $subtotal,
+                'amount' => $grandTotal,
                 'currency' => 'PHP',
                 'paid_at' => $paymentStatus === 'paid' ? now() : null,
                 'metadata' => [
                     'source' => 'walk_in',
                     'cashier' => $cashier->email,
                     'method' => $payload['payment_method'],
+                    'discount_amount' => $discountAmount,
                 ],
             ]);
 

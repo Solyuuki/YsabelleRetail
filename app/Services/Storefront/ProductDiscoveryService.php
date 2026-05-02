@@ -12,17 +12,21 @@ class ProductDiscoveryService
 {
     private const CATEGORY_KEYWORDS = [
         'running' => ['running', 'runner', 'runners', 'jogging', 'jogger', 'tempo'],
-        'sneakers' => ['sneaker', 'sneakers', 'casual', 'lifestyle', 'daily', 'everyday', 'street'],
-        'sport' => ['sport', 'sports', 'gym', 'training', 'trainer', 'workout', 'active'],
-        'performance' => ['performance', 'technical', 'elite', 'precision', 'support'],
+        'sneakers' => ['sneaker', 'sneakers', 'casual', 'street'],
+        'basketball-shoes' => ['basketball', 'court', 'hoops', 'rebound', 'dunk'],
+        'lifestyle-shoes' => ['lifestyle', 'daily', 'everyday', 'fashion', 'city'],
+        'training-shoes' => ['sport', 'sports', 'gym', 'training', 'trainer', 'workout', 'active'],
+        'walking-shoes' => ['walking', 'walker', 'stroll', 'comfort walk'],
+        'slip-ons' => ['slip-on', 'slip ons', 'loafer', 'easy-on'],
+        'boots-high-cut' => ['boot', 'boots', 'high-cut', 'rugged', 'hike'],
     ];
 
     private const USE_CASE_CATEGORY_MAP = [
-        'daily' => ['sneakers', 'sport'],
+        'daily' => ['sneakers', 'lifestyle-shoes', 'slip-ons'],
         'running' => ['running'],
-        'walking' => ['running', 'sneakers'],
-        'gym' => ['sport', 'performance'],
-        'performance' => ['performance', 'running'],
+        'walking' => ['walking-shoes', 'running'],
+        'gym' => ['training-shoes', 'basketball-shoes'],
+        'performance' => ['basketball-shoes', 'training-shoes', 'running'],
     ];
 
     private const COLOR_KEYWORDS = [
@@ -238,6 +242,8 @@ class ProductDiscoveryService
             'price_label' => '₱'.number_format((float) $product->base_price, 0),
             'compare_at_price' => $product->compare_at_price ? (float) $product->compare_at_price : null,
             'compare_at_price_label' => $product->compare_at_price ? '₱'.number_format((float) $product->compare_at_price, 0) : null,
+            'is_featured' => (bool) $product->is_featured,
+            'rating_average' => round((float) ($product->rating_average ?? 0), 1),
             'short_description' => $product->short_description,
             'url' => route('storefront.catalog.products.show', $product),
             'image_url' => $this->productMedia->imageUrlFor($product),

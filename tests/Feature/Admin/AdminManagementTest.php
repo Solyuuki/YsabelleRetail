@@ -387,6 +387,84 @@ test('walk in pos sale deducts shared inventory and creates audited order record
     ]);
 });
 
+test('walk in pos search returns paginated real variants with accurate labels', function () {
+    $admin = createAdminUser();
+    $running = Category::factory()->create(['name' => 'Running']);
+    $product = Product::factory()->for($running)->create([
+        'name' => 'Aurum Runner',
+        'status' => 'active',
+        'primary_image_url' => 'https://example.com/aurum.jpg',
+    ]);
+
+    $firstVariant = ProductVariant::factory()->for($product)->create([
+        'name' => 'Size 8',
+        'sku' => 'YSP-AURUM-8',
+        'status' => 'active',
+        'price' => 2499,
+        'option_values' => ['size' => '8', 'color' => 'Black/Gold'],
+    ]);
+    $firstVariant->inventoryItem()->create([
+        'quantity_on_hand' => 6,
+        'reserved_quantity' => 1,
+        'reorder_level' => 2,
+        'allow_backorder' => false,
+    ]);
+
+    $secondVariant = ProductVariant::factory()->for($product)->create([
+        'name' => 'Size 9',
+        'sku' => 'YSP-AURUM-9',
+        'status' => 'active',
+        'price' => 2599,
+        'option_values' => ['size' => '9', 'color' => 'Black/Gold'],
+    ]);
+    $secondVariant->inventoryItem()->create([
+        'quantity_on_hand' => 5,
+        'reserved_quantity' => 0,
+        'reorder_level' => 2,
+        'allow_backorder' => false,
+    ]);
+
+    collect(range(10, 18))->each(function (int $size) use ($product): void {
+        $variant = ProductVariant::factory()->for($product)->create([
+            'name' => "Size {$size}",
+            'sku' => "YSP-AURUM-{$size}",
+            'status' => 'active',
+            'price' => 2499 + $size,
+            'option_values' => ['size' => (string) $size, 'color' => 'Black/Gold'],
+        ]);
+
+        $variant->inventoryItem()->create([
+            'quantity_on_hand' => 4,
+            'reserved_quantity' => 0,
+            'reorder_level' => 1,
+            'allow_backorder' => false,
+        ]);
+    });
+
+    $response = $this->actingAs($admin)
+        ->getJson(route('admin.pos.search', ['search' => 'Running', 'page' => 1]))
+        ->assertOk()
+        ->json();
+
+    expect($response['meta']['per_page'])->toBe(8)
+        ->and($response['meta']['current_page'])->toBe(1)
+        ->and($response['meta']['last_page'])->toBeGreaterThanOrEqual(2)
+        ->and(collect($response['data'])->pluck('id')->duplicates()->isEmpty())->toBeTrue();
+
+    $skuResponse = $this->actingAs($admin)
+        ->getJson(route('admin.pos.search', ['search' => 'YSP-AURUM-8', 'page' => 1]))
+        ->assertOk()
+        ->json();
+
+    expect($skuResponse['meta']['total'])->toBe(1)
+        ->and($skuResponse['data'][0]['sku'])->toBe('YSP-AURUM-8')
+        ->and($skuResponse['data'][0]['name'])->toBe('Aurum Runner')
+        ->and($skuResponse['data'][0]['category_name'])->toBe('Running')
+        ->and($skuResponse['data'][0]['variant_label'])->toBe('Size 8 / Color Black/Gold')
+        ->and($skuResponse['data'][0]['available_quantity'])->toBe(5)
+        ->and($skuResponse['data'][0]['image_url'])->toBe('https://example.com/aurum.jpg');
+});
+
 test('report pages and exports are available to admins with valid filters', function () {
     $admin = createAdminUser(['email' => 'reports-admin@example.com']);
     $category = Category::factory()->create(['name' => 'Reports Category']);

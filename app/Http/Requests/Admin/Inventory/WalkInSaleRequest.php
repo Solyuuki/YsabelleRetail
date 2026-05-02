@@ -20,6 +20,7 @@ class WalkInSaleRequest extends FormRequest
             'customer_name' => trim((string) $this->input('customer_name')),
             'customer_phone' => trim((string) $this->input('customer_phone')),
             'notes' => trim((string) $this->input('notes')),
+            'discount_amount' => $this->input('discount_amount'),
             'lines' => is_array($decodedLines) ? $decodedLines : [],
         ]);
     }
@@ -29,6 +30,7 @@ class WalkInSaleRequest extends FormRequest
         return [
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:60'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['required', Rule::in(['cash', 'gcash', 'card', 'other'])],
             'payment_status' => ['required', Rule::in(['paid', 'pending', 'unpaid'])],
             'notes' => ['nullable', 'string', 'max:1000'],

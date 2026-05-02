@@ -26,11 +26,13 @@ function seedShortcutRoles(): array
 }
 
 test('guest users are redirected away from protected admin and customer areas', function () {
+    $expectedAdminLogin = route('login', ['intended' => route('admin.dashboard')]);
+
     $this->get(route('storefront.home'))
         ->assertOk()
         ->assertSee('window.AppAuth =', escape: false)
         ->assertSee('"isAuthenticated":false', escape: false)
-        ->assertSee('"adminLogin":"http://127.0.0.1:8000/login?intended=http%3A%2F%2F127.0.0.1%3A8000%2Fadmin"', escape: false);
+        ->assertSee('"adminLogin":"'.$expectedAdminLogin.'"', escape: false);
 
     $this->get(route('storefront.account.index'))
         ->assertRedirect(route('login'));

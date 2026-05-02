@@ -36,7 +36,7 @@
                     data-reveal-delay="{{ 40 + ($index * 70) }}"
                 >
                     <a href="{{ route('storefront.catalog.products.show', $product) }}" class="ys-featured-card-link">
-                        <div class="ys-featured-card-media">
+                        <div class="ys-featured-card-media {{ $hasImage ? '' : 'is-fallback-visible' }}" data-featured-card-media>
                             <div class="ys-featured-card-badges">
                                 @if ($product->is_featured)
                                     <span class="ys-featured-card-badge is-gold">New</span>
@@ -53,12 +53,13 @@
                                     loading="lazy"
                                     decoding="async"
                                     class="ys-featured-card-image"
+                                    data-featured-card-image
                                 >
-                            @else
-                                <div class="ys-featured-card-fallback" aria-hidden="true">
-                                    <span>{{ $product->name }}</span>
-                                </div>
                             @endif
+
+                            <div class="ys-featured-card-fallback" aria-hidden="{{ $hasImage ? 'true' : 'false' }}" data-featured-card-fallback>
+                                <span>{{ $product->name }}</span>
+                            </div>
                         </div>
 
                         <div class="ys-featured-card-body">

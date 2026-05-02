@@ -128,6 +128,9 @@ class DemoCommerceSeeder extends Seeder
                 'customer' => $customers[0],
                 'placed_at' => Carbon::now()->subDays(7)->setTime(10, 15),
                 'payment_method' => 'card_simulated',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'fulfillment_status' => 'fulfilled',
                 'items' => [
                     ['sku' => 'YS-AUR-7490-9', 'quantity' => 1],
                     ['sku' => 'YS-IVR-5890-7', 'quantity' => 1],
@@ -142,6 +145,9 @@ class DemoCommerceSeeder extends Seeder
                 'customer' => $customers[1],
                 'placed_at' => Carbon::now()->subDays(5)->setTime(14, 40),
                 'payment_method' => 'cod',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'fulfillment_status' => 'unfulfilled',
                 'items' => [
                     ['sku' => 'YS-SHD-6490-8', 'quantity' => 2],
                 ],
@@ -155,6 +161,9 @@ class DemoCommerceSeeder extends Seeder
                 'customer' => $customers[2],
                 'placed_at' => Carbon::now()->subDays(2)->setTime(19, 10),
                 'payment_method' => 'card_simulated',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'fulfillment_status' => 'fulfilled',
                 'items' => [
                     ['sku' => 'YS-VLT-5790-10', 'quantity' => 1],
                     ['sku' => 'YS-ONX-6290-9', 'quantity' => 1],
@@ -201,6 +210,12 @@ class DemoCommerceSeeder extends Seeder
                 'card_cvc' => $entry['payment_method'] === 'card_simulated' ? '123' : null,
             ]);
 
+            $order->forceFill([
+                'status' => $entry['status'],
+                'payment_status' => $entry['payment_status'],
+                'fulfillment_status' => $entry['fulfillment_status'],
+            ])->save();
+
             $this->retimeOrder($order, $entry['placed_at']);
             $cart->delete();
         }
@@ -211,6 +226,7 @@ class DemoCommerceSeeder extends Seeder
                 'payment_method' => 'cash',
                 'payment_status' => 'paid',
                 'customer_name' => '',
+                'customer_phone' => null,
                 'notes' => 'Walk-in sale from weekend foot traffic.',
                 'lines' => [
                     ['variant_id' => $variants->get('YS-AZV-5790-8')->id, 'quantity' => 1],
@@ -222,6 +238,7 @@ class DemoCommerceSeeder extends Seeder
                 'payment_method' => 'gcash',
                 'payment_status' => 'paid',
                 'customer_name' => 'Nina Santos',
+                'customer_phone' => '09175678901',
                 'notes' => 'Reserved item picked up in store.',
                 'lines' => [
                     ['variant_id' => $variants->get('YS-ONX-6290-9')->id, 'quantity' => 1],
@@ -232,6 +249,7 @@ class DemoCommerceSeeder extends Seeder
                 'payment_method' => $entry['payment_method'],
                 'payment_status' => $entry['payment_status'],
                 'customer_name' => $entry['customer_name'],
+                'customer_phone' => $entry['customer_phone'],
                 'notes' => $entry['notes'],
                 'lines' => $entry['lines'],
             ], $admin);

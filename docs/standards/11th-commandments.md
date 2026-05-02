@@ -1,4 +1,4 @@
-# Ten Commandments
+# 11th Commandments
 
 ## Purpose
 This document defines the non-negotiable rules for all contributors working on Ysabelle Retail Shop. These are hard boundaries, not suggestions.
