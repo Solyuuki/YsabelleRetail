@@ -1,5 +1,6 @@
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+const ACCEPTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
 const DEFAULT_TYPING_LABEL = 'Assistant is checking the catalog...';
 const VISUAL_TYPING_LABEL = 'Matching your image against the catalog...';
 
@@ -288,12 +289,18 @@ export const initChatWidget = () => {
             return 'Select an image first to use Visual Search.';
         }
 
-        if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-            return 'Please upload a JPG, PNG, or WEBP image.';
+        const extension = String(file.name ?? '')
+            .split('.')
+            .pop()
+            ?.toLowerCase();
+        const isImageMime = !file.type || file.type.startsWith('image/');
+
+        if (!isImageMime && !ACCEPTED_IMAGE_TYPES.includes(file.type) && !ACCEPTED_IMAGE_EXTENSIONS.includes(extension)) {
+            return 'Please upload a JPG, PNG, WEBP, or HEIC image.';
         }
 
         if (file.size > MAX_IMAGE_BYTES) {
-            return 'Please use an image smaller than 4 MB.';
+            return 'Please use an image smaller than 10 MB.';
         }
 
         return null;

@@ -87,12 +87,12 @@ return [
                 'timeout' => (int) env('STOREFRONT_VISUAL_SEARCH_EMBEDDING_TIMEOUT', 120),
             ],
             'thresholds' => [
-                'strong_match' => (float) env('STOREFRONT_VISUAL_SEARCH_STRONG_MATCH', 0.92),
-                'likely_match' => (float) env('STOREFRONT_VISUAL_SEARCH_LIKELY_MATCH', 0.86),
-                'similar_match' => (float) env('STOREFRONT_VISUAL_SEARCH_SIMILAR_MATCH', 0.78),
-                'min_candidate' => (float) env('STOREFRONT_VISUAL_SEARCH_MIN_CANDIDATE', 0.72),
-                'shoe_probability_floor' => (float) env('STOREFRONT_VISUAL_SEARCH_SHOE_FLOOR', 0.5),
-                'blur_floor' => (float) env('STOREFRONT_VISUAL_SEARCH_BLUR_FLOOR', 0.0035),
+                'strong_match' => (float) env('STOREFRONT_VISUAL_SEARCH_STRONG_MATCH', 0.9),
+                'likely_match' => (float) env('STOREFRONT_VISUAL_SEARCH_LIKELY_MATCH', 0.82),
+                'similar_match' => (float) env('STOREFRONT_VISUAL_SEARCH_SIMILAR_MATCH', 0.72),
+                'min_candidate' => (float) env('STOREFRONT_VISUAL_SEARCH_MIN_CANDIDATE', 0.62),
+                'shoe_probability_floor' => (float) env('STOREFRONT_VISUAL_SEARCH_SHOE_FLOOR', 0.48),
+                'blur_floor' => (float) env('STOREFRONT_VISUAL_SEARCH_BLUR_FLOOR', 0.0015),
             ],
             'debug' => env('STOREFRONT_VISUAL_SEARCH_DEBUG', env('APP_ENV') === 'local'),
             'colors' => [

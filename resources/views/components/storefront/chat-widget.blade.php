@@ -63,7 +63,7 @@
 
         <div class="ys-chat-footer">
             <form class="ys-chat-visual-form" data-visual-search-form enctype="multipart/form-data" novalidate>
-                <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp" class="sr-only" data-visual-file-input>
+                <input type="file" name="image" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" class="sr-only" data-visual-file-input>
 
                 <div class="ys-chat-visual-status hidden" data-visual-status>
                     <img src="" alt="Selected visual search preview" class="ys-chat-visual-status-image" data-visual-preview-image>

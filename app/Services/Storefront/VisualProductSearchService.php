@@ -54,6 +54,7 @@ class VisualProductSearchService
             'color' => $hints['color'] ?? null,
             'category' => $hints['category'] ?? null,
             'use_case' => $hints['use_case'] ?? null,
+            'filename' => pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME),
         ]);
 
         $context = [
@@ -63,6 +64,8 @@ class VisualProductSearchService
             'indexed_embedding_count' => $indexedEmbeddingEntries->count(),
             'upload_shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
             'upload_blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
+            'preprocessing' => is_array($embeddingPayload['metadata'] ?? null) ? $embeddingPayload['metadata'] : null,
+            'similarity_reached' => false,
         ];
 
         if ($indexEntries->isEmpty()) {
@@ -77,42 +80,50 @@ class VisualProductSearchService
         if ($embeddingGenerated && $indexedEmbeddingEntries->isNotEmpty()) {
             $engine = 'embedding';
             $scoredProducts = $this->rankProductsByEmbedding($embeddingPayload, $indexedEmbeddingEntries, $criteria);
+            $context['similarity_reached'] = true;
         }
 
         if ($scoredProducts->isEmpty() && is_array($fallbackFeatures)) {
             $scoredProducts = $this->rankProductsByFallback($fallbackFeatures, $indexEntries, $criteria);
+            $engine = $engine === 'embedding' ? $engine : 'fallback';
         }
 
         if ($scoredProducts->isEmpty()) {
             $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, null);
+            $fallbackResponse = $this->fallbackRecommendationResponse(
+                candidates: $this->neutralCandidates($indexEntries),
+                criteria: $criteria,
+                reason: $reason,
+                engine: $engine,
+            );
+
             $this->debugLog('no_match', $context + [
                 'reason' => $reason,
-                'top_products' => [],
+                'top_products' => $this->debugCandidates(collect($fallbackResponse['products'])),
             ]);
 
-            return $this->noMatchResponse($reason);
+            return $fallbackResponse;
         }
 
         $topCandidate = $scoredProducts->first();
         $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate);
         $topProducts = $this->debugCandidates($scoredProducts);
 
-        if ($this->shouldRejectAsNonShoe($embeddingPayload, $fallbackFeatures, $topCandidate)) {
-            $this->debugLog('non_shoe_rejected', $context + [
-                'top_similarity' => $topCandidate['visual_score'] ?? 0.0,
-                'top_products' => $topProducts,
-            ]);
+        if ($this->shouldFallbackAsRecommendation($embeddingPayload, $fallbackFeatures, $topCandidate)) {
+            $fallbackResponse = $this->fallbackRecommendationResponse(
+                candidates: $scoredProducts,
+                criteria: $criteria,
+                reason: $reason,
+                engine: $engine,
+            );
 
-            return $this->noMatchResponse('non_shoe');
-        }
-
-        if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold()) {
-            $this->debugLog('no_match', $context + [
+            $this->debugLog('fallback_recommendation', $context + [
                 'reason' => $reason,
+                'top_similarity' => round((float) ($topCandidate['visual_score'] ?? 0.0), 6),
                 'top_products' => $topProducts,
             ]);
 
-            return $this->noMatchResponse($reason);
+            return $fallbackResponse;
         }
 
         $products = $this->presentableCandidates($scoredProducts)
@@ -524,7 +535,6 @@ class VisualProductSearchService
         return match (true) {
             $score >= $this->strongMatchThreshold() => 'strong_match',
             $score >= $this->likelyMatchThreshold() => 'likely_match',
-            $score >= $this->similarMatchThreshold() => 'similar_match',
             $score >= $this->minCandidateThreshold() => 'approximate_match',
             default => 'no_match',
         };
@@ -535,8 +545,8 @@ class VisualProductSearchService
         return match ($confidence) {
             'strong_match' => 'Strong visual match',
             'likely_match' => 'Likely visual match',
-            'similar_match' => 'Similar product',
             'approximate_match' => 'Closest catalog styles',
+            'fallback_recommendation' => 'Fallback recommendation',
             default => 'No strong match',
         };
     }
@@ -546,10 +556,168 @@ class VisualProductSearchService
         return match ($confidence) {
             'strong_match' => "This looks like a strong match for {$product->name}.",
             'likely_match' => "This looks like a likely match for {$product->name}.",
-            'similar_match' => 'I did not find an exact match, but these look visually similar.',
             'approximate_match' => 'I did not find a close exact match, but these are the closest catalog styles.',
             default => 'No strong visual match found. Please upload a clearer shoe photo.',
         };
+    }
+
+    private function fallbackRecommendationResponse(Collection $candidates, array $criteria, string $reason, string $engine): array
+    {
+        $brandStyle = $this->inferBrandStyle($criteria);
+        $strategy = $this->fallbackStrategy($criteria, $brandStyle);
+        $recommendations = $this->prioritizeFallbackCandidates($candidates, $criteria, $brandStyle)
+            ->take(4)
+            ->map(function (array $candidate) use ($strategy): array {
+                $product = $this->productDiscovery->formatProduct($candidate['product']);
+                $product['match'] = [
+                    'confidence' => 'fallback_recommendation',
+                    'label' => $this->confidenceLabel('fallback_recommendation'),
+                    'score' => round((float) ($candidate['visual_score'] ?? 0.0), 4),
+                    'score_percent' => (int) round(((float) ($candidate['visual_score'] ?? 0.0)) * 100),
+                    'strategy' => $strategy,
+                ];
+
+                return $product;
+            })
+            ->values()
+            ->all();
+
+        if ($recommendations === []) {
+            return $this->noMatchResponse('index_unavailable');
+        }
+
+        $topScore = (float) data_get($recommendations, '0.match.score', 0.0);
+
+        return [
+            'answer' => $this->fallbackAnswerFor($reason, $strategy, $brandStyle, $criteria),
+            'match' => [
+                'confidence' => 'fallback_recommendation',
+                'label' => $this->confidenceLabel('fallback_recommendation'),
+                'score' => round($topScore, 4),
+                'score_percent' => (int) round($topScore * 100),
+                'engine' => $engine,
+                'reason' => $reason,
+                'strategy' => $strategy,
+                'brand_style' => $brandStyle ?: null,
+            ],
+            'products' => $recommendations,
+            'actions' => $this->matchActions(),
+        ];
+    }
+
+    private function fallbackAnswerFor(string $reason, string $strategy, string $brandStyle, array $criteria): string
+    {
+        if ($strategy === 'same_brand' && $brandStyle !== '') {
+            return "I could not confirm an exact visual match, but these are the closest {$brandStyle} styles in the catalog.";
+        }
+
+        if ($strategy === 'category_based') {
+            $category = $criteria['category'] ?: $criteria['use_case'];
+
+            return $reason === 'non_shoe'
+                ? "I could not confidently confirm a shoe in the image, but these {$category} options are the closest catalog recommendations."
+                : "I could not find a confident exact match, so I picked the closest {$category} styles from the catalog.";
+        }
+
+        return match ($reason) {
+            'non_shoe' => 'I could not confidently confirm a shoe in the image, but these are the closest shoe recommendations from the catalog.',
+            'blurred_upload' => 'The image looks soft, so I am showing the closest shoe recommendations from the catalog.',
+            default => 'I could not find a confident exact match, but these are the closest-looking shoes in the catalog.',
+        };
+    }
+
+    private function inferBrandStyle(array $criteria): string
+    {
+        if (($criteria['brand_style'] ?? '') !== '') {
+            return (string) $criteria['brand_style'];
+        }
+
+        $ignored = [
+            'shoe', 'shoes', 'sneaker', 'sneakers', 'running', 'runner', 'query', 'image', 'photo',
+            'screenshot', 'screen', 'download', 'catalog', 'product', 'black', 'white', 'blue', 'gold',
+            'daily', 'walking', 'gym', 'performance',
+        ];
+
+        return collect($criteria['keywords'] ?? [])
+            ->filter(fn (mixed $keyword): bool => is_string($keyword) && strlen($keyword) >= 3)
+            ->map(fn (string $keyword): string => Str::lower($keyword))
+            ->reject(fn (string $keyword): bool => in_array($keyword, $ignored, true))
+            ->take(3)
+            ->implode(' ');
+    }
+
+    private function fallbackStrategy(array $criteria, string $brandStyle): string
+    {
+        if ($brandStyle !== '') {
+            return 'same_brand';
+        }
+
+        if (($criteria['category'] ?? null) || ($criteria['use_case'] ?? null)) {
+            return 'category_based';
+        }
+
+        return 'visual_similarity';
+    }
+
+    private function prioritizeFallbackCandidates(Collection $candidates, array $criteria, string $brandStyle): Collection
+    {
+        return $candidates
+            ->filter(fn (array $candidate): bool => ($candidate['product'] ?? null) instanceof Product)
+            ->map(function (array $candidate) use ($criteria, $brandStyle): array {
+                $product = $candidate['product'];
+                $brandBoost = $brandStyle !== '' && $this->productMatchesBrandStyle($product, $brandStyle) ? 0.12 : 0.0;
+                $categoryBoost = $this->fallbackCategoryBoost($product, $criteria);
+                $visualScore = (float) ($candidate['visual_score'] ?? 0.0);
+                $fallbackScore = min(1.0, $visualScore + $brandBoost + $categoryBoost + $this->availabilityBoost($product));
+
+                return $candidate + [
+                    'fallback_score' => round($fallbackScore, 6),
+                    'fallback_brand_boost' => $brandBoost,
+                    'fallback_category_boost' => $categoryBoost,
+                ];
+            })
+            ->sortByDesc(fn (array $candidate): array => [
+                $candidate['fallback_score'],
+                $candidate['visual_score'] ?? 0.0,
+                $candidate['score'] ?? 0.0,
+            ])
+            ->values();
+    }
+
+    private function fallbackCategoryBoost(Product $product, array $criteria): float
+    {
+        $boost = 0.0;
+
+        if (($criteria['category'] ?? null) && $product->category?->slug === $criteria['category']) {
+            $boost += 0.08;
+        }
+
+        if (($criteria['use_case'] ?? null) && $this->productMatchesUseCase($product, $criteria['use_case'])) {
+            $boost += 0.05;
+        }
+
+        if (($criteria['color'] ?? null) && $this->productHasColor($product, $criteria['color'])) {
+            $boost += 0.03;
+        }
+
+        return min($boost, 0.12);
+    }
+
+    private function neutralCandidates(Collection $indexEntries): Collection
+    {
+        return $indexEntries
+            ->map(function (VisualSearchIndexEntry $entry): array {
+                return [
+                    'product' => $entry->product,
+                    'visual_score' => 0.0,
+                    'score' => round($this->availabilityBoost($entry->product) + $this->merchandisingBoost($entry->product), 6),
+                    'confidence' => 'fallback_recommendation',
+                ];
+            })
+            ->filter(fn (array $candidate): bool => ($candidate['product'] ?? null) instanceof Product)
+            ->groupBy(fn (array $candidate): int => $candidate['product']->id)
+            ->map(fn (Collection $group): array => $group->first())
+            ->values();
     }
 
     private function noMatchResponse(string $reason): array
@@ -572,10 +740,7 @@ class VisualProductSearchService
                 'reason' => $reason,
             ],
             'products' => [],
-            'actions' => [
-                ['label' => 'Browse full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
-                ['label' => 'Try text search', 'type' => 'message', 'message' => 'Show me black running shoes'],
-            ],
+            'actions' => $this->matchActions(),
         ];
     }
 
@@ -600,7 +765,15 @@ class VisualProductSearchService
             return 'no_visual_candidate';
         }
 
+        if ($this->isClearlyNonShoe($embeddingPayload, $fallbackFeatures, $topCandidate)) {
+            return 'non_shoe';
+        }
+
         if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold()) {
+            if (is_array($embeddingPayload) && (($embeddingPayload['metadata']['blur_score'] ?? 1) < $this->blurFloor())) {
+                return 'blurred_upload';
+            }
+
             return 'low_similarity';
         }
 
@@ -627,21 +800,55 @@ class VisualProductSearchService
             && ($features['foreground_ratio'] ?? 0.0) >= 0.1;
     }
 
-    private function shouldRejectAsNonShoe(?array $embeddingPayload, ?array $fallbackFeatures, array $topCandidate): bool
+    private function clearlyNonShoeShape(?array $features): bool
     {
-        $visualScore = (float) ($topCandidate['visual_score'] ?? 0.0);
+        $shapeX = $features['shape_profile_x'] ?? [];
+        $shapeY = $features['shape_profile_y'] ?? [];
 
-        if ($visualScore >= $this->strongMatchThreshold()) {
+        if (! is_array($shapeX) || ! is_array($shapeY) || $shapeX === [] || $shapeY === []) {
             return false;
         }
 
+        $foregroundWidth = count(array_filter($shapeX, fn (float $value): bool => $value > 0.18));
+        $foregroundHeight = count(array_filter($shapeY, fn (float $value): bool => $value > 0.18));
+        $foregroundAspect = $foregroundWidth / max($foregroundHeight, 1);
+        $topWeight = array_sum(array_slice($shapeY, 0, intdiv(count($shapeY), 2)));
+        $bottomWeight = array_sum(array_slice($shapeY, intdiv(count($shapeY), 2)));
+        $balanceGap = abs($bottomWeight - $topWeight);
+
+        return $foregroundAspect < 1.18
+            && $balanceGap < 0.55
+            && ($features['foreground_ratio'] ?? 0.0) >= 0.08;
+    }
+
+    private function shouldFallbackAsRecommendation(?array $embeddingPayload, ?array $fallbackFeatures, array $topCandidate): bool
+    {
+        if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold()) {
+            return true;
+        }
+
+        return $this->isClearlyNonShoe($embeddingPayload, $fallbackFeatures, $topCandidate);
+    }
+
+    private function isClearlyNonShoe(?array $embeddingPayload, ?array $fallbackFeatures, array $topCandidate): bool
+    {
         if ($this->resemblesShoe($fallbackFeatures)) {
             return false;
         }
 
         $shoeProbability = (float) ($embeddingPayload['shoe_probability'] ?? 0.0);
+        $visualScore = (float) ($topCandidate['visual_score'] ?? 0.0);
 
-        return $shoeProbability < $this->shoeProbabilityFloor();
+        if ($shoeProbability >= $this->shoeProbabilityFloor()) {
+            return false;
+        }
+
+        if ($this->clearlyNonShoeShape($fallbackFeatures)) {
+            return true;
+        }
+
+        return $shoeProbability < $this->clearNonShoeFloor()
+            && $visualScore < max(0.45, $this->minCandidateThreshold() - 0.08);
     }
 
     private function presentableCandidates(Collection $candidates): Collection
@@ -655,22 +862,42 @@ class VisualProductSearchService
     {
         return $candidates
             ->take($limit)
-            ->map(fn (array $candidate): array => [
-                'product_id' => $candidate['product']->id,
-                'similarity' => round($candidate['visual_score'], 4),
-                'confidence' => $candidate['confidence'],
-            ])
+            ->map(function (array $candidate): array {
+                $product = $candidate['product'] ?? null;
+
+                if (! $product instanceof Product) {
+                    return [
+                        'product_id' => null,
+                        'similarity' => round((float) ($candidate['match']['score'] ?? $candidate['visual_score'] ?? 0.0), 4),
+                        'confidence' => $candidate['match']['confidence'] ?? ($candidate['confidence'] ?? 'fallback_recommendation'),
+                    ];
+                }
+
+                return [
+                    'product_id' => $product->id,
+                    'similarity' => round((float) ($candidate['visual_score'] ?? $candidate['match']['score'] ?? 0.0), 4),
+                    'confidence' => $candidate['confidence'] ?? $candidate['match']['confidence'] ?? 'fallback_recommendation',
+                ];
+            })
             ->values()
             ->all();
     }
 
     private function debugLog(string $event, array $context): void
     {
-        if (! app()->environment('local') || ! config('storefront.assistant.visual_search.debug', false)) {
+        if (! app()->environment(['local', 'testing']) || ! config('storefront.assistant.visual_search.debug', false)) {
             return;
         }
 
         Log::debug('visual-search.'.$event, $context);
+    }
+
+    private function matchActions(): array
+    {
+        return [
+            ['label' => 'Browse full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+            ['label' => 'Ask assistant', 'type' => 'message', 'message' => 'Help me choose a shoe for daily use'],
+        ];
     }
 
     private function strongMatchThreshold(): float
@@ -695,11 +922,16 @@ class VisualProductSearchService
 
     private function shoeProbabilityFloor(): float
     {
-        return (float) config('storefront.assistant.visual_search.thresholds.shoe_probability_floor', 0.42);
+        return (float) config('storefront.assistant.visual_search.thresholds.shoe_probability_floor', 0.48);
+    }
+
+    private function clearNonShoeFloor(): float
+    {
+        return max(0.18, round($this->shoeProbabilityFloor() * 0.58, 6));
     }
 
     private function blurFloor(): float
     {
-        return (float) config('storefront.assistant.visual_search.thresholds.blur_floor', 0.0035);
+        return (float) config('storefront.assistant.visual_search.thresholds.blur_floor', 0.0015);
     }
 }

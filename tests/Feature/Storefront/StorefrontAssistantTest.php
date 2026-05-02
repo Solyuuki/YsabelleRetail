@@ -6,6 +6,7 @@ use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Storefront\VisualSearchIndexEntry;
 use App\Models\User;
+use App\Services\Storefront\VisualProductSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -396,7 +397,7 @@ test('visual search requires an uploaded image', function () {
         ->assertJsonValidationErrors(['image']);
 });
 
-test('visual search returns no match for unrelated images without random products', function () {
+test('visual search returns fallback recommendations for unrelated images', function () {
     drawShoeFixture('catalog-blue-runner.png', '#2d61d2');
     drawShoeFixture('catalog-black-runner.png', '#232323');
 
@@ -435,10 +436,10 @@ test('visual search returns no match for unrelated images without random product
         'Accept' => 'application/json',
     ])
         ->assertOk()
-        ->assertJsonPath('match.confidence', 'no_match')
+        ->assertJsonPath('match.confidence', 'fallback_recommendation')
         ->assertJsonPath('match.reason', 'non_shoe')
-        ->assertJsonPath('answer', 'I could not clearly detect a shoe in this image. Try a side-view or on-foot shoe photo.')
-        ->assertJsonCount(0, 'products');
+        ->assertJsonPath('products.0.match.confidence', 'fallback_recommendation')
+        ->assertJsonCount(2, 'products');
 });
 
 test('visual search does not let metadata hints override stronger visual similarity', function () {
@@ -484,7 +485,7 @@ test('visual search does not let metadata hints override stronger visual similar
         ->assertJsonPath('products.0.slug', $blueProduct->slug);
 });
 
-test('visual search does not fall back to metadata-only random results', function () {
+test('visual search uses metadata hints to make fallback recommendations useful', function () {
     drawShoeFixture('catalog-gold-shoe.png', '#b68f2a');
     makeStorefrontProduct([
         'name' => 'Aurum Runner',
@@ -511,8 +512,8 @@ test('visual search does not fall back to metadata-only random results', functio
         'Accept' => 'application/json',
     ])
         ->assertOk()
-        ->assertJsonPath('match.confidence', 'no_match')
-        ->assertJsonCount(0, 'products');
+        ->assertJsonPath('match.confidence', 'fallback_recommendation')
+        ->assertJsonPath('products.0.slug', 'aurum-runner');
 });
 
 test('visual search matches cropped uploads for the same product', function () {
@@ -687,13 +688,13 @@ test('visual search handles moderately blurry uploads without random fallback', 
 });
 
 test('visual search scores in the candidate band become approximate matches', function () {
-    $service = app(\App\Services\Storefront\VisualProductSearchService::class);
+    $service = app(VisualProductSearchService::class);
     $reflection = new ReflectionClass($service);
     $confidenceForScore = $reflection->getMethod('confidenceForScore');
     $confidenceForScore->setAccessible(true);
 
-    expect($confidenceForScore->invoke($service, 0.74))->toBe('approximate_match')
-        ->and($confidenceForScore->invoke($service, 0.71))->toBe('no_match');
+    expect($confidenceForScore->invoke($service, 0.71))->toBe('approximate_match')
+        ->and($confidenceForScore->invoke($service, 0.61))->toBe('no_match');
 });
 
 test('visual search returns a safe message when the index is missing', function () {

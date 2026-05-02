@@ -11,8 +11,10 @@ from typing import Any
 
 import numpy as np
 import torch
-from PIL import Image, ImageOps
+from PIL import Image, ImageFile, ImageOps
 from transformers import AutoProcessor, CLIPModel
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 POSITIVE_PROMPTS = [
@@ -22,6 +24,12 @@ POSITIVE_PROMPTS = [
     "a sneaker worn on foot in a real-world photo",
     "a casual photo of footwear with background clutter",
     "a close-up photo of a shoe taken on a phone camera",
+    "a screenshot of an online shoe listing",
+    "a compressed marketplace photo of a shoe",
+    "a shoe placed on the floor in room lighting",
+    "a shoe photographed outdoors",
+    "a side view of a sneaker",
+    "a top-down phone photo of a shoe",
 ]
 
 NEGATIVE_PROMPTS = [
@@ -30,6 +38,8 @@ NEGATIVE_PROMPTS = [
     "a company logo",
     "a random household object",
     "an abstract icon",
+    "a screenshot of a text-only webpage",
+    "a handbag",
 ]
 
 
@@ -105,11 +115,17 @@ class ClipEmbeddingService:
         }
 
     def _embed_single(self, path: str) -> dict[str, Any]:
-        source = Image.open(path)
-        source = ImageOps.exif_transpose(source)
-        source = source.convert("RGBA")
+        with Image.open(path) as source:
+            source.load()
+            source_format = str(source.format or "unknown").lower()
+            source_mode = source.mode
+            source = ImageOps.exif_transpose(source)
+            had_alpha = "A" in source.getbands() or "transparency" in source.info
+            source = source.convert("RGBA")
 
-        trimmed = self._trim_background(source)
+        original_width = source.width
+        original_height = source.height
+        trimmed, crop_box = self._trim_background(source)
         rgb = self._flatten_alpha(trimmed)
         prepared = self._prepare_crops(rgb)
 
@@ -129,8 +145,17 @@ class ClipEmbeddingService:
 
         full_vector = crop_embeddings["full"]
         metadata = {
+            "format": source_format,
+            "source_mode": source_mode,
+            "original_width": original_width,
+            "original_height": original_height,
             "width": rgb.width,
             "height": rgb.height,
+            "normalized_width": self.image_size,
+            "normalized_height": self.image_size,
+            "had_alpha": had_alpha,
+            "trim_applied": crop_box is not None,
+            "crop_box": list(crop_box) if crop_box is not None else None,
             "blur_score": round(self._blur_score(rgb), 6),
         }
 
@@ -179,18 +204,22 @@ class ClipEmbeddingService:
 
         return merged.convert("RGB")
 
-    def _trim_background(self, image: Image.Image) -> Image.Image:
+    def _trim_background(self, image: Image.Image) -> tuple[Image.Image, tuple[int, int, int, int] | None]:
         bounds = self._foreground_bounds(image)
 
         if bounds is None:
-            return image
+            return image, None
 
         x0, y0, x1, y1 = bounds
         width = x1 - x0
         height = y1 - y0
 
         if width < image.width * 0.08 or height < image.height * 0.08:
-            return image
+            return image, None
+
+        coverage = (width * height) / max(image.width * image.height, 1)
+        if coverage >= 0.92:
+            return image, None
 
         margin_x = max(4, int(width * 0.08))
         margin_y = max(4, int(height * 0.08))
@@ -201,7 +230,9 @@ class ClipEmbeddingService:
             min(image.height, y1 + margin_y),
         )
 
-        return image.crop(crop_box)
+        trimmed = image.crop(crop_box)
+
+        return trimmed, crop_box
 
     def _foreground_bounds(self, image: Image.Image) -> tuple[int, int, int, int] | None:
         rgba = np.asarray(image.convert("RGBA"), dtype=np.uint8)
@@ -224,7 +255,25 @@ class ClipEmbeddingService:
         y0, x0 = coordinates.min(axis=0)
         y1, x1 = coordinates.max(axis=0) + 1
 
+        if self._looks_like_busy_border(mask):
+            return None
+
         return int(x0), int(y0), int(x1), int(y1)
+
+    def _looks_like_busy_border(self, mask: np.ndarray) -> bool:
+        if mask.size == 0:
+            return False
+
+        border = np.concatenate(
+            [
+                mask[0, :],
+                mask[-1, :],
+                mask[:, 0],
+                mask[:, -1],
+            ]
+        )
+
+        return float(border.mean()) > 0.42
 
     def _background_reference(self, rgba: np.ndarray) -> tuple[np.ndarray, float]:
         top = rgba[0, :, :]
