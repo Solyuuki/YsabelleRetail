@@ -608,7 +608,7 @@ class VisualProductSearchService
     private function fallbackAnswerFor(string $reason, string $strategy, string $brandStyle, array $criteria): string
     {
         if ($strategy === 'same_brand' && $brandStyle !== '') {
-            return "I could not confirm an exact visual match, but these are the closest {$brandStyle} styles in the catalog.";
+            return "These are the closest {$brandStyle} styles in the catalog.";
         }
 
         if ($strategy === 'category_based') {

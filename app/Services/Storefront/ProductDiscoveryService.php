@@ -242,6 +242,8 @@ class ProductDiscoveryService
             'price_label' => '₱'.number_format((float) $product->base_price, 0),
             'compare_at_price' => $product->compare_at_price ? (float) $product->compare_at_price : null,
             'compare_at_price_label' => $product->compare_at_price ? '₱'.number_format((float) $product->compare_at_price, 0) : null,
+            'is_featured' => (bool) $product->is_featured,
+            'rating_average' => round((float) ($product->rating_average ?? 0), 1),
             'short_description' => $product->short_description,
             'url' => route('storefront.catalog.products.show', $product),
             'image_url' => $this->productMedia->imageUrlFor($product),

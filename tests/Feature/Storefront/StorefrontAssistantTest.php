@@ -847,5 +847,10 @@ test('catalog search supports color keywords, price filters, and the cart label'
         ->assertDontSeeText('Ivory Prestige')
         ->assertSee('aria-label="Cart"', escape: false)
         ->assertSee('title="Cart"', escape: false)
-        ->assertSeeText('Find similar by image');
+        ->assertSeeText('Find similar by image')
+        ->assertSeeText('Drag & drop a shoe photo here')
+        ->assertSee('data-inline-visual-search-trigger', escape: false)
+        ->assertSee('data-inline-visual-search-clear', escape: false)
+        ->assertSee('data-storefront-product-grid', escape: false)
+        ->assertDontSee('data-chat-open-visual', escape: false);
 });
