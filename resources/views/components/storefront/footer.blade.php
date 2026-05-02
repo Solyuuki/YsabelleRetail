@@ -36,8 +36,13 @@
                 <h2 class="text-[0.78rem] font-semibold uppercase tracking-[0.35em] text-ys-gold">Support</h2>
                 <ul class="mt-6 space-y-3.5 text-[0.98rem] text-ys-ivory/58">
                     @foreach ($footerLinks['support'] ?? [] as $link)
+                        @php
+                            $supportUrl = isset($link['route'])
+                                ? route($link['route'], $link['params'] ?? [])
+                                : ($link['href'] ?? '#');
+                        @endphp
                         <li>
-                            <a href="{{ $link['href'] }}" class="transition hover:text-ys-gold">{{ $link['label'] }}</a>
+                            <a href="{{ $supportUrl }}" class="transition hover:text-ys-gold">{{ $link['label'] }}</a>
                         </li>
                     @endforeach
                 </ul>

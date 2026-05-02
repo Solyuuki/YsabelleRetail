@@ -6,12 +6,21 @@ use App\Http\Controllers\Storefront\Catalog\CategoryController;
 use App\Http\Controllers\Storefront\Catalog\ProductController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\SupportPageController;
 use App\Http\Controllers\Storefront\StorefrontAssistantController;
 use App\Http\Controllers\Storefront\StorefrontVisualSearchController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('storefront.home');
 Route::get('/shop', [ProductController::class, 'index'])->name('storefront.shop');
+Route::prefix('support')
+    ->as('storefront.support.')
+    ->group(function (): void {
+        Route::get('/size-guide', SupportPageController::class)->defaults('page', 'size-guide')->name('size-guide');
+        Route::get('/shipping', SupportPageController::class)->defaults('page', 'shipping')->name('shipping');
+        Route::get('/returns', SupportPageController::class)->defaults('page', 'returns')->name('returns');
+        Route::get('/contact', SupportPageController::class)->defaults('page', 'contact')->name('contact');
+    });
 
 Route::prefix('catalog')
     ->as('storefront.catalog.')

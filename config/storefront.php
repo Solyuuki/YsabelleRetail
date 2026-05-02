@@ -11,14 +11,14 @@ return [
             'route' => 'storefront.shop',
         ],
         [
-            'label' => 'Running',
+            'label' => 'New Arrivals',
             'route' => 'storefront.shop',
-            'params' => ['category' => 'running'],
+            'params' => ['collection' => 'new-arrivals'],
         ],
         [
-            'label' => 'Sneakers',
+            'label' => 'Best Sellers',
             'route' => 'storefront.shop',
-            'params' => ['category' => 'sneakers'],
+            'params' => ['collection' => 'best-sellers'],
         ],
     ],
 
@@ -46,13 +46,13 @@ return [
             ['label' => 'All Shoes', 'route' => 'storefront.shop'],
             ['label' => 'Running', 'route' => 'storefront.shop', 'params' => ['category' => 'running']],
             ['label' => 'Sneakers', 'route' => 'storefront.shop', 'params' => ['category' => 'sneakers']],
-            ['label' => 'Performance', 'route' => 'storefront.shop', 'params' => ['category' => 'performance']],
+            ['label' => 'Performance', 'route' => 'storefront.shop', 'params' => ['use_case' => 'performance']],
         ],
         'support' => [
-            ['label' => 'Size Guide', 'href' => '#size-guide'],
-            ['label' => 'Shipping', 'href' => '#shipping'],
-            ['label' => 'Returns', 'href' => '#returns'],
-            ['label' => 'Contact', 'href' => '#contact'],
+            ['label' => 'Size Guide', 'route' => 'storefront.support.size-guide'],
+            ['label' => 'Shipping', 'route' => 'storefront.support.shipping'],
+            ['label' => 'Returns', 'route' => 'storefront.support.returns'],
+            ['label' => 'Contact', 'route' => 'storefront.support.contact'],
         ],
     ],
 

@@ -5,6 +5,21 @@
 
 @php
     $currentRoute = request()->route()?->getName();
+    $isNavigationLinkActive = static function (array $link) use ($currentRoute): bool {
+        $params = $link['params'] ?? [];
+        $matchesRoute = $currentRoute === ($link['route'] ?? null);
+        $matchesParams = collect($params)->every(fn ($value, $key) => (string) request($key) === (string) $value);
+
+        if (! $matchesRoute || ! $matchesParams) {
+            return false;
+        }
+
+        if (($link['route'] ?? null) === 'storefront.shop' && $params === []) {
+            return ! request()->filled('collection');
+        }
+
+        return true;
+    };
 @endphp
 
 <header class="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-ys-ink/88 backdrop-blur-xl">
@@ -28,12 +43,12 @@
             @foreach ($navigation as $link)
                 @php
                     $params = $link['params'] ?? [];
-                    $isActive = $currentRoute === $link['route']
-                        && collect($params)->every(fn ($value, $key) => request($key) === $value);
+                    $isActive = $isNavigationLinkActive($link);
                 @endphp
                 <a
                     href="{{ route($link['route'], $params) }}"
                     class="transition hover:text-ys-gold {{ $isActive ? 'text-ys-gold' : '' }}"
+                    @if ($isActive) aria-current="page" @endif
                 >
                     {{ $link['label'] }}
                 </a>
@@ -90,7 +105,14 @@
     <div class="hidden border-t border-white/6 bg-ys-panel lg:hidden" data-mobile-nav-panel>
         <div class="ys-container space-y-3.5 py-5.5">
             @foreach ($navigation as $link)
-                <a href="{{ route($link['route'], $link['params'] ?? []) }}" class="block rounded-2xl px-4.5 py-3.5 text-[0.97rem] font-medium text-ys-ivory/80 transition hover:bg-white/5 hover:text-ys-gold">
+                @php
+                    $isActive = $isNavigationLinkActive($link);
+                @endphp
+                <a
+                    href="{{ route($link['route'], $link['params'] ?? []) }}"
+                    class="block rounded-2xl px-4.5 py-3.5 text-[0.97rem] font-medium transition hover:bg-white/5 hover:text-ys-gold {{ $isActive ? 'bg-white/5 text-ys-gold' : 'text-ys-ivory/80' }}"
+                    @if ($isActive) aria-current="page" @endif
+                >
                     {{ $link['label'] }}
                 </a>
             @endforeach
