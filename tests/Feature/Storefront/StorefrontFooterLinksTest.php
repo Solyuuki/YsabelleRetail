@@ -106,21 +106,22 @@ test('footer support pages resolve with premium storefront content', function ()
     $this->get(route('storefront.support.size-guide'))
         ->assertOk()
         ->assertSeeText('Size Guide')
-        ->assertSeeText('US shoe sizes');
+        ->assertSeeText('Choose your usual shoe size')
+        ->assertDontSeeText('US sizing');
 
     $this->get(route('storefront.support.shipping'))
         ->assertOk()
         ->assertSeeText('Shipping')
-        ->assertSeeText('PHP 5,000');
+        ->assertSeeText('PHP 5,000+');
 
     $this->get(route('storefront.support.returns'))
         ->assertOk()
         ->assertSeeText('Returns')
-        ->assertSeeText('14 days');
+        ->assertSeeText('Email Return Support');
 
     $this->get(route('storefront.support.contact'))
         ->assertOk()
         ->assertSeeText('Contact')
         ->assertSeeText('does not currently process a live contact form submission')
-        ->assertSee('mailto:care@ysabelle-retail.example', escape: false);
+        ->assertSee('mailto:ysabelleretail@gmail.com', escape: false);
 });
