@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Access\Role;
+use App\Models\Auth\SocialAccount;
 use App\Models\Audit\AuditLog;
 use App\Models\Cart\Cart;
 use App\Models\Inventory\StockMovement;
@@ -74,6 +75,11 @@ class User extends Authenticatable
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function socialAccounts(): HasMany
+    {
+        return $this->hasMany(SocialAccount::class);
     }
 
     public function handledOrders(): HasMany

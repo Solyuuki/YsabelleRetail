@@ -1,0 +1,180 @@
+@layer components {
+    .ys-auth-shell {
+        @apply flex w-full items-center justify-center;
+    }
+
+    .ys-auth-panel {
+        @apply relative w-full max-w-[32rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[#111111]/92 px-5 py-6 shadow-[0_32px_110px_rgba(0,0,0,0.58)] backdrop-blur sm:px-7 sm:py-7;
+    }
+
+    .ys-auth-panel::before {
+        content: '';
+        @apply pointer-events-none absolute inset-x-0 top-0 h-px;
+        background: linear-gradient(90deg, transparent, rgba(212, 166, 59, 0.5), transparent);
+    }
+
+    .ys-auth-panel::after {
+        content: '';
+        @apply pointer-events-none absolute -right-16 top-[-4.75rem] h-40 w-40 rounded-full;
+        background: radial-gradient(circle, rgba(212, 166, 59, 0.14), rgba(212, 166, 59, 0));
+        filter: blur(14px);
+    }
+
+    .ys-auth-header {
+        @apply text-center;
+    }
+
+    .ys-auth-heading {
+        @apply mt-5 font-serif text-[2.55rem] leading-none text-ys-ivory;
+        letter-spacing: -0.035em;
+    }
+
+    .ys-auth-copy {
+        @apply mx-auto mt-3 max-w-[26rem] text-sm leading-7 text-ys-ivory/58;
+    }
+
+    .ys-auth-form {
+        @apply mt-8 space-y-4.5;
+    }
+
+    .ys-auth-field {
+        @apply block space-y-2.5 text-left;
+    }
+
+    .ys-auth-field-label {
+        @apply block text-[0.74rem] font-semibold uppercase tracking-[0.24em] text-ys-ivory/48;
+    }
+
+    .ys-auth-input {
+        @apply h-14 w-full rounded-[1.1rem] border border-white/10 bg-black/42 px-4.5 text-[0.98rem] text-ys-ivory placeholder:text-ys-ivory/24 transition duration-200;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.03),
+            0 0 0 0 rgba(212, 166, 59, 0);
+    }
+
+    .ys-auth-input:focus {
+        @apply border-ys-gold/55 outline-none;
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.04),
+            0 0 0 4px rgba(212, 166, 59, 0.12);
+    }
+
+    .ys-auth-input[aria-invalid='true'] {
+        @apply border-[#8b3a3a];
+        box-shadow: 0 0 0 4px rgba(139, 58, 58, 0.12);
+    }
+
+    .ys-auth-error {
+        @apply block text-sm text-[#ffb6b6];
+    }
+
+    .ys-auth-submit {
+        @apply inline-flex h-14 w-full items-center justify-center rounded-[1.1rem] border border-ys-gold/80 bg-gradient-to-r from-[#d7ad48] to-[#b78221] px-5 text-[0.96rem] font-semibold text-[#17110a] shadow-[0_14px_34px_rgba(212,166,59,0.28)] transition duration-300 hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ys-gold/18;
+    }
+
+    .ys-auth-switch-copy {
+        @apply mt-5 text-center text-sm text-ys-ivory/46;
+    }
+
+    .ys-auth-inline-link {
+        @apply font-semibold text-ys-ivory transition duration-300 hover:text-ys-gold focus-visible:outline-none focus-visible:text-ys-gold;
+    }
+
+    .ys-auth-divider {
+        @apply my-6 flex items-center gap-4 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-ys-ivory/26;
+    }
+
+    .ys-auth-divider::before,
+    .ys-auth-divider::after {
+        content: '';
+        @apply h-px flex-1 bg-white/8;
+    }
+
+    .ys-auth-social-list {
+        @apply space-y-3;
+    }
+
+    .ys-auth-social-button {
+        @apply inline-flex w-full items-center gap-3.5 rounded-[1.2rem] border border-white/9 bg-white/[0.02] px-4.5 py-3.5 text-left transition duration-300 hover:-translate-y-0.5 hover:border-ys-gold/32 hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ys-gold/12;
+    }
+
+    .ys-auth-social-button.is-disabled {
+        @apply cursor-not-allowed border-white/6 bg-white/[0.015] opacity-75 hover:translate-y-0 hover:border-white/6 hover:bg-white/[0.015];
+    }
+
+    .ys-auth-provider-icon {
+        @apply inline-flex shrink-0 items-center justify-center;
+        width: 1.6rem;
+    }
+
+    .ys-auth-provider-svg {
+        width: 1.35rem;
+        height: 1.35rem;
+    }
+
+    .ys-auth-provider-svg-facebook {
+        width: 1.48rem;
+        height: 1.48rem;
+    }
+
+    .ys-auth-provider-meta {
+        @apply min-w-0 flex-1;
+    }
+
+    .ys-auth-provider-title {
+        @apply block text-[0.95rem] font-semibold text-ys-ivory;
+        letter-spacing: -0.01em;
+    }
+
+    .ys-auth-provider-status {
+        @apply mt-1 block text-[0.72rem] leading-5 text-ys-ivory/38;
+    }
+
+    .ys-auth-legal {
+        @apply mt-6 text-center text-xs leading-6 text-ys-ivory/34;
+    }
+
+    .ys-auth-legal-link {
+        @apply text-ys-ivory/76 underline decoration-white/18 underline-offset-4 transition duration-300 hover:text-ys-gold;
+    }
+
+    .ys-auth-legal-muted {
+        @apply text-ys-ivory/52;
+    }
+}
+
+@media (max-width: 640px) {
+    @layer components {
+        .ys-auth-panel {
+            @apply rounded-[1.7rem] px-4.5 py-5;
+        }
+
+        .ys-auth-heading {
+            @apply text-[2.2rem];
+        }
+
+        .ys-auth-copy {
+            @apply text-[0.88rem] leading-6;
+        }
+
+        .ys-auth-submit,
+        .ys-auth-input {
+            @apply h-13;
+        }
+
+        .ys-auth-social-button {
+            @apply gap-3 px-4;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @layer components {
+        .ys-auth-submit,
+        .ys-auth-social-button,
+        .ys-auth-input,
+        .ys-auth-inline-link {
+            transition: none;
+        }
+    }
+}
