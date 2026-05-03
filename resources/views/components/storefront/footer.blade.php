@@ -13,10 +13,17 @@
                 </p>
 
                 <div class="mt-9 flex items-center gap-3.5 text-ys-ivory/55">
-                    @foreach (['instagram', 'facebook', 'twitter'] as $channel)
-                        <span class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[0.78rem] uppercase tracking-[0.2em]">
+                    @php
+                        $socialLinks = [
+                            'instagram' => 'https://www.instagram.com/ysabelleretail?igsh=cGVxNnd6bGVsY3A5',
+                            'facebook' => 'https://www.facebook.com/ysabelleretail',
+                            'twitter' => 'https://twitter.com/ysabelleretail',
+                        ];
+                    @endphp
+                    @foreach ($socialLinks as $channel => $url)
+                        <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[0.78rem] uppercase tracking-[0.2em] transition hover:border-ys-gold hover:text-ys-gold" aria-label="Visit our {{ $channel }} page">
                             {{ strtoupper(substr($channel, 0, 1)) }}
-                        </span>
+                        </a>
                     @endforeach
                 </div>
             </div>
