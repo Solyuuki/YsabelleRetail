@@ -7,6 +7,7 @@ use App\Http\Controllers\Storefront\Catalog\ProductController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\SupportPageController;
+use App\Http\Controllers\Storefront\SupportTicketController;
 use App\Http\Controllers\Storefront\StorefrontAssistantController;
 use App\Http\Controllers\Storefront\StorefrontVisualSearchController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,9 @@ Route::prefix('support')
         Route::get('/shipping', SupportPageController::class)->defaults('page', 'shipping')->name('shipping');
         Route::get('/returns', SupportPageController::class)->defaults('page', 'returns')->name('returns');
         Route::get('/contact', SupportPageController::class)->defaults('page', 'contact')->name('contact');
+        Route::post('/contact', [SupportTicketController::class, 'store'])
+            ->middleware('throttle:5,1')
+            ->name('contact.store');
     });
 
 Route::prefix('catalog')

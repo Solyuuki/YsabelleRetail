@@ -122,6 +122,6 @@ test('footer support pages resolve with premium storefront content', function ()
     $this->get(route('storefront.support.contact'))
         ->assertOk()
         ->assertSeeText('Contact')
-        ->assertSeeText('does not currently process a live contact form submission')
+        ->assertSeeText('Send Support Request')
         ->assertSee('mailto:ysabelleretail@gmail.com', escape: false);
 });

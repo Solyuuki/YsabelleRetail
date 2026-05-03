@@ -38,10 +38,14 @@ test('returns page renders action-based support paths with a real email draft ac
 test('contact page renders the support hub with email, phone, and bgc location details', function () {
     $this->get(route('storefront.support.contact'))
         ->assertOk()
-        ->assertSeeText('does not currently process a live contact form submission')
+        ->assertDontSeeText('Email Support')
+        ->assertSeeText('This form sends a real support request to the Ysabelle Retail team.')
+        ->assertSeeText('Send Support Request')
+        ->assertDontSeeText('Call Support')
         ->assertSeeText('ysabelleretail@gmail.com')
         ->assertSeeText('09766500867')
         ->assertSeeText('Bonifacio Global City, Taguig')
+        ->assertSee('action="'.route('storefront.support.contact.store').'"', escape: false)
         ->assertSee('mailto:ysabelleretail@gmail.com', escape: false)
         ->assertSee('tel:09766500867', escape: false);
 });

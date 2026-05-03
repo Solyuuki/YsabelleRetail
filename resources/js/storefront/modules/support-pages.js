@@ -1,4 +1,12 @@
 const SUPPORT_EMAIL = 'ysabelleretail@gmail.com';
+const SUPPORT_PHONE = '09766500867';
+const CONTACT_SUCCESS_NOTICE = "Support request sent. We'll reply through your email.";
+const CONTACT_ERROR_NOTICE = `We could not send your request. Please try again or email ${SUPPORT_EMAIL}.`;
+const CONTACT_CALL_NOTICE = `Trying to open your call app. If nothing opens, call ${SUPPORT_PHONE}.`;
+const CONTACT_CALL_COPIED_NOTICE = `Support phone copied. Call ${SUPPORT_PHONE} from your phone.`;
+const CONTACT_CALL_FALLBACK_NOTICE = `Call support at ${SUPPORT_PHONE}.`;
+const CONTACT_NOTICE_DURATION = 4200;
+const MOBILE_DEVICE_PATTERN = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i;
 
 const sizeGuideVisuals = {
     running: {
@@ -72,37 +80,6 @@ const sizeGuideRules = {
     },
 };
 
-const contactIssueTemplates = {
-    'order-issue': {
-        subject: 'Support Request: Order Issue',
-        referenceLabel: 'Order number',
-        referencePlaceholder: 'Example: YS-10425',
-        detailLabel: 'Issue details',
-        detailPlaceholder: 'Tell support what happened, what you expected, and any helpful context.',
-    },
-    'size-help': {
-        subject: 'Support Request: Size Help',
-        referenceLabel: 'Usual size or product name',
-        referencePlaceholder: 'Example: US 8.5 / Aurum Runner',
-        detailLabel: 'Fit details',
-        detailPlaceholder: 'Share your usual shoe size, foot width, and whether you like a snug or relaxed fit.',
-    },
-    'return-request': {
-        subject: 'Support Request: Return Request',
-        referenceLabel: 'Order number',
-        referencePlaceholder: 'Example: YS-10425',
-        detailLabel: 'Return details',
-        detailPlaceholder: 'Mention the item condition, the reason, and whether original packaging is available.',
-    },
-    'product-inquiry': {
-        subject: 'Support Request: Product Inquiry',
-        referenceLabel: 'Product name or category',
-        referencePlaceholder: 'Example: Maison Drift / Lifestyle shoes',
-        detailLabel: 'What do you need to know?',
-        detailPlaceholder: 'Ask about fit, use case, stock direction, or styling guidance.',
-    },
-};
-
 const buildMailto = (subject, bodyLines) => {
     const query = [
         ['subject', subject],
@@ -113,6 +90,122 @@ const buildMailto = (subject, bodyLines) => {
         .join('&');
 
     return `mailto:${SUPPORT_EMAIL}?${query}`;
+};
+
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+const matchesMedia = (query) => window.matchMedia?.(query)?.matches ?? false;
+
+const isProbablyMobileDevice = () => {
+    if (navigator.userAgentData?.mobile) {
+        return true;
+    }
+
+    return MOBILE_DEVICE_PATTERN.test(navigator.userAgent ?? '');
+};
+
+const shouldUseDirectCallLink = () => {
+    const desktopPointer = matchesMedia('(hover: hover) and (pointer: fine)');
+    const touchPointer = matchesMedia('(pointer: coarse)') || matchesMedia('(any-pointer: coarse)');
+
+    if (desktopPointer) {
+        return false;
+    }
+
+    if (touchPointer) {
+        return true;
+    }
+
+    return isProbablyMobileDevice();
+};
+
+const copyTextToClipboard = async (value) => {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+        return true;
+    }
+
+    const selection = window.getSelection();
+    const previousRange = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const helper = document.createElement('textarea');
+
+    helper.value = value;
+    helper.setAttribute('readonly', '');
+    helper.style.position = 'fixed';
+    helper.style.top = '0';
+    helper.style.left = '-9999px';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+    helper.focus();
+    helper.select();
+
+    let copied = false;
+
+    try {
+        copied = document.execCommand('copy');
+    } finally {
+        document.body.removeChild(helper);
+
+        if (selection) {
+            selection.removeAllRanges();
+
+            if (previousRange) {
+                selection.addRange(previousRange);
+            }
+        }
+    }
+
+    if (!copied) {
+        throw new Error('Clipboard copy failed.');
+    }
+
+    return true;
+};
+
+const ensureContactFeedbackStack = () => {
+    let stack = document.querySelector('[data-contact-feedback-stack]');
+
+    if (stack) {
+        return stack;
+    }
+
+    stack = document.createElement('div');
+    stack.className = 'pointer-events-none fixed right-4 top-24 z-[72] flex w-full max-w-sm flex-col gap-3 sm:right-6';
+    stack.setAttribute('data-contact-feedback-stack', '');
+    document.body.appendChild(stack);
+
+    return stack;
+};
+
+const showContactFeedback = ({ title = 'Support notice', message, type = 'info' }) => {
+    const stack = ensureContactFeedbackStack();
+    const toast = document.createElement('div');
+    const toneClass = type === 'error' ? 'is-error' : 'is-info';
+    const role = type === 'error' ? 'alert' : 'status';
+
+    toast.className = `pointer-events-auto ys-support-feedback-toast ${toneClass}`;
+    toast.setAttribute('role', role);
+    toast.innerHTML = `
+        <div class="flex items-start gap-3">
+            <span class="ys-support-feedback-icon" aria-hidden="true">${type === 'error' ? '!' : '&#10003;'}</span>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold">${title}</p>
+                <p class="mt-1 text-sm leading-6 text-current/82">${message ?? ''}</p>
+            </div>
+        </div>
+    `;
+
+    stack.appendChild(toast);
+    window.requestAnimationFrame(() => {
+        toast.classList.add('is-visible');
+    });
+
+    const dismiss = () => {
+        toast.classList.remove('is-visible');
+        window.setTimeout(() => toast.remove(), 260);
+    };
+
+    window.setTimeout(dismiss, CONTACT_NOTICE_DURATION);
 };
 
 const formatSize = (size) => Number.isInteger(size) ? String(size) : size.toFixed(1);
@@ -252,6 +345,8 @@ const initReturnsAssistant = (root) => {
 
 const initContactHub = (root) => {
     const buttons = [...root.querySelectorAll('[data-contact-issue]')];
+    const form = root.querySelector('[data-contact-form]');
+    const categoryField = root.querySelector('[data-contact-category]');
     const nameField = root.querySelector('[data-contact-name]');
     const emailField = root.querySelector('[data-contact-email]');
     const referenceField = root.querySelector('[data-contact-reference]');
@@ -260,44 +355,224 @@ const initContactHub = (root) => {
     const summary = root.querySelector('[data-contact-issue-summary]');
     const referenceLabel = root.querySelector('[data-contact-reference-label]');
     const detailLabel = root.querySelector('[data-contact-detail-label]');
-    const emailLink = root.querySelector('[data-contact-email-link]');
+    const emailFallbackLink = root.querySelector('[data-contact-fallback-email-link]');
+    const submitButton = root.querySelector('[data-contact-submit-button]');
+    const callLinks = [...root.querySelectorAll('[data-contact-call-link]')];
 
-    if (!buttons.length || !referenceField || !detailsField || !emailLink) {
+    if (!buttons.length || !form || !categoryField || !referenceField || !detailsField || !nameField || !emailField || !submitButton) {
         return;
     }
 
-    let selectedIssue = 'order-issue';
+    let selectedIssue = categoryField.value || 'order-issue';
+
+    const fieldConfig = [
+        {
+            key: 'name',
+            field: nameField,
+            requiredMessage: 'Enter your name before sending the support request.',
+        },
+        {
+            key: 'email',
+            field: emailField,
+            requiredMessage: 'Enter a reply email before sending the support request.',
+            invalidMessage: 'Enter a valid reply email before sending the support request.',
+        },
+        {
+            key: 'details',
+            field: detailsField,
+            requiredMessage: 'Add issue details before sending the support request.',
+            minLength: 10,
+            minLengthMessage: 'Add at least 10 characters so support has enough detail.',
+        },
+    ];
+
+    const fieldErrors = new Map();
+
+    const ensureFieldError = (key, field) => {
+        let feedback = fieldErrors.get(key);
+
+        if (feedback) {
+            return feedback;
+        }
+
+        feedback = document.createElement('p');
+        feedback.className = 'ys-support-field-feedback hidden';
+        feedback.dataset.contactFieldError = key;
+        feedback.id = `contact-${key}-error`;
+        feedback.setAttribute('role', 'alert');
+        field.closest('.ys-field')?.appendChild(feedback);
+        fieldErrors.set(key, feedback);
+
+        return feedback;
+    };
+
+    const clearFieldError = (key, field) => {
+        const feedback = ensureFieldError(key, field);
+
+        field.classList.remove('is-invalid');
+        field.removeAttribute('aria-invalid');
+        field.removeAttribute('aria-describedby');
+        feedback.textContent = '';
+        feedback.classList.add('hidden');
+    };
+
+    const setFieldError = (key, field, message) => {
+        const feedback = ensureFieldError(key, field);
+
+        field.classList.add('is-invalid');
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', feedback.id);
+        feedback.textContent = message;
+        feedback.classList.remove('hidden');
+    };
 
     const updateMailtoLink = () => {
+        if (!emailFallbackLink) {
+            return;
+        }
+
         const issueButton = buttons.find((button) => button.dataset.issueId === selectedIssue);
         const issueTitle = issueButton?.dataset.issueLabel ?? 'Support Request';
-        const template = contactIssueTemplates[selectedIssue];
+        const trimmedReference = referenceField.value.trim();
         const bodyLines = [
             'Hello Ysabelle Retail Support,',
             '',
             `Issue type: ${issueTitle}`,
-            `Name: ${nameField?.value || ''}`,
-            `Reply email: ${emailField?.value || ''}`,
-            `${template.referenceLabel}: ${referenceField.value || ''}`,
-            `${template.detailLabel}: ${detailsField.value || ''}`,
+            `Name: ${nameField.value.trim()}`,
+            `Reply email: ${emailField.value.trim()}`,
+            ...(trimmedReference ? [`${issueButton?.dataset.issueReferenceLabel ?? 'Reference'}: ${trimmedReference}`] : []),
+            `${issueButton?.dataset.issueDetailLabel ?? 'Issue details'}: ${detailsField.value.trim()}`,
             '',
             'Thank you.',
         ];
 
-        emailLink.href = buildMailto(template.subject, bodyLines);
+        emailFallbackLink.href = buildMailto(`Support Request: ${issueTitle}`, bodyLines);
+    };
+
+    const setSubmitting = (isSubmitting) => {
+        submitButton.disabled = isSubmitting;
+        submitButton.setAttribute('aria-disabled', isSubmitting ? 'true' : 'false');
+        submitButton.textContent = isSubmitting
+            ? submitButton.dataset.loadingLabel ?? 'Sending...'
+            : submitButton.dataset.idleLabel ?? 'Send Support Request';
+    };
+
+    const clearFieldErrors = () => {
+        fieldConfig.forEach(({ key, field }) => clearFieldError(key, field));
+    };
+
+    const resetForm = () => {
+        form.reset();
+        categoryField.value = selectedIssue;
+        clearFieldErrors();
+        updateMailtoLink();
+    };
+
+    const payload = () => ({
+        category: selectedIssue,
+        name: nameField.value.trim(),
+        reply_email: emailField.value.trim(),
+        reference: referenceField.value.trim(),
+        message: detailsField.value.trim(),
+        website: form.querySelector('input[name="website"]')?.value ?? '',
+    });
+
+    const focusFirstServerError = (errors) => {
+        const keyOrder = ['category', 'name', 'reply_email', 'reference', 'message'];
+        const fieldMap = {
+            name: nameField,
+            reply_email: emailField,
+            reference: referenceField,
+            message: detailsField,
+        };
+
+        const firstKey = keyOrder.find((key) => Array.isArray(errors?.[key]) && errors[key].length);
+
+        if (!firstKey) {
+            return;
+        }
+
+        if (firstKey === 'category') {
+            buttons[0]?.focus();
+            return;
+        }
+
+        fieldMap[firstKey]?.focus();
+    };
+
+    const applyServerErrors = (errors) => {
+        clearFieldErrors();
+
+        if (Array.isArray(errors?.name) && errors.name[0]) {
+            setFieldError('name', nameField, errors.name[0]);
+        }
+
+        if (Array.isArray(errors?.reply_email) && errors.reply_email[0]) {
+            setFieldError('email', emailField, errors.reply_email[0]);
+        }
+
+        if (Array.isArray(errors?.message) && errors.message[0]) {
+            setFieldError('details', detailsField, errors.message[0]);
+        }
+
+        focusFirstServerError(errors);
+    };
+
+    const validateDraftFields = () => {
+        let firstInvalidField = null;
+        let firstMessage = '';
+
+        fieldConfig.forEach(({ key, field, requiredMessage, invalidMessage, minLength, minLengthMessage }) => {
+            const value = field.value.trim();
+
+            clearFieldError(key, field);
+
+            if (!value) {
+                setFieldError(key, field, requiredMessage);
+                firstInvalidField ??= field;
+                firstMessage ||= requiredMessage;
+                return;
+            }
+
+            if (key === 'email' && !isValidEmail(value)) {
+                setFieldError(key, field, invalidMessage);
+                firstInvalidField ??= field;
+                firstMessage ||= invalidMessage;
+                return;
+            }
+
+            if (minLength && value.length < minLength) {
+                setFieldError(key, field, minLengthMessage);
+                firstInvalidField ??= field;
+                firstMessage ||= minLengthMessage;
+            }
+        });
+
+        if (!firstInvalidField) {
+            return true;
+        }
+
+        firstInvalidField.focus();
+        showContactFeedback({
+            title: 'Check the required fields',
+            message: firstMessage,
+            type: 'error',
+        });
+
+        return false;
     };
 
     const render = () => {
         const button = buttons.find((item) => item.dataset.issueId === selectedIssue);
-        const template = contactIssueTemplates[selectedIssue];
 
         setActiveButton(buttons, selectedIssue, 'issueId');
+        categoryField.value = selectedIssue;
         title.textContent = button?.dataset.issueLabel ?? '';
         summary.textContent = button?.dataset.issueSummary ?? '';
-        referenceLabel.textContent = template.referenceLabel;
-        detailLabel.textContent = template.detailLabel;
-        referenceField.placeholder = template.referencePlaceholder;
-        detailsField.placeholder = template.detailPlaceholder;
+        referenceLabel.textContent = button?.dataset.issueReferenceLabel ?? 'Reference';
+        detailLabel.textContent = button?.dataset.issueDetailLabel ?? 'Issue details';
+        referenceField.placeholder = button?.dataset.issueReferencePlaceholder ?? '';
+        detailsField.placeholder = button?.dataset.issueDetailPlaceholder ?? '';
         updateMailtoLink();
     };
 
@@ -309,10 +584,106 @@ const initContactHub = (root) => {
     });
 
     [nameField, emailField, referenceField, detailsField].forEach((field) => {
-        field?.addEventListener('input', updateMailtoLink);
+        field?.addEventListener('input', () => {
+            const matchedField = fieldConfig.find((item) => item.field === field);
+
+            if (matchedField) {
+                clearFieldError(matchedField.key, field);
+            }
+
+            updateMailtoLink();
+        });
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!validateDraftFields()) {
+            return;
+        }
+
+        setSubmitting(true);
+
+        try {
+            const response = await window.fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+                },
+                body: JSON.stringify(payload()),
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (response.status === 422) {
+                applyServerErrors(data.errors ?? {});
+                showContactFeedback({
+                    title: 'Check the required fields',
+                    message: Object.values(data.errors ?? {})[0]?.[0] ?? CONTACT_ERROR_NOTICE,
+                    type: 'error',
+                });
+                return;
+            }
+
+            if (data.status === 'sent') {
+                showContactFeedback({
+                    message: data.message ?? CONTACT_SUCCESS_NOTICE,
+                });
+                resetForm();
+                return;
+            }
+
+            if (data.status === 'saved_email_failed') {
+                showContactFeedback({
+                    title: 'Support email unavailable',
+                    message: data.message ?? CONTACT_ERROR_NOTICE,
+                    type: 'error',
+                });
+                return;
+            }
+
+            showContactFeedback({
+                message: data.message ?? CONTACT_ERROR_NOTICE,
+                type: 'error',
+            });
+        } catch {
+            showContactFeedback({
+                message: CONTACT_ERROR_NOTICE,
+                type: 'error',
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    });
+
+    callLinks.forEach((callLink) => {
+        callLink.addEventListener('click', (event) => {
+            if (shouldUseDirectCallLink()) {
+                showContactFeedback({
+                    message: CONTACT_CALL_NOTICE,
+                });
+                return;
+            }
+
+            event.preventDefault();
+
+            copyTextToClipboard(SUPPORT_PHONE)
+                .then(() => {
+                    showContactFeedback({
+                        message: CONTACT_CALL_COPIED_NOTICE,
+                    });
+                })
+                .catch(() => {
+                    showContactFeedback({
+                        message: CONTACT_CALL_FALLBACK_NOTICE,
+                    });
+                });
+        });
     });
 
     render();
+    setSubmitting(false);
 };
 
 export const initSupportPages = () => {

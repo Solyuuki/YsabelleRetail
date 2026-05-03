@@ -149,6 +149,55 @@
             radial-gradient(circle at 84% 72%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 22%),
             linear-gradient(180deg, rgba(18, 18, 20, 1), rgba(11, 11, 13, 1));
     }
+
+    .ys-support-field-feedback {
+        @apply text-xs font-medium leading-6 text-[#ffbcbc];
+    }
+
+    .ys-support-feedback-toast {
+        @apply rounded-[1.25rem] border border-white/10 bg-[#111113]/96 px-4.5 py-3.5 text-ys-ivory shadow-[0_22px_48px_rgba(0,0,0,0.42)];
+        opacity: 0;
+        transform: translateY(10px);
+        transition:
+            opacity 220ms ease,
+            transform 220ms ease;
+        backdrop-filter: blur(14px);
+    }
+
+    .ys-support-feedback-toast.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .ys-support-feedback-toast.is-info {
+        @apply border-ys-gold/24 text-ys-ivory;
+        background:
+            radial-gradient(circle at top right, rgba(212, 166, 59, 0.16), rgba(212, 166, 59, 0) 34%),
+            linear-gradient(180deg, rgba(20, 20, 22, 0.98), rgba(10, 10, 12, 0.98));
+    }
+
+    .ys-support-feedback-toast.is-error {
+        @apply border-[#7b2b2b] text-[#ffe1e1];
+        background:
+            radial-gradient(circle at top right, rgba(154, 53, 53, 0.22), rgba(154, 53, 53, 0) 36%),
+            linear-gradient(180deg, rgba(47, 15, 15, 0.98), rgba(23, 9, 9, 0.98));
+    }
+
+    .ys-support-feedback-icon {
+        @apply mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current/20 text-sm font-semibold leading-none;
+    }
+
+    .ys-input.is-invalid {
+        @apply border-[#d37070] text-[#fff1f1];
+        box-shadow: 0 0 0 1px rgba(211, 112, 112, 0.24);
+    }
+
+    .ys-input.is-invalid:focus {
+        @apply border-[#e29191];
+        box-shadow:
+            0 0 0 1px rgba(226, 145, 145, 0.28),
+            0 0 0 4px rgba(154, 53, 53, 0.12);
+    }
 }
 
 @media (min-width: 1280px) {
@@ -216,6 +265,15 @@
 
         .ys-support-choice {
             @apply min-w-12 px-3.5 py-2.5 text-[0.88rem];
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    @layer components {
+        .ys-support-feedback-toast {
+            transition: none;
+            transform: none;
         }
     }
 }

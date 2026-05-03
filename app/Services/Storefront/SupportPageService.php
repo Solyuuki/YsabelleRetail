@@ -2,6 +2,8 @@
 
 namespace App\Services\Storefront;
 
+use App\Support\SupportTicketCategories;
+
 class SupportPageService
 {
     public function page(string $pageKey): ?array
@@ -51,8 +53,6 @@ class SupportPageService
 
     private function heroActions(string $pageKey): array
     {
-        $contact = $this->contactDetails();
-
         return match ($pageKey) {
             'size-guide' => [
                 ['label' => 'Browse Running Shoes', 'url' => route('storefront.shop', ['category' => 'running']), 'variant' => 'primary'],
@@ -66,10 +66,7 @@ class SupportPageService
                 ['label' => 'Email Return Support', 'url' => $this->mailto('Return Request - Ysabelle Retail', ['Hello Ysabelle Retail Support,', '', 'I would like help with a return or exchange.', '', 'Order number:', 'Product name:', 'Concern:', '', 'Thank you.']), 'variant' => 'primary'],
                 ['label' => 'Contact Support', 'url' => route('storefront.support.contact'), 'variant' => 'secondary'],
             ],
-            'contact' => [
-                ['label' => 'Email Support', 'url' => $contact['general_mailto'], 'variant' => 'primary'],
-                ['label' => 'Call Support', 'url' => $contact['phone_href'], 'variant' => 'secondary'],
-            ],
+            'contact' => [],
             default => [],
         };
     }
@@ -257,24 +254,7 @@ class SupportPageService
     private function contactData(): array
     {
         return [
-            'issues' => [
-                'order-issue' => [
-                    'label' => 'Order Issue',
-                    'summary' => 'Use this for delivery concerns, checkout follow-up, or order detail mismatches.',
-                ],
-                'size-help' => [
-                    'label' => 'Size Help',
-                    'summary' => 'Best for fit guidance before or after purchase when you need a more grounded recommendation.',
-                ],
-                'return-request' => [
-                    'label' => 'Return Request',
-                    'summary' => 'Start here if you need help within the 14-day window for an eligible pair.',
-                ],
-                'product-inquiry' => [
-                    'label' => 'Product Inquiry',
-                    'summary' => 'Ask about a style, category, sizing direction, or use-case fit before ordering.',
-                ],
-            ],
+            'issues' => SupportTicketCategories::options(),
         ];
     }
 
