@@ -16,7 +16,7 @@
                     @php
                         $socialLinks = [
                             'instagram' => 'https://www.instagram.com/ysabelleretail?igsh=cGVxNnd6bGVsY3A5',
-                            'facebook' => 'https://www.facebook.com/ysabelleretail',
+                            'facebook' => 'https://www.facebook.com/profile.php?id=61588817297784',
                             'twitter' => 'https://twitter.com/ysabelleretail',
                         ];
                     @endphp
