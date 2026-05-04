@@ -10,12 +10,8 @@
         @endif
 
         <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-gold/85">My Account</p>
-        <div class="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="mt-4">
             <h1 class="font-serif text-5xl text-ys-ivory lg:text-6xl">Hello, {{ $user->name }}</h1>
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="ys-button-secondary">Sign out</button>
-            </form>
         </div>
 
         <div class="mt-12">

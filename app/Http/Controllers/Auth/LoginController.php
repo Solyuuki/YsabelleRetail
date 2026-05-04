@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\Auth\SocialAuthService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,13 +14,15 @@ use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
-    public function create(Request $request): View
+    public function create(Request $request, SocialAuthService $socialAuth): View
     {
         if ($intended = $this->normalizeIntendedUrl($request->query('intended'))) {
             $request->session()->put('url.intended', $intended);
         }
 
-        return view('auth.login');
+        return view('auth.login', [
+            'socialProviders' => $socialAuth->providerButtons($request),
+        ]);
     }
 
     public function store(LoginRequest $request): RedirectResponse

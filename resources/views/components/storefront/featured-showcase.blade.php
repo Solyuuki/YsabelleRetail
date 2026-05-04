@@ -69,8 +69,10 @@
                                     <p class="ys-featured-card-caption">{{ $product->category?->name ?? 'Collection' }}</p>
                                 </div>
 
-                                <div class="ys-featured-card-rating" aria-label="Rated {{ number_format((float) $product->rating_average, 1) }}">
-                                    <span class="ys-featured-card-rating-dot" aria-hidden="true"></span>
+                                <div class="flex shrink-0 items-center gap-1.5 text-[0.95rem] text-ys-gold" aria-label="Rated {{ number_format((float) $product->rating_average, 1) }}">
+                                    <svg class="ys-featured-card-rating-star h-4 w-4 fill-current" viewBox="0 0 20 20" aria-hidden="true">
+                                        <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                                    </svg>
                                     <span>{{ number_format((float) $product->rating_average, 1) }}</span>
                                 </div>
                             </div>

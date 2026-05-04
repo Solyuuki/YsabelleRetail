@@ -11,4 +11,6 @@
 @import './admin/components.css';
 @import './admin/motion.css';
 @import './components.css';
+@import './auth.css';
+@import './storefront/support.css';
 @import './motion.css';

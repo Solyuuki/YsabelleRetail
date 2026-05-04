@@ -5,6 +5,7 @@ namespace Database\Seeders\Catalog;
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductVariant;
+use Carbon\CarbonImmutable;
 use Database\Seeders\Catalog\Support\CatalogBlueprint;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -13,7 +14,10 @@ class CatalogSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach (CatalogBlueprint::categories() as $categoryData) {
+        $categories = CatalogBlueprint::categories();
+        $categoryCount = count($categories);
+
+        foreach ($categories as $categoryIndex => $categoryData) {
             $category = Category::query()->updateOrCreate(
                 ['slug' => $categoryData['slug']],
                 [
@@ -24,7 +28,9 @@ class CatalogSeeder extends Seeder
                 ]
             );
 
-            foreach ($categoryData['products'] as $productData) {
+            foreach ($categoryData['products'] as $productIndex => $productData) {
+                $releaseAt = $this->releaseTimestampFor($categoryIndex, $productIndex, $categoryCount);
+
                 $product = Product::query()->updateOrCreate(
                     ['slug' => Str::slug($productData['name'])],
                     [
@@ -44,6 +50,8 @@ class CatalogSeeder extends Seeder
                         'is_featured' => $productData['is_featured'],
                         'featured_rank' => $productData['featured_rank'],
                         'track_inventory' => true,
+                        'created_at' => $releaseAt,
+                        'updated_at' => $releaseAt,
                     ]
                 );
 
@@ -71,5 +79,13 @@ class CatalogSeeder extends Seeder
                 }
             }
         }
+    }
+
+    private function releaseTimestampFor(int $categoryIndex, int $productIndex, int $categoryCount): CarbonImmutable
+    {
+        $releaseSequence = ($productIndex * $categoryCount) + $categoryIndex;
+
+        return CarbonImmutable::create(2026, 5, 1, 12, 0, 0, config('app.timezone'))
+            ->subDays($releaseSequence);
     }
 }

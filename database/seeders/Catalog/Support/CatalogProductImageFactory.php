@@ -11,7 +11,7 @@ final class CatalogProductImageFactory
     public static function build(string $categorySlug, string $categoryName, array $product, array $colors): array
     {
         $productSlug = Str::slug((string) ($product['name'] ?? 'product'));
-        $assetLocator = new ProductPhotoAssetLocator();
+        $assetLocator = new ProductPhotoAssetLocator;
         $primaryImage = $assetLocator->primaryRelativePath($categorySlug, $productSlug);
 
         if ($primaryImage === null) {

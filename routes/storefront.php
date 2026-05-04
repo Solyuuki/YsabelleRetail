@@ -8,10 +8,25 @@ use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\StorefrontAssistantController;
 use App\Http\Controllers\Storefront\StorefrontVisualSearchController;
+use App\Http\Controllers\Storefront\SupportPageController;
+use App\Http\Controllers\Storefront\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('storefront.home');
 Route::get('/shop', [ProductController::class, 'index'])->name('storefront.shop');
+Route::view('/terms', 'storefront.legal.terms')->name('storefront.terms');
+Route::view('/privacy', 'storefront.legal.privacy')->name('storefront.privacy');
+Route::prefix('support')
+    ->as('storefront.support.')
+    ->group(function (): void {
+        Route::get('/size-guide', SupportPageController::class)->defaults('page', 'size-guide')->name('size-guide');
+        Route::get('/shipping', SupportPageController::class)->defaults('page', 'shipping')->name('shipping');
+        Route::get('/returns', SupportPageController::class)->defaults('page', 'returns')->name('returns');
+        Route::get('/contact', SupportPageController::class)->defaults('page', 'contact')->name('contact');
+        Route::post('/contact', [SupportTicketController::class, 'store'])
+            ->middleware('throttle:5,1')
+            ->name('contact.store');
+    });
 
 Route::prefix('catalog')
     ->as('storefront.catalog.')

@@ -1,11 +1,24 @@
-@extends('layouts.storefront', ['title' => 'Shop All Shoes | Ysabelle Retail'])
+@extends('layouts.storefront', ['title' => ($activeCollection['title'] ?? 'Shop All Shoes').' | Ysabelle Retail'])
 
 @section('content')
+    @php
+        $shopTitle = $activeCollection['title'] ?? 'Shop all shoes';
+        $shopDescription = $activeCollection['description'] ?? 'Engineered for performance. Designed for legacy.';
+        $activeFilterLabels = collect([
+            $activeCollection['label'] ?? null,
+            $activeCategory ? 'Category: '.$activeCategory->name : null,
+            $activeUseCaseLabel ? 'Use case: '.$activeUseCaseLabel : null,
+        ])->filter()->values();
+        $resetFilters = array_filter([
+            'collection' => $filters['collection'] ?? null,
+        ], fn ($value) => filled($value));
+    @endphp
+
     <section class="ys-container pb-18 pt-10 lg:pt-14">
         <x-storefront.section-heading
             eyebrow="The Collection"
-            title="Shop all shoes"
-            description="Engineered for performance. Designed for legacy."
+            :title="$shopTitle"
+            :description="$shopDescription"
         />
 
         <div class="ys-storefront-toolbar mt-10" data-reveal>
@@ -35,6 +48,7 @@
                     <div class="ys-storefront-sort-wrap">
                         <select name="sort" class="ys-select ys-storefront-sort-select" data-auto-submit>
                             <option value="featured" @selected(($filters['sort'] ?? 'featured') === 'featured')>Featured</option>
+                            <option value="best_sellers" @selected(($filters['sort'] ?? null) === 'best_sellers')>Best Sellers</option>
                             <option value="price_asc" @selected(($filters['sort'] ?? null) === 'price_asc')>Price: Low to High</option>
                             <option value="price_desc" @selected(($filters['sort'] ?? null) === 'price_desc')>Price: High to Low</option>
                             <option value="newest" @selected(($filters['sort'] ?? null) === 'newest')>Newest</option>
@@ -170,8 +184,8 @@
                 Showing {{ $products->firstItem() ?? 0 }}-{{ $products->lastItem() ?? 0 }}
                 of {{ $products->total() }} {{ \Illuminate\Support\Str::plural('product', $products->total()) }}
             </p>
-            @if ($activeCategory)
-                <p class="font-medium text-ys-ivory/55" data-storefront-grid-filter-label>Filtered by {{ $activeCategory->name }}</p>
+            @if ($activeFilterLabels->isNotEmpty())
+                <p class="font-medium text-ys-ivory/55" data-storefront-grid-filter-label>{{ $activeFilterLabels->implode(' | ') }}</p>
             @endif
         </div>
 
@@ -179,9 +193,9 @@
             <div class="mt-10 rounded-[2rem] border border-dashed border-white/12 bg-white/[0.02] px-8 py-24 text-center" data-storefront-empty-state data-reveal>
                 <p class="font-serif text-4xl text-ys-ivory">No products found.</p>
                 <p class="mx-auto mt-4 max-w-md text-sm leading-7 text-ys-ivory/48">
-                    Try a broader search, switch category filters, or reset the sort to featured.
+                    Try a broader search, switch category filters, or reset the current filters.
                 </p>
-                <a href="{{ route('storefront.shop') }}" class="ys-button-primary mt-8">Reset filters</a>
+                <a href="{{ route('storefront.shop', $resetFilters) }}" class="ys-button-primary mt-8">Reset filters</a>
             </div>
         @else
             <div class="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" data-storefront-product-grid>
