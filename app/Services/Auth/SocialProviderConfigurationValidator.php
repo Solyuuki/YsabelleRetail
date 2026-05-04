@@ -65,10 +65,10 @@ class SocialProviderConfigurationValidator
 
         if ($request && $expectedOrigin !== $currentOrigin) {
             $loginUrl = rtrim($expectedOrigin, '/').route('login', absolute: false);
-            $message = "{$providerName} sign-in is available from {$loginUrl}. Open that URL so the callback host matches this provider configuration.";
+            $message = "{$providerName} sign-in is configured for {$loginUrl}. Open that URL or align APP_URL and {$this->redirectEnvKey($provider)} to the same origin.";
 
-            if ($provider === 'microsoft') {
-                $message = "Microsoft sign-in is available from {$loginUrl} because the local Microsoft callback is registered for localhost.";
+            if ($provider === 'facebook' && str_starts_with($expectedOrigin, 'https://')) {
+                $message = "Facebook sign-in is configured for {$loginUrl}. Meta commonly requires an HTTPS callback for local testing, so use that HTTPS URL or align APP_URL and FACEBOOK_REDIRECT_URI to the same HTTPS origin.";
             }
 
             return new SocialProviderConfigurationStatus(
@@ -103,6 +103,11 @@ class SocialProviderConfigurationValidator
             route('auth.social.callback', ['provider' => $provider], false),
             PHP_URL_PATH,
         );
+    }
+
+    private function redirectEnvKey(string $provider): string
+    {
+        return strtoupper($provider).'_REDIRECT_URI';
     }
 
     private function originFromRequest(Request $request): string

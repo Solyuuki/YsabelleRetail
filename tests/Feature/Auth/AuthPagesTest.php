@@ -62,13 +62,27 @@ test('host mismatches disable the affected social provider button with guidance'
     ])
         ->get(route('login'))
         ->assertOk()
-        ->assertSeeText('Google sign-in is available from http://127.0.0.1:8000/login. Open that URL so the callback host matches this provider configuration.');
+        ->assertSeeText('Google sign-in is configured for http://127.0.0.1:8000/login. Open that URL or align APP_URL and GOOGLE_REDIRECT_URI to the same origin.');
 });
 
-test('microsoft host mismatch explains the exact local login url', function () {
+test('microsoft host mismatch explains the exact configured login url', function () {
     config()->set('services.microsoft.client_id', 'client-id');
     config()->set('services.microsoft.client_secret', 'client-secret');
-    config()->set('services.microsoft.redirect', 'http://localhost:8000/auth/microsoft/callback');
+    config()->set('services.microsoft.redirect', 'http://127.0.0.1:8000/auth/microsoft/callback');
+
+    $this->withServerVariables([
+        'HTTP_HOST' => 'localhost:8000',
+        'SERVER_PORT' => 8000,
+    ])
+        ->get(route('login'))
+        ->assertOk()
+        ->assertSeeText('Microsoft sign-in is configured for http://127.0.0.1:8000/login. Open that URL or align APP_URL and MICROSOFT_REDIRECT_URI to the same origin.');
+});
+
+test('facebook host mismatch explains the required https login url', function () {
+    config()->set('services.facebook.client_id', 'client-id');
+    config()->set('services.facebook.client_secret', 'client-secret');
+    config()->set('services.facebook.redirect', 'https://ysabelle-auth.ngrok-free.dev/auth/facebook/callback');
 
     $this->withServerVariables([
         'HTTP_HOST' => '127.0.0.1:8000',
@@ -76,5 +90,5 @@ test('microsoft host mismatch explains the exact local login url', function () {
     ])
         ->get(route('login'))
         ->assertOk()
-        ->assertSeeText('Microsoft sign-in is available from http://localhost:8000/login because the local Microsoft callback is registered for localhost.');
+        ->assertSeeText('Facebook sign-in is configured for https://ysabelle-auth.ngrok-free.dev/login. Meta commonly requires an HTTPS callback for local testing, so use that HTTPS URL or align APP_URL and FACEBOOK_REDIRECT_URI to the same HTTPS origin.');
 });

@@ -9,9 +9,12 @@ use App\Policies\Catalog\CategoryPolicy;
 use App\Policies\Catalog\ProductPolicy;
 use App\Policies\Orders\OrderPolicy;
 use App\View\Composers\StorefrontLayoutComposer;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\Microsoft\Provider as MicrosoftProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('microsoft', MicrosoftProvider::class);
+        });
+
         Gate::before(function ($user) {
             return $user->hasRole('super-admin') ? true : null;
         });

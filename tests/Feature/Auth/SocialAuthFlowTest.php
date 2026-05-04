@@ -94,6 +94,13 @@ test('configured social providers redirect to the provider handshake', function 
         ->assertRedirect('https://accounts.google.com/o/oauth2/auth');
 });
 
+test('microsoft socialite driver is registered', function () {
+    configureSocialProvider('microsoft');
+
+    expect(get_class(app(SocialiteFactory::class)->driver('microsoft')))
+        ->toBe(\SocialiteProviders\Microsoft\Provider::class);
+});
+
 test('missing provider credentials return an honest error response', function () {
     config()->set('services.google', [
         'client_id' => null,
@@ -125,7 +132,7 @@ test('provider redirect is blocked when the callback host does not match the cur
         ->assertRedirect(route('login'))
         ->assertSessionHas(
             'toast.message',
-            'Google sign-in is available from http://127.0.0.1:8000/login. Open that URL so the callback host matches this provider configuration.'
+            'Google sign-in is configured for http://127.0.0.1:8000/login. Open that URL or align APP_URL and GOOGLE_REDIRECT_URI to the same origin.'
         );
 });
 
