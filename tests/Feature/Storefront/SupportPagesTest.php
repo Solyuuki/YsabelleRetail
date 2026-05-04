@@ -35,17 +35,35 @@ test('returns page renders action-based support paths with a real email draft ac
         ->assertSee('mailto:ysabelleretail@gmail.com', escape: false);
 });
 
-test('contact page renders the support hub with email, phone, and bgc location details', function () {
-    $this->get(route('storefront.support.contact'))
+test('contact page keeps one support hub and prioritizes quick support actions', function () {
+    $response = $this->get(route('storefront.support.contact'))
         ->assertOk()
         ->assertDontSeeText('Email Support')
         ->assertSeeText('This form sends a real support request to the Ysabelle Retail team.')
         ->assertSeeText('Send Support Request')
         ->assertDontSeeText('Call Support')
+        ->assertDontSeeText('Direct support details')
+        ->assertDontSeeText('BGC support hub')
+        ->assertDontSeeText('Before you send')
+        ->assertDontSeeText('Response expectations')
+        ->assertSeeText('Quick Support Actions')
+        ->assertSeeText('Track an order')
+        ->assertSeeText('Start a return')
+        ->assertSeeText('Size guide')
+        ->assertSeeText('Order status help')
+        ->assertSeeText('What we need from you')
         ->assertSeeText('ysabelleretail@gmail.com')
-        ->assertSeeText('09766500867')
+        ->assertSeeText('0976 650 0867')
         ->assertSeeText('Bonifacio Global City, Taguig')
         ->assertSee('action="'.route('storefront.support.contact.store').'"', escape: false)
         ->assertSee('mailto:ysabelleretail@gmail.com', escape: false)
-        ->assertSee('tel:09766500867', escape: false);
+        ->assertSee('tel:09766500867', escape: false)
+        ->assertSee('href="'.route('storefront.support.returns').'"', escape: false)
+        ->assertSee('href="'.route('storefront.support.size-guide').'"', escape: false)
+        ->assertSee('href="'.route('login', ['intended' => route('storefront.account.index')]).'"', escape: false)
+        ->assertSee('data-contact-quick-action', escape: false)
+        ->assertSee('data-quick-issue-id="order-issue"', escape: false);
+
+    expect(substr_count($response->getContent(), 'href="mailto:ysabelleretail@gmail.com'))->toBe(1)
+        ->and(substr_count($response->getContent(), 'href="tel:09766500867"'))->toBe(1);
 });

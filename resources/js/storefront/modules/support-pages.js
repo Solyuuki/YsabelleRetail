@@ -358,6 +358,8 @@ const initContactHub = (root) => {
     const emailFallbackLink = root.querySelector('[data-contact-fallback-email-link]');
     const submitButton = root.querySelector('[data-contact-submit-button]');
     const callLinks = [...root.querySelectorAll('[data-contact-call-link]')];
+    const quickActions = [...root.querySelectorAll('[data-contact-quick-action]')];
+    const builder = root.querySelector('[data-contact-builder]');
 
     if (!buttons.length || !form || !categoryField || !referenceField || !detailsField || !nameField || !emailField || !submitButton) {
         return;
@@ -580,6 +582,35 @@ const initContactHub = (root) => {
         button.addEventListener('click', () => {
             selectedIssue = button.dataset.issueId;
             render();
+        });
+    });
+
+    quickActions.forEach((action) => {
+        action.addEventListener('click', (event) => {
+            event.preventDefault();
+
+            const issueId = action.dataset.quickIssueId;
+            const focusTarget = action.dataset.quickFocus ?? 'details';
+            const focusMap = {
+                name: nameField,
+                email: emailField,
+                reference: referenceField,
+                details: detailsField,
+            };
+
+            if (issueId) {
+                selectedIssue = issueId;
+                render();
+            }
+
+            builder?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+
+            window.setTimeout(() => {
+                focusMap[focusTarget]?.focus();
+            }, 120);
         });
     });
 

@@ -4,7 +4,6 @@
     @php
         $heroCategory = $heroProduct?->category;
         $heroShowcaseName = 'Nike Shoe V2';
-        $heroShowcaseSourceUrl = 'https://poly.cam/explore/capture/3051A780-6C9D-45B7-A1A1-D568C3839F63/Nike+Shoe+V2';
         $heroShowcaseModelUrl = asset('models/storefront/polycam-nike-shoe-v2/poly.gltf');
         $heroShowcaseAlt = 'Nike Shoe V2 Polycam 3D hero showcase';
         $heroShowcaseEyebrow = 'Polycam Capture / Charcoal / White / Orange Accent';
@@ -35,9 +34,6 @@
                 </p>
 
                 <div class="ys-hero-actions">
-                    <a href="{{ $heroShowcaseSourceUrl }}" class="ys-button-primary" target="_blank" rel="noreferrer">
-                        View Source Capture
-                    </a>
                     <a
                         href="{{ $heroCategory ? route('storefront.shop', ['category' => $heroCategory->slug]) : route('storefront.shop', ['category' => 'running']) }}"
                         class="ys-button-secondary"

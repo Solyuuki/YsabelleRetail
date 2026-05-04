@@ -19,7 +19,11 @@ test('login page renders the redesigned auth experience', function () {
         ->assertSeeText('Continue with Google')
         ->assertSeeText('Continue with Microsoft')
         ->assertSeeText('Continue with GitHub')
-        ->assertSeeText('Google sign-in is not configured yet. Please use email and password for now.');
+        ->assertSeeText('Google sign-in is not configured yet. Please use email and password for now.')
+        ->assertSee('href="'.route('storefront.terms').'"', escape: false)
+        ->assertSee('href="'.route('storefront.privacy').'"', escape: false)
+        ->assertSeeText('Terms of Use')
+        ->assertSeeText('Privacy Policy');
 });
 
 test('register page renders the redesigned auth experience', function () {
@@ -37,7 +41,11 @@ test('register page renders the redesigned auth experience', function () {
         ->assertSeeText('Continue with Google')
         ->assertSeeText('Continue with Microsoft')
         ->assertSeeText('Continue with GitHub')
-        ->assertSeeText('Google sign-in is not configured yet. Please use email and password for now.');
+        ->assertSeeText('Google sign-in is not configured yet. Please use email and password for now.')
+        ->assertSee('href="'.route('storefront.terms').'"', escape: false)
+        ->assertSee('href="'.route('storefront.privacy').'"', escape: false)
+        ->assertSeeText('Terms of Use')
+        ->assertSeeText('Privacy Policy');
 });
 
 test('configured providers render a real oauth redirect link', function () {

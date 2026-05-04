@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('storefront.home');
 Route::get('/shop', [ProductController::class, 'index'])->name('storefront.shop');
+Route::view('/terms', 'storefront.legal.terms')->name('storefront.terms');
+Route::view('/privacy', 'storefront.legal.privacy')->name('storefront.privacy');
 Route::prefix('support')
     ->as('storefront.support.')
     ->group(function (): void {

@@ -131,15 +131,27 @@
     }
 
     .ys-auth-legal {
-        @apply mt-6 text-center text-xs leading-6 text-ys-ivory/34;
+        @apply mt-6 text-center;
+    }
+
+    .ys-auth-legal-copy {
+        @apply text-xs leading-6 text-ys-ivory/34;
+    }
+
+    .ys-auth-legal-links {
+        @apply mt-2 inline-flex flex-wrap items-center justify-center gap-2 text-sm;
     }
 
     .ys-auth-legal-link {
-        @apply text-ys-ivory/76 underline decoration-white/18 underline-offset-4 transition duration-300 hover:text-ys-gold;
+        @apply rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 font-semibold text-ys-ivory/86 underline decoration-transparent underline-offset-4 transition duration-300 hover:border-ys-gold/35 hover:bg-ys-gold/8 hover:text-ys-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ys-gold/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111] focus-visible:text-ys-gold;
+    }
+
+    .ys-auth-legal-separator {
+        @apply text-ys-ivory/20;
     }
 
     .ys-auth-legal-muted {
-        @apply text-ys-ivory/52;
+        @apply rounded-full border border-white/6 bg-white/[0.02] px-3 py-1.5 font-semibold text-ys-ivory/52;
     }
 }
 
@@ -173,7 +185,8 @@
         .ys-auth-submit,
         .ys-auth-social-button,
         .ys-auth-input,
-        .ys-auth-inline-link {
+        .ys-auth-inline-link,
+        .ys-auth-legal-link {
             transition: none;
         }
     }

@@ -2,6 +2,9 @@
     $contact = $page['view_data'];
     $selectedIssue = old('category', 'order-issue');
     $selectedIssueConfig = $contact['issues'][$selectedIssue] ?? $contact['issues']['order-issue'];
+    $trackOrderUrl = auth()->check()
+        ? route('storefront.account.index')
+        : route('login', ['intended' => route('storefront.account.index')]);
 @endphp
 
 <div class="space-y-8 lg:space-y-10" data-contact-hub>
@@ -36,7 +39,7 @@
                 @endforeach
             </div>
 
-            <div class="mt-7 rounded-[1.45rem] border border-white/8 bg-black/22 p-5 lg:p-6">
+            <div class="mt-7 rounded-[1.45rem] border border-white/8 bg-black/22 p-5 lg:p-6" id="support-request-builder" data-contact-builder>
                 <p class="ys-support-info-label">Guided panel</p>
                 <h3 class="mt-3 text-xl font-semibold text-ys-ivory" data-contact-issue-title>{{ $selectedIssueConfig['label'] }}</h3>
                 <p class="mt-2 text-sm leading-7 text-ys-ivory/58" data-contact-issue-summary>
@@ -92,7 +95,7 @@
                     </label>
 
                     <p class="mt-4 text-xs leading-6 text-ys-ivory/46">
-                        This form sends a real support request to the Ysabelle Retail team. If sending fails, you can still use the email fallback shown on this page.
+                        This form sends a real support request to the Ysabelle Retail team. If sending fails, use the support contact details shown above.
                     </p>
 
                     <div class="mt-5">
@@ -112,28 +115,63 @@
 
         <aside class="space-y-6">
             <section class="ys-support-surface p-6 lg:p-8 xl:p-9" data-reveal data-reveal-delay="80">
-                <p class="ys-support-kicker">Direct support details</p>
-                <div class="mt-5 grid gap-4">
-                    <div class="ys-support-info-card">
-                        <p class="ys-support-info-label">Email</p>
-                        <a href="{{ $supportContact['general_mailto'] }}" class="ys-support-inline-link" data-contact-fallback-email-link>{{ $supportContact['email'] }}</a>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="ys-support-kicker">Quick Support Actions</p>
+                        <h2 class="mt-3 font-serif text-3xl text-ys-ivory">Start with the fastest path</h2>
                     </div>
-                    <div class="ys-support-info-card">
-                        <p class="ys-support-info-label">Phone</p>
-                        <a href="{{ $supportContact['phone_href'] }}" class="ys-support-inline-link" data-contact-call-link>{{ $supportContact['phone'] }}</a>
-                    </div>
-                    <div class="ys-support-info-card">
-                        <p class="ys-support-info-label">Best to include</p>
-                        <p class="text-sm leading-7 text-ys-ivory/60">Order number, product name, your usual size, and photos if the issue is visual or condition-related.</p>
-                    </div>
+                    <span class="ys-support-micro-pill">Action first</span>
+                </div>
+
+                <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                    <a href="{{ $trackOrderUrl }}" class="ys-support-card-button block">
+                        <span class="block text-left text-sm font-semibold text-ys-ivory">Track an order</span>
+                        <span class="mt-1 block text-left text-xs leading-5 text-ys-ivory/44">Open your order view and review placed purchases.</span>
+                    </a>
+
+                    <a href="{{ route('storefront.support.returns') }}" class="ys-support-card-button block">
+                        <span class="block text-left text-sm font-semibold text-ys-ivory">Start a return</span>
+                        <span class="mt-1 block text-left text-xs leading-5 text-ys-ivory/44">Go straight to return and exchange guidance.</span>
+                    </a>
+
+                    <a href="{{ route('storefront.support.size-guide') }}" class="ys-support-card-button block">
+                        <span class="block text-left text-sm font-semibold text-ys-ivory">Size guide</span>
+                        <span class="mt-1 block text-left text-xs leading-5 text-ys-ivory/44">Use the fit tools before you submit a support request.</span>
+                    </a>
+
+                    <button
+                        type="button"
+                        class="ys-support-card-button w-full text-left"
+                        data-contact-quick-action
+                        data-quick-issue-id="order-issue"
+                        data-quick-focus="reference"
+                    >
+                        <span class="block text-left text-sm font-semibold text-ys-ivory">Order status help</span>
+                        <span class="mt-1 block text-left text-xs leading-5 text-ys-ivory/44">Jump to the builder with the order-help path ready.</span>
+                    </button>
                 </div>
             </section>
 
-            <section class="ys-support-surface ys-support-location-card p-6 lg:p-8 xl:p-9" data-reveal data-reveal-delay="140">
-                <p class="ys-support-kicker">BGC support hub</p>
-                <h2 class="mt-3 font-serif text-3xl text-ys-ivory">Bonifacio Global City, Taguig</h2>
-                <p class="mt-4 max-w-xl text-sm leading-7 text-ys-ivory/60">{{ $supportContact['address'] }}</p>
-                <p class="mt-3 text-xs uppercase tracking-[0.22em] text-ys-ivory/36">Simulated support point around BGC for storefront contact guidance.</p>
+            <section class="ys-support-surface p-6 lg:p-8 xl:p-9" data-reveal data-reveal-delay="140">
+                <p class="ys-support-kicker">What we need from you</p>
+                <ul class="mt-5 space-y-3 text-sm leading-6 text-ys-ivory/60">
+                    <li class="flex items-start gap-3 rounded-[1.25rem] border border-white/8 bg-black/20 p-4">
+                        <span class="mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-ys-gold/80"></span>
+                        <span>Order number or product name.</span>
+                    </li>
+                    <li class="flex items-start gap-3 rounded-[1.25rem] border border-white/8 bg-black/20 p-4">
+                        <span class="mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-ys-gold/80"></span>
+                        <span>A reply email you actively monitor.</span>
+                    </li>
+                    <li class="flex items-start gap-3 rounded-[1.25rem] border border-white/8 bg-black/20 p-4">
+                        <span class="mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-ys-gold/80"></span>
+                        <span>The size ordered and what went wrong.</span>
+                    </li>
+                    <li class="flex items-start gap-3 rounded-[1.25rem] border border-white/8 bg-black/20 p-4">
+                        <span class="mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-ys-gold/80"></span>
+                        <span>Photos when the issue involves fit, condition, or the item received.</span>
+                    </li>
+                </ul>
             </section>
         </aside>
     </section>
