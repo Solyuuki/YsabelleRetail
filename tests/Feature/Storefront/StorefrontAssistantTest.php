@@ -15,6 +15,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     config()->set('storefront.assistant.ai.enabled', false);
+    config()->set('storefront.assistant.visual_search.embedding.testing_fake', true);
 });
 
 function makeStorefrontProduct(array $overrides = [], array $variantOverrides = [], array $inventoryOverrides = []): Product
@@ -724,6 +725,7 @@ test('visual search falls back safely when the embedding service is unavailable'
         'image_alt' => 'Fallback Runner product image',
     ]);
 
+    config()->set('storefront.assistant.visual_search.embedding.testing_fake', false);
     config()->set('storefront.assistant.visual_search.embedding.python_binary', 'python-does-not-exist');
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);

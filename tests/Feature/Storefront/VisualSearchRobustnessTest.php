@@ -11,6 +11,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     config()->set('storefront.assistant.ai.enabled', false);
+    config()->set('storefront.assistant.visual_search.embedding.testing_fake', true);
 });
 
 function makeVisualSearchProduct(array $overrides = [], array $variantOverrides = []): Product

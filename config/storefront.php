@@ -80,6 +80,7 @@ return [
         'visual_search' => [
             'embedding' => [
                 'enabled' => env('STOREFRONT_VISUAL_SEARCH_EMBEDDINGS_ENABLED', true),
+                'testing_fake' => env('STOREFRONT_VISUAL_SEARCH_TESTING_FAKE', env('APP_ENV') === 'testing'),
                 'python_binary' => env('STOREFRONT_VISUAL_SEARCH_PYTHON', 'python'),
                 'script' => env('STOREFRONT_VISUAL_SEARCH_SCRIPT') ?: base_path('tools/visual_search_embedding_service.py'),
                 'model' => env('STOREFRONT_VISUAL_SEARCH_EMBEDDING_MODEL', 'openai/clip-vit-base-patch32'),

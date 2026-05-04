@@ -20,7 +20,9 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         @include('partials.icon-head')
         <link href="https://fonts.bunny.net/css?family=cormorant-garamond:500,600,700|instrument-sans:400,500,600,700" rel="stylesheet" />
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @unless (app()->environment('testing'))
+            @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @endunless
     </head>
     <body class="bg-ys-ink text-ys-ivory selection:bg-ys-gold/20 selection:text-ys-ivory">
         @include('partials.role-shortcuts-config')
