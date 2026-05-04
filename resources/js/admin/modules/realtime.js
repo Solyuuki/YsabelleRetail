@@ -2,18 +2,31 @@ import { showToast } from '../../storefront/modules/toasts';
 
 const renderActivityList = (entries) => {
     if (!Array.isArray(entries) || entries.length === 0) {
-        return '<div class="ys-admin-empty-panel">Live activity will appear here once sales or stock updates happen.</div>';
+        return `
+            <div class="ys-admin-empty-state is-compact">
+                <span class="ys-admin-empty-state-icon">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                        <circle cx="12" cy="12" r="8"></circle>
+                    </svg>
+                </span>
+                <div>
+                    <p class="ys-admin-empty-state-title">Activity stream is on standby.</p>
+                    <p class="ys-admin-empty-state-copy">New orders, counter sales, and stock updates will appear here in near real time.</p>
+                </div>
+            </div>
+        `;
     }
 
     return entries.map((entry) => `
-        <div class="rounded-[1rem] border border-white/7 bg-white/[0.03] px-4 py-3">
-            <div class="flex items-start justify-between gap-3">
+        <div class="ys-admin-live-item">
+            <div class="ys-admin-live-item-main">
+                <span class="ys-admin-live-indicator is-${entry.type ?? 'success'}"></span>
                 <div>
-                    <p class="text-sm font-semibold text-ys-ivory">${entry.title}</p>
-                    <p class="mt-1 text-sm leading-6 text-ys-ivory/58">${entry.message}</p>
+                    <p class="ys-admin-live-title">${entry.title}</p>
+                    <p class="ys-admin-live-copy">${entry.message}</p>
                 </div>
-                <span class="shrink-0 text-xs uppercase tracking-[0.2em] text-ys-ivory/36">${entry.timestamp ?? ''}</span>
             </div>
+            <span class="ys-admin-live-time">${entry.timestamp ?? ''}</span>
         </div>
     `).join('');
 };

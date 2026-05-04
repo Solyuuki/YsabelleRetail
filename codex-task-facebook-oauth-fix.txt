@@ -1,0 +1,107 @@
+TASK: Permanently fix Facebook OAuth "App not active" / broken login redirect issue in Ysabelle Retail Shop.
+
+Context:
+The Laravel app currently has Google, Microsoft, and Facebook social login buttons. Facebook OAuth redirects to Facebook but shows:
+"App not active. This app is not accessible right now..."
+This must be fixed properly, not hidden with UI-only changes.
+
+Primary Goal:
+Make Facebook social login work correctly in local development and be production-ready for deployment.
+
+Important investigation requirements:
+1. Check the current Laravel Facebook OAuth implementation end-to-end:
+   - routes/web.php
+   - controller handling /auth/facebook/redirect or /auth/facebook
+   - callback route
+   - config/services.php
+   - .env variable usage
+   - Socialite provider setup
+   - user creation/linking logic
+   - login page button href/action
+2. Confirm whether the app is using the correct Facebook App ID and App Secret from .env.
+3. Confirm the configured redirect URI exactly matches:
+   http://127.0.0.1:8000/auth/facebook/callback
+   or whatever route the code actually uses.
+4. Fix mismatch between frontend login button URL and backend route if present.
+5. Add clear handling for OAuth failures:
+   - cancelled login
+   - invalid credentials
+   - inactive Facebook app / app not in live mode
+   - missing email from provider
+   - provider user already linked to an existing account
+6. Do NOT commit secrets or hardcode credentials.
+7. Do NOT remove existing Google or Microsoft OAuth behavior.
+
+Expected permanent fix:
+- Facebook login should redirect to Facebook correctly.
+- Callback should authenticate or create/link a user safely.
+- If Facebook app is inactive or developer-mode restricted, show a safe user-facing error instead of crashing.
+- Local development should work when the Facebook developer account is an app admin/developer/tester.
+- Production should be ready once Meta app is switched Live and required review/business verification is completed if needed.
+
+Meta/Facebook configuration notes to verify in documentation/comments only if useful:
+- In Meta Developer Dashboard, app may be in Development/Unpublished mode.
+- Development mode only allows app admins/developers/testers to log in.
+- Public users require Live mode and appropriate app review where applicable.
+- Valid OAuth Redirect URI must exactly match Laravel callback route.
+- Do not fake bypass Facebook OAuth.
+
+11th Commandments:
+1. 100% follow all project standards under the standards/ folder.
+2. Do not break, rewrite, or destabilize the existing codebase.
+3. Do not touch other Sprint/files if they are not part of the assigned task.
+4. No bundle coding and no bundle fixes. Apply targeted, modular fixes only.
+5. Keep files short, modular, and maintainable. Prefer roughly 100-300 lines per file when possible. Avoid giant files.
+6. Fix known bugs and errors completely, not partially.
+7. Keep everything modularized and aligned only with the assigned task.
+8. The result must be production-ready and aim for 10/10 quality.
+9. Ensure the implementation is fully working and introduces no conflicts with other teams.
+10. Always provide a detailed output report in the exact structure requested below.
+11. Add final status feedback and quality rating, for example 10/10 if production-ready.
+
+Refined Enforcement Rules:
+- No contributor may claim compliance while ignoring the standards package.
+- No opportunistic rewrites. No aesthetic refactors inside unrelated work.
+- Sprint boundaries are real boundaries.
+- One task means one target area.
+- Large files are a design smell.
+- A bug is not fixed if a failure path remains broken.
+- Every new file must belong to a domain and a reason.
+- Production-ready means secure, validated, reviewable, testable, and maintainable.
+- Parallel team safety matters.
+- Every delivery must state exactly what changed, what was avoided, what risks remain, and what quality level was achieved.
+- Final rating must reflect reality, not optimism.
+
+Additional Production Rules:
+- No secrets in source code, config defaults, views, scripts, or artifacts.
+- No payment flow may trust browser state over server verification.
+- No private realtime channel may exist without authorization logic.
+- No admin action may bypass audit expectations for high-risk state changes.
+- No cross-domain coupling should be introduced casually.
+- No feature is complete if its critical edge cases remain undocumented or untested.
+- No AI or developer may invent architecture that conflicts with the bounded domain direction already documented.
+
+Required output report format:
+1. Scope Confirmed
+2. Files Inspected
+3. Root Cause
+4. Changes Made
+5. Files Changed
+6. What Was Avoided
+7. Validation Steps
+8. Remaining Risks
+9. Final Status
+10. Quality Rating
+
+Validation commands to run:
+php artisan config:clear
+php artisan cache:clear
+php artisan route:list | grep -i facebook
+php artisan test
+
+Also manually validate:
+- Visit /login
+- Click Continue with Facebook
+- Confirm redirect URL matches configured callback
+- Confirm successful login for authorized Meta developer/test account
+- Confirm safe error page/message when OAuth fails

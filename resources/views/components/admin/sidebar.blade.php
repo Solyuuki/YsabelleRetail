@@ -5,11 +5,8 @@
 
 <aside class="ys-admin-sidebar" data-admin-sidebar>
     <a href="{{ route('admin.dashboard') }}" class="ys-admin-sidebar-brand">
-        <x-storefront.brand-logo class="block w-[8.5rem]" />
-        <div>
-            <p class="text-[0.72rem] uppercase tracking-[0.3em] text-ys-gold/74">Admin</p>
-            <p class="mt-1 text-sm font-semibold text-ys-ivory">Ysabelle Back Office</p>
-        </div>
+        <x-storefront.brand-logo class="ys-admin-sidebar-brand-logo" />
+        <p class="ys-admin-sidebar-brand-label">Admin Back Office</p>
     </a>
 
     <nav class="ys-admin-sidebar-nav">

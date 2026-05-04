@@ -23,10 +23,10 @@
             />
 
             <div class="absolute left-5 top-5 flex gap-2">
-                @if ($product->is_featured)
+                @if ($product->shows_new_badge)
                     <span class="ys-status-pill bg-ys-gold text-ys-ink">New</span>
                 @endif
-                @if ($product->compare_at_price)
+                @if ($product->shows_sale_badge)
                     <span class="ys-status-pill bg-[#e44040] text-white">Sale</span>
                 @endif
             </div>
@@ -52,7 +52,7 @@
             <div class="flex items-end justify-between gap-5">
                 <div>
                     <p class="text-[1.2rem] font-semibold text-ys-ivory">&#8369;{{ number_format((float) $product->base_price, 0) }}</p>
-                    @if ($product->compare_at_price)
+                    @if ($product->shows_sale_badge)
                         <p class="mt-1 text-[0.96rem] text-ys-ivory/35 line-through">&#8369;{{ number_format((float) $product->compare_at_price, 0) }}</p>
                     @endif
                 </div>

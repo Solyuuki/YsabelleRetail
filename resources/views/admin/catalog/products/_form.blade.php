@@ -107,8 +107,8 @@
 
         <div class="mt-4 grid gap-4 md:grid-cols-2">
             <label class="ys-admin-field">
-                <span class="ys-admin-label">Primary Image URL</span>
-                <input type="url" name="primary_image_url" value="{{ old('primary_image_url', $product->primary_image_url) }}" class="ys-admin-input">
+                <span class="ys-admin-label">Primary Image Path or URL</span>
+                <input type="text" name="primary_image_url" value="{{ old('primary_image_url', $product->primary_image_url) }}" class="ys-admin-input" placeholder="images/products/running/shadow-stride.png">
             </label>
 
             <label class="ys-admin-field">

@@ -1,31 +1,67 @@
-@extends('layouts.storefront', ['title' => 'Sign in | Ysabelle Retail'])
+@extends('layouts.auth', ['title' => 'Sign in | Ysabelle Retail'])
 
 @section('content')
-    <section class="ys-container flex min-h-[calc(100vh-20rem)] items-center justify-center pb-18 pt-10 lg:pt-14">
-        <div class="w-full max-w-md rounded-[1.9rem] border border-white/7 bg-ys-panel/90 p-8 shadow-[0_20px_80px_rgba(0,0,0,0.5)]" data-reveal>
-            <x-storefront.brand-logo class="mx-auto block w-[10rem]" />
-            <h1 class="mt-5 text-center font-serif text-4xl text-ys-ivory">Welcome back</h1>
-            <p class="mt-3 text-center text-sm text-ys-ivory/48">Sign in to access your bag and orders.</p>
+    <section class="ys-auth-shell">
+        <div class="ys-auth-panel">
+            <div class="ys-auth-header">
+                <x-storefront.brand-logo class="mx-auto block w-[9.5rem]" />
+                <h1 class="ys-auth-heading">Welcome back</h1>
+                <p class="ys-auth-copy">
+                    Sign in to continue with your Ysabelle account.
+                </p>
+            </div>
 
-            <form action="{{ route('login.store') }}" method="POST" class="mt-8 space-y-5">
+            <form action="{{ route('login.store') }}" method="POST" class="ys-auth-form" novalidate>
                 @csrf
-                <label class="ys-field">
-                    <span>Email</span>
-                    <input type="email" name="email" class="ys-input" value="{{ old('email') }}" required>
+
+                <label class="ys-auth-field">
+                    <span class="ys-auth-field-label">Email address</span>
+                    <input
+                        type="email"
+                        name="email"
+                        class="ys-auth-input"
+                        value="{{ old('email') }}"
+                        autocomplete="email"
+                        inputmode="email"
+                        required
+                        autofocus
+                        aria-invalid="@error('email') true @else false @enderror"
+                    >
+                    @error('email')
+                        <span class="ys-auth-error">{{ $message }}</span>
+                    @enderror
                 </label>
 
-                <label class="ys-field">
-                    <span>Password</span>
-                    <input type="password" name="password" class="ys-input" required>
+                <label class="ys-auth-field">
+                    <span class="ys-auth-field-label">Password</span>
+                    <input
+                        type="password"
+                        name="password"
+                        class="ys-auth-input"
+                        autocomplete="current-password"
+                        required
+                        aria-invalid="@error('password') true @else false @enderror"
+                    >
+                    @error('password')
+                        <span class="ys-auth-error">{{ $message }}</span>
+                    @enderror
                 </label>
 
-                <button class="ys-button-primary mt-2 w-full justify-center">Sign in</button>
+                <button type="submit" class="ys-auth-submit">Continue</button>
             </form>
 
-            <p class="mt-5 text-center text-sm text-ys-ivory/42">
+            <p class="ys-auth-switch-copy">
                 Don't have an account?
-                <a href="{{ route('register') }}" class="font-semibold text-ys-ivory transition hover:text-ys-gold">Sign up</a>
+                <a href="{{ route('register') }}" class="ys-auth-inline-link">Sign up</a>
             </p>
+
+            <div class="ys-auth-divider" role="presentation">
+                <span>or continue with</span>
+            </div>
+
+            @include('auth.partials.social-providers', ['providers' => $socialProviders])
+
+            @include('auth.partials.legal-links')
         </div>
     </section>
 @endsection

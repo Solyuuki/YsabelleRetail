@@ -4,6 +4,7 @@ namespace App\Models\Catalog;
 
 use App\Models\Orders\OrderItem;
 use Database\Factories\Catalog\ProductFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -65,5 +66,34 @@ class Product extends Model
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function markAsStorefrontNewArrival(bool $value = true): static
+    {
+        $this->setAttribute('storefront_new_arrival', $value);
+
+        return $this;
+    }
+
+    protected function storefrontNewArrival(): Attribute
+    {
+        return Attribute::make(
+            get: fn (mixed $value): bool => (bool) ($value ?? false),
+        );
+    }
+
+    protected function showsNewBadge(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => (bool) ($this->storefront_new_arrival || $this->is_featured),
+        );
+    }
+
+    protected function showsSaleBadge(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->compare_at_price !== null
+                && (float) $this->compare_at_price > (float) $this->base_price,
+        );
     }
 }

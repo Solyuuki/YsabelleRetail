@@ -6,16 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Storefront\Catalog\ProductBrowseRequest;
 use App\Models\Catalog\Product;
 use App\Services\Catalog\CatalogQueryService;
+use App\Support\Storefront\CatalogCollection;
 use Illuminate\Contracts\View\View;
 
 class ProductController extends Controller
 {
     public function index(ProductBrowseRequest $request, CatalogQueryService $catalogQuery): View
     {
+        $filters = $catalogQuery->resolveBrowseFilters($request->validated());
+        $filterCategories = $catalogQuery->navigationCategories();
+        $perPage = (int) ($filters['per_page'] ?? 12);
+        $activeCollection = CatalogCollection::metadata($filters['collection'] ?? null);
+
         return view('storefront.catalog.products.index', [
-            'products' => $catalogQuery->products($request->validated(), 24),
-            'filters' => $request->validated(),
-            'filterCategories' => $catalogQuery->navigationCategories(),
+            'products' => $catalogQuery->products($filters, $perPage),
+            'filters' => $filters,
+            'filterCategories' => $filterCategories,
+            'activeCategory' => $filterCategories->firstWhere('slug', $filters['category'] ?? null),
+            'activeCollection' => $activeCollection,
+            'activeUseCaseLabel' => config('storefront.assistant.visual_search.use_cases.'.($filters['use_case'] ?? '')),
         ]);
     }
 

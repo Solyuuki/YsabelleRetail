@@ -449,10 +449,20 @@
     }
 
     .ys-featured-card-fallback {
-        @apply flex h-full w-full items-center justify-center px-6 text-center text-[1rem] font-medium text-ys-ivory/54;
+        @apply pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-[1rem] font-medium text-ys-ivory/54;
         background:
             radial-gradient(circle at 50% 42%, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 34%),
             linear-gradient(180deg, #09090a 0%, #121214 100%);
+        opacity: 0;
+        transition: opacity 220ms ease;
+    }
+
+    .ys-featured-card-media.is-fallback-visible .ys-featured-card-image {
+        opacity: 0;
+    }
+
+    .ys-featured-card-media.is-fallback-visible .ys-featured-card-fallback {
+        opacity: 1;
     }
 
     .ys-featured-card-body {
@@ -587,12 +597,199 @@
         @apply text-[0.98rem] font-semibold text-ys-ivory/70 transition hover:text-ys-gold;
     }
 
+    .ys-storefront-toolbar {
+        @apply space-y-4;
+    }
+
+    .ys-storefront-toolbar-form {
+        @apply space-y-3.5;
+    }
+
+    .ys-storefront-toolbar-main {
+        @apply grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-center;
+    }
+
+    .ys-storefront-search-field {
+        @apply relative block;
+    }
+
+    .ys-storefront-search-icon {
+        @apply pointer-events-none absolute inset-y-0 left-4 inline-flex items-center text-ys-ivory/30;
+    }
+
+    .ys-storefront-search-input,
+    .ys-storefront-sort-select {
+        @apply h-12 rounded-[0.28rem] border-white/10 bg-black/28 text-[0.94rem] shadow-[0_10px_30px_rgba(0,0,0,0.14)];
+    }
+
+    .ys-storefront-search-input {
+        @apply pl-11 pr-4;
+    }
+
+    .ys-storefront-sort-wrap {
+        @apply w-full;
+    }
+
+    .ys-storefront-sort-select {
+        color-scheme: dark;
+        color: rgba(255, 249, 239, 0.92);
+    }
+
+    .ys-storefront-sort-select:focus {
+        border-color: rgba(212, 166, 59, 0.5);
+        box-shadow:
+            0 0 0 1px rgba(212, 166, 59, 0.28),
+            0 10px 30px rgba(0, 0, 0, 0.14);
+    }
+
+    .ys-storefront-sort-select option {
+        background-color: #0b0b0b;
+        color: rgba(255, 249, 239, 0.94);
+    }
+
+    .ys-storefront-sort-select option:checked,
+    .ys-storefront-sort-select option[selected] {
+        background-color: #c69839;
+        color: #17110a;
+    }
+
+    .ys-storefront-advanced-filters {
+        @apply border-t border-white/7 pt-3;
+    }
+
+    .ys-storefront-advanced-summary {
+        @apply inline-flex list-none cursor-pointer items-center gap-2 text-[0.82rem] font-semibold text-ys-ivory/56 transition duration-300 hover:text-ys-gold;
+        letter-spacing: 0.01em;
+    }
+
+    .ys-storefront-advanced-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .ys-storefront-advanced-badge {
+        @apply rounded-full border border-ys-gold/20 bg-ys-gold/10 px-2.5 py-1 text-[0.62rem] font-semibold text-ys-gold;
+    }
+
+    .ys-storefront-advanced-panel {
+        @apply mt-3 rounded-[1rem] border border-white/8 bg-white/[0.02] p-4;
+    }
+
+    .ys-storefront-advanced-grid {
+        @apply grid gap-3 sm:grid-cols-2;
+    }
+
+    .ys-storefront-advanced-actions {
+        @apply mt-3 flex flex-wrap items-center gap-3;
+    }
+
+    .ys-storefront-chip-row {
+        @apply flex flex-wrap gap-2.5;
+    }
+
     .ys-filter-pill {
-        @apply inline-flex items-center rounded-[1rem] border border-white/8 bg-white/[0.02] px-4.5 py-3 text-[0.78rem] font-semibold uppercase tracking-[0.22em] text-ys-ivory/55 transition duration-300 hover:border-white/16 hover:text-ys-ivory;
+        @apply inline-flex items-center rounded-[0.28rem] border border-white/10 bg-black/20 px-4 py-2.5 text-[0.84rem] font-semibold text-ys-ivory/70 transition duration-300 hover:border-white/20 hover:text-ys-ivory;
     }
 
     .ys-filter-pill-active {
-        @apply border-ys-gold/40 bg-ys-gold text-[#17110a] hover:text-[#17110a];
+        @apply border-ys-gold bg-ys-gold text-[#17110a] shadow-[0_10px_24px_rgba(212,166,59,0.2)] hover:text-[#17110a];
+    }
+
+    .ys-storefront-visual-search-rail {
+        @apply flex flex-col gap-3 rounded-[1rem] border border-white/7 bg-black/16 px-4 py-4 sm:flex-row sm:items-center sm:justify-between;
+    }
+
+    .ys-storefront-inline-visual-search {
+        @apply mt-4 rounded-[1.3rem] border border-white/8 bg-ys-panel/88 p-4 shadow-[0_18px_55px_rgba(0,0,0,0.28)];
+    }
+
+    .ys-storefront-inline-visual-search-header {
+        @apply flex flex-col gap-3 border-b border-white/7 pb-4 sm:flex-row sm:items-start sm:justify-between;
+    }
+
+    .ys-storefront-inline-visual-search-form {
+        @apply mt-4 space-y-3.5;
+    }
+
+    .ys-storefront-inline-dropzone {
+        @apply flex cursor-pointer flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-ys-gold/28 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))] px-6 py-8 text-center transition duration-300 hover:border-ys-gold/45 hover:bg-white/[0.03] focus:outline-none focus-visible:border-ys-gold focus-visible:ring-2 focus-visible:ring-ys-gold/30;
+        min-height: 13rem;
+    }
+
+    .ys-storefront-inline-dropzone.is-dragover,
+    .ys-storefront-inline-dropzone.is-busy {
+        @apply border-ys-gold/55 bg-white/[0.035];
+    }
+
+    .ys-storefront-inline-dropzone-icon {
+        @apply mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/8 bg-black/26 text-ys-gold;
+    }
+
+    .ys-storefront-inline-dropzone-title {
+        @apply text-[1rem] font-semibold text-ys-ivory;
+    }
+
+    .ys-storefront-inline-dropzone-copy {
+        @apply mt-1 text-sm text-ys-ivory/48;
+    }
+
+    .ys-storefront-inline-dropzone-button {
+        @apply mt-4 inline-flex rounded-full border border-ys-gold/30 bg-ys-gold/10 px-4 py-2 text-[0.76rem] font-semibold uppercase tracking-[0.16em] text-ys-gold;
+    }
+
+    .ys-storefront-inline-visual-status {
+        @apply flex flex-col gap-3 rounded-[1rem] border border-white/8 bg-black/24 px-4 py-3 sm:flex-row sm:items-center sm:justify-between;
+    }
+
+    .ys-storefront-inline-visual-status-copy {
+        @apply min-w-0;
+    }
+
+    .ys-storefront-inline-visual-status-name {
+        @apply truncate text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-storefront-inline-visual-status-text {
+        @apply mt-1 text-xs leading-5 text-ys-ivory/46;
+    }
+
+    .ys-storefront-inline-visual-status-actions {
+        @apply flex shrink-0 items-center gap-3;
+    }
+
+    .ys-storefront-inline-visual-results {
+        @apply mt-4 space-y-3;
+    }
+
+    .ys-storefront-inline-visual-results-title {
+        @apply text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-storefront-inline-visual-empty {
+        @apply mt-4 rounded-[1rem] border border-white/8 bg-black/20 px-4 py-4 text-sm leading-6 text-ys-ivory/66;
+    }
+
+    .ys-storefront-pagination {
+        @apply flex justify-center;
+    }
+
+    .ys-storefront-pagination-links {
+        @apply inline-flex flex-wrap items-center justify-center gap-2 rounded-[1.35rem] border border-white/7 bg-ys-panel/75 px-3 py-3 shadow-[0_14px_45px_rgba(0,0,0,0.22)];
+    }
+
+    .ys-storefront-pagination-link {
+        @apply inline-flex min-w-11 items-center justify-center rounded-[0.95rem] border border-white/8 bg-black/30 px-4 py-2.5 text-sm font-semibold text-ys-ivory/68 transition duration-300 hover:-translate-y-0.5 hover:border-ys-gold/35 hover:text-ys-gold;
+    }
+
+    .ys-storefront-pagination-link.is-active {
+        @apply border-ys-gold/65 bg-ys-gold text-ys-ink shadow-[0_10px_28px_rgba(212,166,59,0.24)];
+    }
+
+    .ys-storefront-pagination-link.is-disabled {
+        @apply cursor-not-allowed border-white/5 bg-white/[0.03] text-ys-ivory/24 hover:translate-y-0 hover:border-white/5 hover:text-ys-ivory/24;
+    }
+
+    .ys-storefront-pagination-gap {
+        @apply px-1 text-sm text-ys-ivory/28;
     }
 
     .ys-size-option {
@@ -635,8 +832,305 @@
         @apply border-[#6b1a1a] bg-[#3b0d0d] text-[#ffd8d8];
     }
 
+    .ys-chat-shell {
+        @apply relative flex items-end justify-end;
+        min-height: 3.75rem;
+        isolation: isolate;
+    }
+
+    .ys-chat-panel {
+        @apply overflow-hidden rounded-[2rem] border border-white/8 bg-ys-panel shadow-[0_28px_90px_rgba(0,0,0,0.58)];
+        max-height: min(44rem, calc(100vh - 9rem));
+        z-index: 2;
+        transform: translateY(16px) scale(0.98);
+        transform-origin: bottom right;
+        transition:
+            opacity 240ms ease,
+            transform 240ms ease;
+    }
+
+    .ys-chat-panel.is-open {
+        @apply pointer-events-auto opacity-100;
+        transform: translateY(0) scale(1);
+    }
+
+    .ys-chat-control {
+        @apply inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-ys-ivory/62 transition duration-300 hover:border-ys-gold/28 hover:text-ys-gold;
+    }
+
+    .ys-chat-header {
+        @apply flex items-start justify-between gap-4 border-b border-white/6 px-6 py-5;
+        background:
+            radial-gradient(circle at top left, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 34%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+    }
+
+    .ys-chat-header-copy {
+        @apply min-w-0;
+    }
+
+    .ys-chat-title {
+        @apply text-[1rem] font-semibold text-ys-ivory;
+        letter-spacing: -0.01em;
+    }
+
+    .ys-chat-subtitle {
+        @apply mt-2 max-w-[28rem] text-sm leading-6 text-ys-ivory/56;
+    }
+
+    .ys-chat-thread-shell {
+        @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+        background:
+            radial-gradient(circle at top, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0) 42%),
+            linear-gradient(180deg, rgba(6, 6, 7, 0.32), rgba(6, 6, 7, 0));
+    }
+
+    .ys-chat-footer {
+        @apply border-t border-white/6 px-5 pb-5 pt-4;
+        background: linear-gradient(180deg, rgba(10, 10, 11, 0), rgba(10, 10, 11, 0.92) 18%, rgba(10, 10, 11, 0.98));
+    }
+
+    .ys-chat-visual-form {
+        @apply space-y-3;
+    }
+
+    .ys-chat-visual-status {
+        @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-3.5 py-3;
+    }
+
+    .ys-chat-visual-status-image {
+        @apply h-13 w-13 rounded-[0.95rem] border border-white/8 object-cover;
+    }
+
+    .ys-chat-visual-status-name {
+        @apply truncate text-sm font-semibold text-ys-ivory;
+    }
+
+    .ys-chat-visual-status-copy {
+        @apply mt-1 text-xs leading-5 text-ys-ivory/48;
+    }
+
+    .ys-chat-inline-link {
+        @apply text-xs font-semibold uppercase tracking-[0.16em] text-ys-gold transition duration-300 hover:text-ys-ivory;
+    }
+
+    .ys-chat-refine-details {
+        @apply border-t border-white/7 pt-3;
+    }
+
+    .ys-chat-refine-summary {
+        @apply inline-flex list-none cursor-pointer items-center text-[0.8rem] font-semibold text-ys-ivory/54 transition duration-300 hover:text-ys-gold;
+        letter-spacing: 0.01em;
+    }
+
+    .ys-chat-refine-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .ys-chat-refine-panel {
+        @apply mt-3 rounded-[1.15rem] border border-white/8 bg-white/[0.02] p-4;
+    }
+
+    .ys-chat-refine-grid {
+        @apply grid gap-3 sm:grid-cols-2;
+    }
+
+    .ys-chat-refine-actions {
+        @apply mt-3 flex justify-end;
+    }
+
+    .ys-chat-input-bar {
+        @apply mt-4 flex items-center gap-3 rounded-[1.4rem] border border-white/10 bg-black/32 px-3 py-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)];
+    }
+
+    .ys-chat-input-icon {
+        @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-ys-ivory/62 transition duration-300 hover:border-ys-gold/32 hover:text-ys-gold;
+    }
+
+    .ys-chat-input-bar-field {
+        @apply min-w-0 flex-1 border-0 bg-transparent px-1 text-[0.96rem] text-ys-ivory placeholder:text-ys-ivory/34 focus:outline-none;
+    }
+
+    .ys-chat-messages {
+        @apply min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5;
+        scroll-behavior: smooth;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(212, 166, 59, 0.25) transparent;
+    }
+
+    .ys-chat-message-group {
+        @apply mb-5 flex flex-col gap-3;
+        animation: ys-chat-message-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .ys-chat-message-group.is-user {
+        @apply items-end;
+    }
+
+    .ys-chat-bubble {
+        @apply max-w-[88%] rounded-[1.4rem] px-4.5 py-3.5 text-sm leading-7;
+    }
+
+    .ys-chat-bubble.is-assistant {
+        @apply border border-white/8 bg-white/[0.04] text-ys-ivory/84;
+    }
+
+    .ys-chat-bubble.is-user {
+        @apply bg-[#c69839] text-[#17110a] shadow-[0_14px_34px_rgba(198,152,57,0.16)];
+    }
+
+    .ys-chat-image-bubble {
+        @apply flex max-w-[88%] items-center gap-3 rounded-[1.4rem] px-4 py-4;
+    }
+
+    .ys-chat-image-bubble.is-user {
+        @apply bg-[#c69839]/92 text-[#17110a];
+    }
+
+    .ys-chat-image-preview {
+        @apply h-16 w-16 rounded-[0.95rem] object-cover;
+    }
+
+    .ys-chat-image-copy {
+        @apply min-w-0;
+    }
+
+    .ys-chat-image-title {
+        @apply text-sm font-semibold;
+    }
+
+    .ys-chat-image-caption {
+        @apply mt-1 truncate text-xs opacity-80;
+    }
+
+    .ys-chat-chip {
+        @apply inline-flex items-center rounded-full border border-white/8 bg-white/[0.03] px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-ys-ivory/58 transition duration-300 hover:border-ys-gold/30 hover:text-ys-gold;
+    }
+
+    .ys-chat-chip-list {
+        @apply flex flex-wrap gap-2.5;
+    }
+
+    .ys-chat-chip-list.is-inline {
+        @apply pl-1;
+    }
+
+    .ys-chat-send-button {
+        @apply inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-ys-gold px-4.5 text-[0.88rem] font-semibold text-[#17110a] transition duration-300 hover:brightness-105;
+    }
+
+    .ys-chat-product-grid {
+        @apply -mx-1 flex gap-3 overflow-x-auto px-1 pb-1;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(212, 166, 59, 0.25) transparent;
+    }
+
+    .ys-assistant-product-card {
+        @apply w-[16.25rem] shrink-0 overflow-hidden rounded-[1.35rem] border border-white/8 bg-black/22;
+    }
+
+    .ys-assistant-product-link {
+        @apply block transition duration-300 hover:bg-white/[0.015];
+    }
+
+    .ys-assistant-product-media {
+        @apply h-34 overflow-hidden border-b border-white/6 bg-black;
+    }
+
+    .ys-assistant-product-fallback {
+        @apply flex h-full items-center justify-center px-4 text-center text-sm font-medium text-ys-ivory/54;
+        background:
+            radial-gradient(circle at 50% 42%, rgba(212, 166, 59, 0.08), rgba(212, 166, 59, 0) 34%),
+            linear-gradient(180deg, #09090a 0%, #121214 100%);
+    }
+
+    .ys-assistant-product-copy {
+        @apply p-4;
+    }
+
+    .ys-assistant-product-title {
+        @apply truncate text-[0.98rem] font-semibold text-ys-ivory;
+    }
+
+    .ys-assistant-product-meta {
+        @apply mt-1 text-[0.7rem] uppercase tracking-[0.22em] text-ys-ivory/34;
+    }
+
+    .ys-assistant-match-label {
+        @apply mt-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em];
+    }
+
+    .ys-assistant-match-label.is-strong_match {
+        @apply text-[#9fe1b1];
+    }
+
+    .ys-assistant-match-label.is-likely_match {
+        @apply text-[#f0c36f];
+    }
+
+    .ys-assistant-match-label.is-similar_match {
+        @apply text-ys-gold;
+    }
+
+    .ys-assistant-product-cta {
+        @apply text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-ys-gold;
+    }
+
+    .ys-assistant-stock {
+        @apply rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em];
+    }
+
+    .ys-assistant-stock.is-in_stock {
+        @apply bg-[#11311f] text-[#9fe1b1];
+    }
+
+    .ys-assistant-stock.is-low_stock {
+        @apply bg-[#38260c] text-[#f0c36f];
+    }
+
+    .ys-assistant-stock.is-sold_out {
+        @apply bg-[#411415] text-[#ffb0b0];
+    }
+
+    .ys-chat-actions {
+        @apply flex flex-wrap gap-3;
+    }
+
+    .ys-chat-action {
+        @apply inline-flex items-center rounded-full border border-ys-gold/25 bg-ys-gold/8 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ys-gold transition duration-300 hover:border-ys-gold/45 hover:bg-ys-gold/12 hover:text-ys-ivory;
+    }
+
+    .ys-chat-typing-dots {
+        @apply inline-flex items-center gap-1;
+    }
+
+    .ys-chat-typing-dots span {
+        @apply h-1.5 w-1.5 rounded-full bg-ys-gold/75;
+        animation: ys-chat-typing 1s infinite ease-in-out;
+    }
+
+    .ys-chat-typing-dots span:nth-child(2) {
+        animation-delay: 120ms;
+    }
+
+    .ys-chat-typing-dots span:nth-child(3) {
+        animation-delay: 240ms;
+    }
+
     .ys-chat-trigger {
         @apply inline-flex h-15 w-15 items-center justify-center rounded-full border border-ys-gold/45 bg-ys-gold text-[#17110a] shadow-[0_12px_36px_rgba(212,166,59,0.35)] transition duration-300 hover:-translate-y-1 hover:scale-[1.02];
+        z-index: 1;
+        transition:
+            opacity 180ms ease,
+            transform 180ms ease,
+            visibility 180ms ease;
+    }
+
+    .ys-chat-shell.is-open .ys-chat-trigger {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px) scale(0.92);
+        visibility: hidden;
     }
 }
 
@@ -648,6 +1142,32 @@
 
     50% {
         transform: translateY(-10px) rotateZ(0.8deg) rotateX(0deg);
+    }
+}
+
+@keyframes ys-chat-typing {
+    0%,
+    80%,
+    100% {
+        opacity: 0.35;
+        transform: translateY(0);
+    }
+
+    40% {
+        opacity: 1;
+        transform: translateY(-2px);
+    }
+}
+
+@keyframes ys-chat-message-in {
+    0% {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
@@ -710,11 +1230,23 @@
             font-size: 2rem;
         }
 
+        .ys-chat-panel {
+            max-height: min(42rem, calc(100vh - 8rem));
+        }
+
+        .ys-storefront-toolbar-main {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
     }
 }
 
 @media (max-width: 640px) {
     @layer components {
+        .ys-chat-shell {
+            min-height: 3.25rem;
+        }
+
         .ys-hero-heading {
             max-width: 10.5ch;
             font-size: clamp(2.5rem, 12vw, 3.55rem);
@@ -810,6 +1342,56 @@
             @apply items-start;
         }
 
+        .ys-storefront-toolbar {
+            @apply space-y-3.5;
+        }
+
+        .ys-storefront-toolbar-form {
+            @apply space-y-3;
+        }
+
+        .ys-storefront-search-input,
+        .ys-storefront-sort-select {
+            @apply h-11 text-[0.9rem];
+        }
+
+        .ys-storefront-advanced-panel {
+            @apply p-3.5;
+        }
+
+        .ys-storefront-chip-row {
+            @apply gap-2;
+        }
+
+        .ys-filter-pill {
+            @apply px-3.5 py-2 text-[0.8rem];
+        }
+
+        .ys-storefront-visual-search-rail {
+            @apply rounded-[0.9rem] px-3.5 py-3.5;
+        }
+
+        .ys-storefront-inline-visual-search {
+            @apply rounded-[1.1rem] p-3.5;
+        }
+
+        .ys-storefront-inline-dropzone {
+            @apply px-4 py-7;
+            min-height: 12rem;
+        }
+
+        .ys-storefront-inline-visual-status {
+            @apply items-start;
+        }
+
+        .ys-storefront-pagination-links {
+            @apply w-full gap-1.5 px-2 py-2.5;
+        }
+
+        .ys-storefront-pagination-link {
+            @apply min-w-10 px-3 py-2 text-[0.82rem];
+        }
+
         .ys-featured-showcase-title {
             font-size: 2.1rem;
         }
@@ -845,6 +1427,68 @@
 
         .ys-featured-banner-button {
             @apply px-4.5 py-2.5 text-[0.62rem];
+        }
+
+        .ys-chat-panel {
+            max-width: min(100vw - 2rem, 28rem);
+            max-height: min(40rem, calc(100vh - 8rem));
+        }
+
+        .ys-chat-header {
+            @apply px-5 py-4.5;
+        }
+
+        .ys-chat-subtitle {
+            @apply text-[0.82rem] leading-5;
+        }
+
+        .ys-chat-footer {
+            @apply px-4 pb-4 pt-3.5;
+        }
+
+        .ys-chat-messages {
+            @apply px-4 pb-4 pt-4;
+        }
+
+        .ys-chat-refine-panel {
+            @apply p-3.5;
+        }
+
+        .ys-chat-input-bar {
+            @apply gap-2.5 px-2.5 py-2.5;
+        }
+
+        .ys-chat-input-icon {
+            @apply h-10 w-10;
+        }
+
+        .ys-chat-send-button {
+            @apply h-10 px-4 text-[0.82rem];
+        }
+
+        .ys-chat-bubble,
+        .ys-chat-image-bubble {
+            max-width: 100%;
+        }
+
+        .ys-chat-product-grid {
+            @apply gap-2.5;
+        }
+
+        .ys-assistant-product-card {
+            width: min(15rem, calc(100vw - 6rem));
+        }
+
+        .ys-chat-visual-status {
+            @apply grid-cols-[auto_minmax(0,1fr)] items-start;
+        }
+
+        .ys-chat-inline-link {
+            @apply col-span-full mt-1 justify-self-start;
+        }
+
+        .ys-chat-trigger {
+            @apply h-13 w-13;
         }
 
     }
