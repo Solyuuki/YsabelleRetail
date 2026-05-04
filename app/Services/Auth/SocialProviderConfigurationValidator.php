@@ -67,10 +67,6 @@ class SocialProviderConfigurationValidator
             $loginUrl = rtrim($expectedOrigin, '/').route('login', absolute: false);
             $message = "{$providerName} sign-in is configured for {$loginUrl}. Open that URL or align APP_URL and {$this->redirectEnvKey($provider)} to the same origin.";
 
-            if ($provider === 'facebook' && str_starts_with($expectedOrigin, 'https://')) {
-                $message = "Facebook sign-in is configured for {$loginUrl}. Meta commonly requires an HTTPS callback for local testing, so use that HTTPS URL or align APP_URL and FACEBOOK_REDIRECT_URI to the same HTTPS origin.";
-            }
-
             return new SocialProviderConfigurationStatus(
                 provider: $provider,
                 providerName: $providerName,

@@ -30,6 +30,7 @@ This repository now includes:
    - `php artisan storage:link`
 6. Start local development:
    - `composer dev`
+   - app login URLs: `http://localhost:8000/login` and `http://localhost:8000/account`
 
 ## Demo Accounts
 
@@ -42,9 +43,17 @@ These local demo credentials are only seeded in the `local` environment.
 
 The admin dashboard uses Laravel events and listeners to create a live activity feed. The frontend refreshes it through a polling fallback, so no paid websocket service is required.
 
-- App server: `php artisan serve`
+- App server: `composer serve:local`
 - Frontend assets: `npm run dev`
 - Full guardrail: `composer check`
+
+## Local Server Workflow
+
+Use the project-standard localhost commands so OAuth callback hosts stay consistent during development.
+
+- Backend only: `composer serve:local`
+- Full stack: `composer dev`
+- Official local URLs: `http://localhost:8000/login` and `http://localhost:8000/account`
 
 ## Developer Entry Points
 

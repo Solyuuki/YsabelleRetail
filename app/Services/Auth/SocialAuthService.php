@@ -7,8 +7,8 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
 use Laravel\Socialite\Contracts\User as ProviderUser;
 use Laravel\Socialite\Two\InvalidStateException;
@@ -27,10 +27,10 @@ class SocialAuthService
             'button_label' => 'Continue with Microsoft',
             'scopes' => ['openid', 'profile', 'User.Read'],
         ],
-        'facebook' => [
-            'name' => 'Facebook',
-            'button_label' => 'Continue with Facebook',
-            'scopes' => ['email'],
+        'github' => [
+            'name' => 'GitHub',
+            'button_label' => 'Continue with GitHub',
+            'scopes' => ['read:user', 'user:email'],
         ],
     ];
 
@@ -170,10 +170,6 @@ class SocialAuthService
             $driver->with(['prompt' => 'select_account']);
         }
 
-        if ($provider === 'facebook' && method_exists($driver, 'fields')) {
-            $driver->fields(['name', 'email', 'picture.width(1920)']);
-        }
-
         return $driver;
     }
 
@@ -215,9 +211,22 @@ class SocialAuthService
             );
         }
 
-        $email = $this->normalizeEmail($providerUser->getEmail());
+        $email = $this->resolveProviderEmail($provider, $providerUser, $providerUserId);
         $name = $this->resolveDisplayName($providerUser, $email);
         $avatar = $providerUser->getAvatar();
+
+        if ($provider === 'github') {
+            $linkedUser = User::query()
+                ->where('github_id', $providerUserId)
+                ->first();
+
+            if ($linkedUser) {
+                $this->syncGithubIdentity($linkedUser, $providerUserId);
+                $this->syncSocialAccount($linkedUser, $provider, $providerUserId, $email, $avatar);
+
+                return $this->ensureUserIsActive($linkedUser);
+            }
+        }
 
         $linkedAccount = SocialAccount::query()
             ->where('provider', $provider)
@@ -225,24 +234,20 @@ class SocialAuthService
             ->first();
 
         if ($linkedAccount) {
-            return $this->ensureUserIsActive($linkedAccount->user);
-        }
+            $user = $this->ensureUserIsActive($linkedAccount->user);
 
-        if (! $email) {
-            throw new SocialAuthException(
-                'We could not read an email address from this provider. Please sign in with email and password instead.'
-            );
+            if ($provider === 'github') {
+                $this->syncGithubIdentity($user, $providerUserId);
+            }
+
+            $this->syncSocialAccount($user, $provider, $providerUserId, $email, $avatar);
+
+            return $user;
         }
 
         $user = User::query()
             ->where('email', $email)
             ->first();
-
-        if ($user && ! $this->canLinkExistingUser($provider, $providerUser)) {
-            throw new SocialAuthException(
-                'We could not safely link this social account. Please sign in with your password first.'
-            );
-        }
 
         $user ??= $this->customerAccounts->registerFromSocial(
             name: $name,
@@ -252,16 +257,25 @@ class SocialAuthService
 
         $user = $this->ensureUserIsActive($user);
 
-        $user->socialAccounts()->updateOrCreate(
-            ['provider' => $provider],
-            [
-                'provider_user_id' => $providerUserId,
-                'provider_email' => $email,
-                'avatar' => $avatar ? Str::limit($avatar, 255, '') : null,
-            ],
-        );
+        if ($provider === 'github') {
+            $this->syncGithubIdentity($user, $providerUserId);
+        }
+
+        $this->syncSocialAccount($user, $provider, $providerUserId, $email, $avatar);
 
         return $user;
+    }
+
+    private function syncGithubIdentity(User $user, string $providerUserId): void
+    {
+        $user->forceFill([
+            'github_id' => $providerUserId,
+            'email_verified_at' => $user->email_verified_at ?? now(),
+        ]);
+
+        if ($user->isDirty(['github_id', 'email_verified_at'])) {
+            $user->save();
+        }
     }
 
     private function ensureUserIsActive(User $user): User
@@ -275,18 +289,11 @@ class SocialAuthService
         );
     }
 
-    private function canLinkExistingUser(
-        string $provider,
-        ProviderUser $providerUser,
-    ): bool {
-        return $this->providerEmailIsTrusted($provider, $providerUser);
-    }
-
     private function providerEmailIsTrusted(
         string $provider,
         ProviderUser $providerUser,
     ): bool {
-        if (in_array($provider, ['google', 'microsoft'], true)) {
+        if (in_array($provider, ['google', 'microsoft', 'github'], true)) {
             return true;
         }
 
@@ -325,6 +332,29 @@ class SocialAuthService
         return $normalized === '' ? null : $normalized;
     }
 
+    private function resolveProviderEmail(
+        string $provider,
+        ProviderUser $providerUser,
+        string $providerUserId,
+    ): string {
+        $email = $this->normalizeEmail($providerUser->getEmail());
+
+        if ($email) {
+            return $email;
+        }
+
+        if ($provider === 'github') {
+            $nickname = Str::lower(trim((string) $providerUser->getNickname()));
+            $localPart = $nickname !== '' ? $nickname : 'github-user-'.$providerUserId;
+
+            return "{$localPart}@github.local";
+        }
+
+        throw new SocialAuthException(
+            'We could not read an email address from this provider. Please sign in with email and password instead.'
+        );
+    }
+
     private function providerName(string $provider): string
     {
         return self::PROVIDERS[$provider]['name'];
@@ -342,10 +372,6 @@ class SocialAuthService
             $errorReason,
             $errorDescription,
         ]))));
-
-        if ($provider === 'facebook' && str_contains($diagnostic, 'app not active')) {
-            return 'Facebook login is currently unavailable because the Meta app is not active or this account is not assigned as an app tester/developer.';
-        }
 
         if (
             str_contains($diagnostic, 'access_denied')
@@ -372,6 +398,23 @@ class SocialAuthService
         }
 
         return "{$providerName} sign-in could not be completed. Please try again or use email and password.";
+    }
+
+    private function syncSocialAccount(
+        User $user,
+        string $provider,
+        string $providerUserId,
+        string $email,
+        ?string $avatar,
+    ): void {
+        $user->socialAccounts()->updateOrCreate(
+            ['provider' => $provider],
+            [
+                'provider_user_id' => $providerUserId,
+                'provider_email' => $email,
+                'avatar' => $avatar ? Str::limit($avatar, 255, '') : null,
+            ],
+        );
     }
 
     private function ensureSocialAccountsTableIsReady(): void

@@ -83,6 +83,6 @@ This release does not require Reverb, Pusher, or any paid websocket service. Per
 
 ## Local Commands
 
-- `php artisan serve`
+- `composer serve:local`
 - `npm run dev`
 - `composer check`

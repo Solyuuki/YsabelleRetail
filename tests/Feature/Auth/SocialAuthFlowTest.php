@@ -4,8 +4,11 @@ use App\Models\Access\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Socialite\Contracts\Factory as SocialiteFactory;
+use Laravel\Socialite\Two\GithubProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use SocialiteProviders\Microsoft\Provider;
 
 uses(RefreshDatabase::class);
 
@@ -19,7 +22,7 @@ function configureSocialProvider(string $provider): void
 
 function bindSocialiteDriver(string $provider, array $expectations): void
 {
-    $driver = \Mockery::mock();
+    $driver = Mockery::mock();
     $driver->shouldReceive('redirectUrl')
         ->zeroOrMoreTimes()
         ->andReturnSelf();
@@ -30,17 +33,11 @@ function bindSocialiteDriver(string $provider, array $expectations): void
         ->zeroOrMoreTimes()
         ->andReturnSelf();
 
-    if ($provider === 'facebook') {
-        $driver->shouldReceive('fields')
-            ->zeroOrMoreTimes()
-            ->andReturnSelf();
-    }
-
     foreach ($expectations as $method => $returnValue) {
         $expectation = $driver->shouldReceive($method)
             ->once();
 
-        if ($returnValue instanceof \Throwable) {
+        if ($returnValue instanceof Throwable) {
             $expectation->andThrow($returnValue);
 
             continue;
@@ -49,7 +46,7 @@ function bindSocialiteDriver(string $provider, array $expectations): void
         $expectation->andReturn($returnValue);
     }
 
-    $factory = \Mockery::mock(SocialiteFactory::class);
+    $factory = Mockery::mock(SocialiteFactory::class);
     $factory->shouldReceive('driver')
         ->once()
         ->with($provider)
@@ -60,11 +57,11 @@ function bindSocialiteDriver(string $provider, array $expectations): void
 
 function createSocialiteUser(array $attributes = []): SocialiteUser
 {
-    $user = new SocialiteUser();
+    $user = new SocialiteUser;
     $user->id = $attributes['id'] ?? 'provider-user-1';
     $user->nickname = $attributes['nickname'] ?? null;
     $user->name = $attributes['name'] ?? 'Ysabelle Shopper';
-    $user->email = $attributes['email'] ?? 'social@example.com';
+    $user->email = array_key_exists('email', $attributes) ? $attributes['email'] : 'social@example.com';
     $user->avatar = $attributes['avatar'] ?? 'https://example.test/avatar.jpg';
     $user->user = $attributes['user'] ?? ['email_verified' => true];
 
@@ -98,7 +95,22 @@ test('microsoft socialite driver is registered', function () {
     configureSocialProvider('microsoft');
 
     expect(get_class(app(SocialiteFactory::class)->driver('microsoft')))
-        ->toBe(\SocialiteProviders\Microsoft\Provider::class);
+        ->toBe(Provider::class);
+});
+
+test('github socialite driver is registered', function () {
+    configureSocialProvider('github');
+
+    expect(get_class(app(SocialiteFactory::class)->driver('github')))
+        ->toBe(GithubProvider::class);
+});
+
+test('github oauth routes resolve to the expected callback flow paths', function () {
+    expect(route('auth.social.redirect', ['provider' => 'github'], false))
+        ->toBe('/auth/github/redirect');
+
+    expect(route('auth.social.callback', ['provider' => 'github'], false))
+        ->toBe('/auth/github/callback');
 });
 
 test('missing provider credentials return an honest error response', function () {
@@ -139,7 +151,7 @@ test('provider redirect is blocked when the callback host does not match the cur
 test('google redirect requests account selection when possible', function () {
     configureSocialProvider('google');
 
-    $driver = \Mockery::mock();
+    $driver = Mockery::mock();
     $driver->shouldReceive('redirectUrl')
         ->once()
         ->andReturnSelf();
@@ -154,7 +166,7 @@ test('google redirect requests account selection when possible', function () {
         ->once()
         ->andReturn(new RedirectResponse('https://accounts.google.com/o/oauth2/auth?prompt=select_account'));
 
-    $factory = \Mockery::mock(SocialiteFactory::class);
+    $factory = Mockery::mock(SocialiteFactory::class);
     $factory->shouldReceive('driver')
         ->once()
         ->with('google')
@@ -190,26 +202,11 @@ test('configured social callbacks create and authenticate the shopper', function
     $this->assertAuthenticatedAs($user);
 });
 
-test('facebook callback with app inactive error returns a clear message', function () {
-    configureSocialProvider('facebook');
-
-    $this->get(route('auth.social.callback', [
-        'provider' => 'facebook',
-        'error' => 'temporarily_unavailable',
-        'error_description' => 'App not active',
-    ]))
-        ->assertRedirect(route('login'))
-        ->assertSessionHas(
-            'toast.message',
-            'Facebook login is currently unavailable because the Meta app is not active or this account is not assigned as an app tester/developer.'
-        );
-});
-
 test('provider callback failures are translated into safe redirect mismatch messages', function () {
     configureSocialProvider('google');
 
     bindSocialiteDriver('google', [
-        'user' => new \RuntimeException('redirect_uri_mismatch'),
+        'user' => new RuntimeException('redirect_uri_mismatch'),
     ]);
 
     $this->get(route('auth.social.callback', ['provider' => 'google']))
@@ -220,37 +217,100 @@ test('provider callback failures are translated into safe redirect mismatch mess
         );
 });
 
-test('existing accounts are not auto-linked for untrusted facebook emails', function () {
+test('existing accounts are linked and authenticated when github email already exists', function () {
     ensureSocialCustomerRoleExists();
-    configureSocialProvider('facebook');
+    configureSocialProvider('github');
 
-    User::factory()->create([
+    $existingUser = User::factory()->create([
         'email' => 'existing-shopper@example.com',
         'status' => 'active',
     ]);
 
-    bindSocialiteDriver('facebook', [
+    bindSocialiteDriver('github', [
         'user' => createSocialiteUser([
-            'id' => 'facebook-123',
+            'id' => 'github-123',
             'name' => 'Existing Shopper',
             'email' => 'existing-shopper@example.com',
-            'user' => ['email_verified' => false],
         ]),
     ]);
 
-    $this->get(route('auth.social.callback', ['provider' => 'facebook']))
-        ->assertRedirect(route('login'))
-        ->assertSessionHas(
-            'toast.message',
-            'We could not safely link this social account. Please sign in with your password first.'
-        );
+    $this->get(route('auth.social.callback', ['provider' => 'github']))
+        ->assertRedirect(route('storefront.account.index'));
+
+    $existingUser->refresh();
+
+    expect($existingUser->github_id)->toBe('github-123');
+    expect($existingUser->socialAccounts()->where('provider', 'github')->exists())->toBeTrue();
+    $this->assertAuthenticatedAs($existingUser);
+});
+
+test('github callback creates a fallback email when github does not provide one', function () {
+    ensureSocialCustomerRoleExists();
+    configureSocialProvider('github');
+
+    bindSocialiteDriver('github', [
+        'user' => createSocialiteUser([
+            'id' => 'github-456',
+            'nickname' => 'octocat',
+            'name' => 'Octo Cat',
+            'email' => null,
+        ]),
+    ]);
+
+    $this->get(route('auth.social.callback', ['provider' => 'github']))
+        ->assertRedirect(route('storefront.account.index'));
+
+    $user = User::query()->where('email', 'octocat@github.local')->first();
+
+    expect($user)->not->toBeNull();
+    expect($user?->github_id)->toBe('github-456');
+    expect($user?->email_verified_at)->not->toBeNull();
+    $this->assertAuthenticatedAs($user);
+});
+
+test('github callback backfills github id for an existing linked social account and authenticates the user', function () {
+    ensureSocialCustomerRoleExists();
+    configureSocialProvider('github');
+
+    $existingUser = User::factory()->create([
+        'email' => 'linked-shopper@example.com',
+        'github_id' => null,
+        'status' => 'active',
+    ]);
+
+    $existingUser->socialAccounts()->create([
+        'provider' => 'github',
+        'provider_user_id' => 'github-789',
+        'provider_email' => 'linked-shopper@example.com',
+        'avatar' => 'https://example.test/old-avatar.jpg',
+    ]);
+
+    bindSocialiteDriver('github', [
+        'user' => createSocialiteUser([
+            'id' => 'github-789',
+            'name' => 'Linked Shopper',
+            'email' => 'linked-shopper@example.com',
+            'avatar' => 'https://example.test/new-avatar.jpg',
+        ]),
+    ]);
+
+    $this->get(route('auth.social.callback', ['provider' => 'github']))
+        ->assertRedirect(route('storefront.account.index'));
+
+    $existingUser->refresh();
+
+    expect($existingUser->github_id)->toBe('github-789');
+    expect($existingUser->email_verified_at)->not->toBeNull();
+    expect($existingUser->socialAccounts()->where('provider', 'github')->value('avatar'))
+        ->toBe('https://example.test/new-avatar.jpg');
+    $this->assertAuthenticatedAs($existingUser);
 });
 
 test('social callback fails gracefully when social accounts table is missing', function () {
     ensureSocialCustomerRoleExists();
     configureSocialProvider('google');
 
-    \Illuminate\Support\Facades\Schema::dropIfExists('social_accounts');
+    Schema::dropIfExists('social_accounts');
 
     bindSocialiteDriver('google', [
         'user' => createSocialiteUser([

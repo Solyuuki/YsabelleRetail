@@ -4,8 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Access\Role;
-use App\Models\Auth\SocialAccount;
 use App\Models\Audit\AuditLog;
+use App\Models\Auth\SocialAccount;
 use App\Models\Cart\Cart;
 use App\Models\Inventory\StockMovement;
 use App\Models\Orders\Order;
@@ -30,6 +30,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'github_id',
         'password',
         'status',
     ];
