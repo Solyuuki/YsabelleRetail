@@ -178,6 +178,66 @@ test('google redirect requests account selection when possible', function () {
         ->assertRedirect('https://accounts.google.com/o/oauth2/auth?prompt=select_account');
 });
 
+test('microsoft redirect requests account selection when possible', function () {
+    configureSocialProvider('microsoft');
+
+    $driver = Mockery::mock();
+    $driver->shouldReceive('redirectUrl')
+        ->once()
+        ->andReturnSelf();
+    $driver->shouldReceive('scopes')
+        ->once()
+        ->andReturnSelf();
+    $driver->shouldReceive('with')
+        ->once()
+        ->with(['prompt' => 'select_account'])
+        ->andReturnSelf();
+    $driver->shouldReceive('redirect')
+        ->once()
+        ->andReturn(new RedirectResponse('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?prompt=select_account'));
+
+    $factory = Mockery::mock(SocialiteFactory::class);
+    $factory->shouldReceive('driver')
+        ->once()
+        ->with('microsoft')
+        ->andReturn($driver);
+
+    app()->instance(SocialiteFactory::class, $factory);
+
+    $this->get(route('auth.social.redirect', ['provider' => 'microsoft']))
+        ->assertRedirect('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?prompt=select_account');
+});
+
+test('github redirect requests account selection when possible', function () {
+    configureSocialProvider('github');
+
+    $driver = Mockery::mock();
+    $driver->shouldReceive('redirectUrl')
+        ->once()
+        ->andReturnSelf();
+    $driver->shouldReceive('scopes')
+        ->once()
+        ->andReturnSelf();
+    $driver->shouldReceive('with')
+        ->once()
+        ->with(['prompt' => 'select_account'])
+        ->andReturnSelf();
+    $driver->shouldReceive('redirect')
+        ->once()
+        ->andReturn(new RedirectResponse('https://github.com/login/oauth/authorize?prompt=select_account'));
+
+    $factory = Mockery::mock(SocialiteFactory::class);
+    $factory->shouldReceive('driver')
+        ->once()
+        ->with('github')
+        ->andReturn($driver);
+
+    app()->instance(SocialiteFactory::class, $factory);
+
+    $this->get(route('auth.social.redirect', ['provider' => 'github']))
+        ->assertRedirect('https://github.com/login/oauth/authorize?prompt=select_account');
+});
+
 test('configured social callbacks create and authenticate the shopper', function () {
     ensureSocialCustomerRoleExists();
     configureSocialProvider('google');
@@ -202,6 +262,30 @@ test('configured social callbacks create and authenticate the shopper', function
     $this->assertAuthenticatedAs($user);
 });
 
+test('configured microsoft callback creates and authenticates the shopper', function () {
+    ensureSocialCustomerRoleExists();
+    configureSocialProvider('microsoft');
+
+    bindSocialiteDriver('microsoft', [
+        'user' => createSocialiteUser([
+            'id' => 'microsoft-123',
+            'name' => 'Microsoft Shopper',
+            'email' => 'microsoft-shopper@example.com',
+        ]),
+    ]);
+
+    $this->get(route('auth.social.callback', ['provider' => 'microsoft']))
+        ->assertRedirect(route('storefront.account.index'));
+
+    $user = User::query()->where('email', 'microsoft-shopper@example.com')->first();
+
+    expect($user)->not->toBeNull();
+    expect($user?->hasRole('customer'))->toBeTrue();
+    expect($user?->socialAccounts()->where('provider', 'microsoft')->exists())->toBeTrue();
+
+    $this->assertAuthenticatedAs($user);
+});
+
 test('provider callback failures are translated into safe redirect mismatch messages', function () {
     configureSocialProvider('google');
 
@@ -215,6 +299,50 @@ test('provider callback failures are translated into safe redirect mismatch mess
             'toast.message',
             'Google sign-in is temporarily unavailable because the callback URL does not match the provider configuration.'
         );
+});
+
+test('microsoft callback cancellation redirects safely without authenticating the user', function () {
+    configureSocialProvider('microsoft');
+
+    $factory = Mockery::mock(SocialiteFactory::class);
+    $factory->shouldNotReceive('driver');
+    app()->instance(SocialiteFactory::class, $factory);
+
+    $this->get(route('auth.social.callback', [
+        'provider' => 'microsoft',
+        'error' => 'access_denied',
+        'error_description' => 'The user cancelled the authentication flow.',
+    ]))
+        ->assertRedirect(route('login'))
+        ->assertSessionHas(
+            'toast.message',
+            'Microsoft sign-in was cancelled. Please try again if you want to continue.'
+        );
+
+    expect(User::query()->count())->toBe(0);
+    $this->assertGuest();
+});
+
+test('github callback cancellation redirects safely without authenticating the user', function () {
+    configureSocialProvider('github');
+
+    $factory = Mockery::mock(SocialiteFactory::class);
+    $factory->shouldNotReceive('driver');
+    app()->instance(SocialiteFactory::class, $factory);
+
+    $this->get(route('auth.social.callback', [
+        'provider' => 'github',
+        'error' => 'access_denied',
+        'error_description' => 'The user cancelled the authentication flow.',
+    ]))
+        ->assertRedirect(route('login'))
+        ->assertSessionHas(
+            'toast.message',
+            'GitHub sign-in was cancelled. Please try again if you want to continue.'
+        );
+
+    expect(User::query()->count())->toBe(0);
+    $this->assertGuest();
 });
 
 test('existing accounts are linked and authenticated when github email already exists', function () {

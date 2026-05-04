@@ -166,11 +166,19 @@ class SocialAuthService
             ->redirectUrl((string) config("services.{$provider}.redirect"))
             ->scopes(self::PROVIDERS[$provider]['scopes']);
 
-        if ($provider === 'google') {
-            $driver->with(['prompt' => 'select_account']);
+        if ($parameters = $this->providerRedirectParameters($provider)) {
+            $driver->with($parameters);
         }
 
         return $driver;
+    }
+
+    private function providerRedirectParameters(string $provider): array
+    {
+        return match ($provider) {
+            'google', 'microsoft', 'github' => ['prompt' => 'select_account'],
+            default => [],
+        };
     }
 
     private function throwIfProviderReturnedError(
@@ -378,6 +386,10 @@ class SocialAuthService
             || str_contains($diagnostic, 'permissions')
             || str_contains($diagnostic, 'user_denied')
         ) {
+            if (in_array($provider, ['microsoft', 'github'], true)) {
+                return "{$providerName} sign-in was cancelled. Please try again if you want to continue.";
+            }
+
             return "{$providerName} sign-in was cancelled or the requested permissions were denied.";
         }
 
