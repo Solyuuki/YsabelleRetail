@@ -16,8 +16,7 @@ class SupportTicketSubmittedMail extends Mailable
 
     public function __construct(
         public readonly SupportTicket $ticket
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {

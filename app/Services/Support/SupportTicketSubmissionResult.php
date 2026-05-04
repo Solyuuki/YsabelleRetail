@@ -9,6 +9,5 @@ class SupportTicketSubmissionResult
     public function __construct(
         public readonly SupportTicket $ticket,
         public readonly bool $emailSent,
-    ) {
-    }
+    ) {}
 }

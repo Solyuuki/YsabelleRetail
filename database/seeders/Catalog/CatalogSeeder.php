@@ -5,8 +5,8 @@ namespace Database\Seeders\Catalog;
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductVariant;
-use Database\Seeders\Catalog\Support\CatalogBlueprint;
 use Carbon\CarbonImmutable;
+use Database\Seeders\Catalog\Support\CatalogBlueprint;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 

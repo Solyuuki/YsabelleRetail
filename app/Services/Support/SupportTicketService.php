@@ -15,8 +15,7 @@ class SupportTicketService
 {
     public function __construct(
         private readonly SupportTicketNumberGenerator $ticketNumbers,
-    ) {
-    }
+    ) {}
 
     public function submit(array $payload, ?User $user, ?string $ipAddress, ?string $userAgent): SupportTicketSubmissionResult
     {

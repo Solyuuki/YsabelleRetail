@@ -12,8 +12,7 @@ class SupportPageController extends Controller
 {
     public function __construct(
         private readonly SupportPageService $supportPageService
-    ) {
-    }
+    ) {}
 
     public function __invoke(Request $request): View
     {

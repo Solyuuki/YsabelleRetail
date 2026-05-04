@@ -6,10 +6,10 @@ use App\Http\Controllers\Storefront\Catalog\CategoryController;
 use App\Http\Controllers\Storefront\Catalog\ProductController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
-use App\Http\Controllers\Storefront\SupportPageController;
-use App\Http\Controllers\Storefront\SupportTicketController;
 use App\Http\Controllers\Storefront\StorefrontAssistantController;
 use App\Http\Controllers\Storefront\StorefrontVisualSearchController;
+use App\Http\Controllers\Storefront\SupportPageController;
+use App\Http\Controllers\Storefront\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('storefront.home');
