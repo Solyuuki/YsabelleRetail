@@ -23,7 +23,7 @@ class CustomerAccountService
                 'preferred_name' => $user->name,
             ]);
 
-            $this->attachCustomerRole($user);
+            $this->ensureCustomerRole($user);
 
             return $user;
         });
@@ -49,7 +49,7 @@ class CustomerAccountService
         return $user;
     }
 
-    private function attachCustomerRole(User $user): void
+    public function ensureCustomerRole(User $user): void
     {
         $customerRole = Role::query()
             ->where('slug', 'customer')

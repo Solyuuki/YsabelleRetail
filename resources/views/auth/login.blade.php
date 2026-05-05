@@ -7,9 +7,15 @@
                 <x-storefront.brand-logo class="mx-auto block w-[9.5rem]" />
                 <h1 class="ys-auth-heading">Welcome back</h1>
                 <p class="ys-auth-copy">
-                    Sign in to continue with your Ysabelle account.
+                    {{ $isAdminPortal ? 'Authorized staff sign in. Customer accounts will stay in the storefront account area.' : 'Sign in to continue with your Ysabelle account.' }}
                 </p>
             </div>
+
+            @if ($isAdminPortal)
+                <div class="mb-6 rounded-[1.6rem] border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+                    Admin access mode is active for this sign-in session.
+                </div>
+            @endif
 
             <form action="{{ route('login.store') }}" method="POST" class="ys-auth-form" novalidate>
                 @csrf

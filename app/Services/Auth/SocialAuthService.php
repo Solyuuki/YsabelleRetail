@@ -230,6 +230,7 @@ class SocialAuthService
 
             if ($linkedUser) {
                 $this->syncGithubIdentity($linkedUser, $providerUserId);
+                $this->ensureCustomerRoleWhenAppropriate($linkedUser);
                 $this->syncSocialAccount($linkedUser, $provider, $providerUserId, $email, $avatar);
 
                 return $this->ensureUserIsActive($linkedUser);
@@ -248,6 +249,7 @@ class SocialAuthService
                 $this->syncGithubIdentity($user, $providerUserId);
             }
 
+            $this->ensureCustomerRoleWhenAppropriate($user);
             $this->syncSocialAccount($user, $provider, $providerUserId, $email, $avatar);
 
             return $user;
@@ -264,6 +266,7 @@ class SocialAuthService
         );
 
         $user = $this->ensureUserIsActive($user);
+        $this->ensureCustomerRoleWhenAppropriate($user);
 
         if ($provider === 'github') {
             $this->syncGithubIdentity($user, $providerUserId);
@@ -295,6 +298,15 @@ class SocialAuthService
         throw new SocialAuthException(
             'This account is inactive. Please contact an administrator.'
         );
+    }
+
+    private function ensureCustomerRoleWhenAppropriate(User $user): void
+    {
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        $this->customerAccounts->ensureCustomerRole($user);
     }
 
     private function providerEmailIsTrusted(

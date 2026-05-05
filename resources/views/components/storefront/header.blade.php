@@ -74,7 +74,12 @@
 
                     <div class="ys-dropdown hidden w-48" data-account-menu-panel>
                         <p class="border-b border-white/6 px-4.5 py-3.5 text-[0.82rem] text-ys-ivory/60">{{ auth()->user()->email }}</p>
-                        <a href="{{ route('storefront.account.index') }}" class="ys-dropdown-link bg-ys-gold/95 text-ys-ink">My Orders</a>
+                        @if (auth()->user()?->isCustomer())
+                            <a href="{{ route('storefront.account.index') }}" class="ys-dropdown-link bg-ys-gold/95 text-ys-ink">My account</a>
+                        @endif
+                        @if (auth()->user()?->isAdmin())
+                            <a href="{{ route('admin.dashboard') }}" class="ys-dropdown-link">Admin dashboard</a>
+                        @endif
                         <form action="{{ route('logout') }}" method="POST">
                             @csrf
                             <button type="submit" class="ys-dropdown-link w-full text-left">
@@ -120,7 +125,12 @@
             <div class="flex items-center gap-3.5 pt-2.5">
                 <a href="{{ route('storefront.cart.index') }}" class="ys-button-secondary text-[0.95rem]">Cart ({{ $cartCount }})</a>
                 @auth
-                    <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary text-[0.95rem]">My account</a>
+                    @if (auth()->user()?->isCustomer())
+                        <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary text-[0.95rem]">My account</a>
+                    @endif
+                    @if (auth()->user()?->isAdmin())
+                        <a href="{{ route('admin.dashboard') }}" class="ys-button-secondary text-[0.95rem]">Admin dashboard</a>
+                    @endif
                     <form action="{{ route('logout') }}" method="POST" class="contents">
                         @csrf
                         <button type="submit" class="ys-button-primary text-[0.95rem]">Sign out</button>

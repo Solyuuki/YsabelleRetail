@@ -26,6 +26,13 @@ test('login page renders the redesigned auth experience', function () {
         ->assertSeeText('Privacy Policy');
 });
 
+test('admin access portal keeps the shared login page but marks the session as admin mode', function () {
+    $this->get(route('login', ['portal' => 'admin']))
+        ->assertOk()
+        ->assertSeeText('Authorized staff sign in. Customer accounts will stay in the storefront account area.')
+        ->assertSeeText('Admin access mode is active for this sign-in session.');
+});
+
 test('register page renders the redesigned auth experience', function () {
     foreach (['google', 'microsoft', 'github'] as $provider) {
         config()->set("services.{$provider}", [

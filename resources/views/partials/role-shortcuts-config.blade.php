@@ -1,11 +1,9 @@
 @php
-    $adminDashboard = route('admin.dashboard');
-    $customerDashboard = route('storefront.account.index');
     $storefrontHome = route('storefront.home');
     $loginRoute = route('login');
-    $adminLoginRoute = \Illuminate\Support\Facades\Route::has('admin.login')
-        ? route('admin.login')
-        : route('login', ['intended' => $adminDashboard]);
+    $adminAccessRoute = app(\App\Support\Auth\AuthenticatedRedirector::class)->adminAccessUrl();
+    $adminDashboard = auth()->user()?->isAdmin() ? route('admin.dashboard') : null;
+    $customerDashboard = auth()->user()?->isCustomer() ? route('storefront.account.index') : null;
 
     $appAuth = [
         'isAuthenticated' => auth()->check(),
@@ -13,7 +11,7 @@
         'isCustomer' => auth()->user()?->isCustomer() ?? false,
         'routes' => [
             'adminDashboard' => $adminDashboard,
-            'adminLogin' => $adminLoginRoute,
+            'adminAccess' => $adminAccessRoute,
             'login' => $loginRoute,
             'customerDashboard' => $customerDashboard,
             'storefront' => $storefrontHome,
