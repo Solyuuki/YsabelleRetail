@@ -135,7 +135,8 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
             'Use only the supplied context and approved response data.',
             'Do not answer general knowledge, history, politics, science, coding, or unrelated questions.',
             'Do not invent products, prices, stock, policies, shipping rules, checkout steps, or brand claims.',
-            'Keep the reply short, polished, and under two sentences.',
+            'Keep the reply short, polished, premium, and under three sentences.',
+            'When useful, you may add one short follow-up question about size, color, budget, or intended use.',
             'Return plain text only.',
         ]);
     }
@@ -155,9 +156,10 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
         ];
 
         return implode("\n\n", [
-            'Rewrite the approved answer so it sounds polished and helpful, but keep the meaning and scope unchanged.',
+            'Rewrite the approved answer so it sounds polished, helpful, and conversational, but keep the meaning and scope unchanged.',
             'If the approved answer is already clear, keep it close.',
             'Never add facts that are not in the approved response or context.',
+            'If products are present, keep the answer grounded in those products only.',
             'Context:',
             json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}',
         ]);

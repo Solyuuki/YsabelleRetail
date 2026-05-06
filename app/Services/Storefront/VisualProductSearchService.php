@@ -71,7 +71,7 @@ class VisualProductSearchService
         if ($indexEntries->isEmpty()) {
             $this->debugLog('no_index', $context);
 
-            return $this->safeUnavailableResponse();
+            return $this->safeUnavailableResponse($criteria);
         }
 
         $engine = 'fallback';
@@ -554,9 +554,9 @@ class VisualProductSearchService
     private function answerFor(string $confidence, Product $product): string
     {
         return match ($confidence) {
-            'strong_match' => "This looks like a strong match for {$product->name}.",
-            'likely_match' => "This looks like a likely match for {$product->name}.",
-            'approximate_match' => 'I did not find a close exact match, but these are the closest catalog styles.',
+            'strong_match' => "The closest match I found is {$product->name}. You can review the active catalog options below if you want to compare stock, price, or size.",
+            'likely_match' => "{$product->name} looks like the nearest match from the current catalog. I also included the closest active alternatives in case you want a second option.",
+            'approximate_match' => 'I did not find a close exact match, but these are the nearest active styles I would recommend from the catalog.',
             default => 'No strong visual match found. Please upload a clearer shoe photo.',
         };
     }
@@ -583,7 +583,7 @@ class VisualProductSearchService
             ->all();
 
         if ($recommendations === []) {
-            return $this->noMatchResponse('index_unavailable');
+            return $this->noMatchResponse($reason);
         }
 
         $topScore = (float) data_get($recommendations, '0.match.score', 0.0);
@@ -608,21 +608,21 @@ class VisualProductSearchService
     private function fallbackAnswerFor(string $reason, string $strategy, string $brandStyle, array $criteria): string
     {
         if ($strategy === 'same_brand' && $brandStyle !== '') {
-            return "These are the closest {$brandStyle} styles in the catalog.";
+            return "I could not confirm the exact pair, but these are the closest active {$brandStyle} styles I found in the catalog.";
         }
 
         if ($strategy === 'category_based') {
             $category = $criteria['category'] ?: $criteria['use_case'];
 
             return $reason === 'non_shoe'
-                ? "I could not confidently confirm a shoe in the image, but these {$category} options are the closest catalog recommendations."
-                : "I could not find a confident exact match, so I picked the closest {$category} styles from the catalog.";
+                ? "I could not confidently confirm a shoe in the image, but these active {$category} options are the closest catalog recommendations."
+                : "I could not find a confident exact match, so I picked the nearest active {$category} styles from the catalog.";
         }
 
         return match ($reason) {
-            'non_shoe' => 'I could not confidently confirm a shoe in the image, but these are the closest shoe recommendations from the catalog.',
-            'blurred_upload' => 'The image looks soft, so I am showing the closest shoe recommendations from the catalog.',
-            default => 'I could not find a confident exact match, but these are the closest-looking shoes in the catalog.',
+            'non_shoe' => 'I could not confidently confirm a shoe in the image, but these are the closest active shoe recommendations I can offer from the catalog.',
+            'blurred_upload' => 'The photo looks a little soft, so I am guiding you to the closest active shoe recommendations in the catalog.',
+            default => 'I could not find a confident exact match, but these are the closest active shoes I would recommend from the catalog.',
         };
     }
 
@@ -723,11 +723,11 @@ class VisualProductSearchService
     private function noMatchResponse(string $reason): array
     {
         $answer = match ($reason) {
-            'index_unavailable' => 'Visual search is still building its product index. Please try again shortly.',
-            'blurred_upload' => 'This photo looks too blurry. Try a clearer shoe photo with the full shoe visible.',
-            'non_shoe' => 'I could not clearly detect a shoe in this image. Try a side-view or on-foot shoe photo.',
-            'low_similarity', 'no_visual_candidate', 'no_match' => 'I could not find a close catalog match. Try a clearer shoe photo or add color and category hints.',
-            default => 'No strong visual match found. Please upload a clearer shoe photo.',
+            'index_unavailable' => 'I could not compare this photo against the catalog right now. Please refresh and try again shortly.',
+            'blurred_upload' => 'This photo looks too soft to compare confidently. Try a clearer shoe photo with the full pair visible, or refine by color or use case.',
+            'non_shoe' => 'I could not clearly detect a shoe in this image. Try a side-view shoe photo or tell me the style, color, or use case you want.',
+            'low_similarity', 'no_visual_candidate', 'no_match' => 'I could not find a close exact match. Try a clearer photo, or refine by color, category, or intended use.',
+            default => 'I could not get a confident match from that photo. Try another shoe image or refine the search with a few shopping details.',
         };
 
         return [
@@ -744,9 +744,31 @@ class VisualProductSearchService
         ];
     }
 
-    private function safeUnavailableResponse(): array
+    private function safeUnavailableResponse(array $criteria): array
     {
-        return $this->noMatchResponse('index_unavailable');
+        $matchSet = $this->productDiscovery->findMatches($criteria, 4);
+        $products = $matchSet['products']
+            ->map(fn (Product $product): array => $this->productDiscovery->formatProduct($product))
+            ->values()
+            ->all();
+
+        $answer = $products === []
+            ? 'I could not compare this photo against the catalog right now. Please refresh and try again shortly.'
+            : 'I could not compare the photo directly right now, but I picked active catalog options that still fit the style cues and filters you shared.';
+
+        return [
+            'answer' => $answer,
+            'match' => [
+                'confidence' => 'no_match',
+                'label' => $this->confidenceLabel('no_match'),
+                'score' => 0.0,
+                'score_percent' => 0,
+                'reason' => 'index_unavailable',
+                'engine' => 'catalog_guided',
+            ],
+            'products' => $products,
+            'actions' => $this->matchActions(),
+        ];
     }
 
     private function noMatchReason(?array $embeddingPayload, ?array $fallbackFeatures, ?array $topCandidate): string

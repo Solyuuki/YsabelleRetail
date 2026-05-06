@@ -220,18 +220,18 @@ class SmartShoppingAssistantService
 
         if ($products === []) {
             return $this->response(
-                answer: 'I could not find a strong product match from the current catalog yet. Try a category, color, budget, or size to narrow it down.',
+                answer: 'I could not pin down the right active pair yet. Tell me the color, budget, size, or use case you want, and I will narrow the catalog for you.',
                 actions: $this->defaultActions(),
             );
         }
 
         $answer = match (true) {
-            $criteria['max_price'] !== null && $matchSet['used_fallback'] => 'I could not find an exact match in that budget, but these are the closest options available right now.',
-            $criteria['color'] && $criteria['category'] => 'Here are the best matches I found for that style and color.',
-            $criteria['use_case'] === 'daily' => 'These are strong everyday options with versatile comfort and easy styling.',
-            $criteria['use_case'] === 'running' || $criteria['category'] === 'running' => 'These are the best running-focused pairs I found in the current catalog.',
-            str_contains(Str::lower($message), 'available') || str_contains(Str::lower($message), 'stock') => 'These are the closest available matches I found, with live stock status included.',
-            default => 'These are the closest matches I found from the current catalog.',
+            $criteria['max_price'] !== null && $matchSet['used_fallback'] => 'I could not find an exact fit in that budget, but these are the nearest active options I would recommend right now.',
+            $criteria['color'] && $criteria['category'] => 'These are the strongest active matches I found for that color and silhouette.',
+            $criteria['use_case'] === 'daily' => 'These active pairs are the most versatile daily options I found in the current catalog.',
+            $criteria['use_case'] === 'running' || $criteria['category'] === 'running' => 'These are the best running-focused options I found from the current active catalog.',
+            str_contains(Str::lower($message), 'available') || str_contains(Str::lower($message), 'stock') => 'These are the closest active matches I found, with current stock status included.',
+            default => 'These are the closest active matches I found from the current catalog.',
         };
 
         return $this->response(
@@ -383,7 +383,7 @@ class SmartShoppingAssistantService
     private function greetingResponse(): array
     {
         return $this->response(
-            answer: 'Hello. I can help you find products, check stock, review your cart, or guide you through checkout.',
+            answer: 'Welcome to Ysabelle Retail. I can help you find the right pair, check stock, review your cart, or match a shoe photo from the current catalog.',
             actions: $this->defaultActions(),
         );
     }
@@ -391,8 +391,8 @@ class SmartShoppingAssistantService
     private function smallTalkResponse(string $message): array
     {
         $answer = str_contains($message, 'thank')
-            ? 'You are welcome. I can help you find products, check stock, review your cart, or guide you through checkout.'
-            : 'I am ready to help with products, stock, cart, and checkout. Tell me what you need.';
+            ? 'You are very welcome. If you want, I can keep helping with products, sizing, stock, or a similar-by-image search.'
+            : 'I am ready to help with products, stock, sizing, cart, and checkout. Tell me what you are shopping for.';
 
         return $this->response(
             answer: $answer,
@@ -403,7 +403,7 @@ class SmartShoppingAssistantService
     private function visualSearchResponse(): array
     {
         return $this->response(
-            answer: 'Use Visual Search to upload a shoe image, then I can match it against the current catalog.',
+            answer: 'Upload a shoe photo and I will use it as shopping context to find the closest active styles, or guide you to similar options if the exact pair is not in the catalog.',
             actions: [
                 ['label' => 'Open Visual Search', 'type' => 'panel', 'target' => 'visual-search'],
                 ['label' => 'Browse catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -414,7 +414,7 @@ class SmartShoppingAssistantService
     private function outOfScopeResponse(): array
     {
         return $this->response(
-            answer: 'I can only help with Ysabelle Retail products, stock, cart, checkout, and store support.',
+            answer: 'I can only help with Ysabelle Retail shopping support, such as products, stock, sizing, cart, checkout, and catalog image search.',
             actions: $this->defaultActions(),
         );
     }
@@ -422,7 +422,7 @@ class SmartShoppingAssistantService
     private function clarificationResponse(): array
     {
         return $this->response(
-            answer: 'I can help you find products, check stock, or assist with your order. What would you like to do?',
+            answer: 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.',
             actions: $this->defaultActions(),
         );
     }

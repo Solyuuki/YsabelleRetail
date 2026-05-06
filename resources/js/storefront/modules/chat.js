@@ -29,11 +29,20 @@ export const initChatWidget = () => {
     const visualStatus = root.querySelector('[data-visual-status]');
     const visualPreviewImage = root.querySelector('[data-visual-preview-image]');
     const visualFileName = root.querySelector('[data-visual-file-name]');
+    const toolDrawer = root.querySelector('[data-chat-tool-drawer]');
+    const toolToggle = root.querySelector('[data-chat-tools-toggle]');
+    const toolToggleInline = root.querySelector('[data-chat-tools-toggle-inline]');
+    const toolClose = root.querySelector('[data-chat-tools-close]');
+    const refineMeta = root.querySelector('[data-visual-refine-meta]');
+    const refineCount = root.querySelector('[data-visual-filter-count]');
+    const refineSummary = root.querySelector('[data-visual-filter-summary]');
+    const refineFields = Array.from(root.querySelectorAll('[data-visual-filter-field]'));
+    const visualChip = root.querySelector('[data-visual-chip]');
+    const visualChipText = root.querySelector('[data-visual-chip-text]');
     const visualRerun = root.querySelector('[data-visual-rerun]');
     const messageEndpoint = root.dataset.messageEndpoint;
     const messageStreamEndpoint = root.dataset.messageStreamEndpoint;
     const visualSearchEndpoint = root.dataset.visualSearchEndpoint;
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
     const supportsStreaming = Boolean(messageStreamEndpoint && window.ReadableStream && window.TextDecoder);
 
     let currentPreviewUrl = null;
@@ -72,6 +81,38 @@ export const initChatWidget = () => {
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
 
+    const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
+    const sessionExpiredMessage = 'Your session expired. Please refresh and try again.';
+
+    const buildRequestHeaders = ({ contentType = null, accept = 'application/json' } = {}) => {
+        const headers = {
+            Accept: accept,
+            'X-CSRF-TOKEN': csrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+        };
+
+        if (contentType) {
+            headers['Content-Type'] = contentType;
+        }
+
+        return headers;
+    };
+
+    const requestErrorMessage = (response, payload, fallbackMessage) => {
+        if (response.status === 419) {
+            return sessionExpiredMessage;
+        }
+
+        const backendMessage = payload?.message ?? firstValidationError(payload);
+
+        if (typeof backendMessage === 'string' && backendMessage.trim() !== '') {
+            return backendMessage;
+        }
+
+        return fallbackMessage;
+    };
+
     const scrollMessagesToEnd = () => {
         if (!messages) {
             return;
@@ -93,20 +134,29 @@ export const initChatWidget = () => {
         }
     };
 
-    const createMessageGroup = (role) => {
+    const createMessageGroup = (role, variant = 'default') => {
         const wrapper = document.createElement('div');
         wrapper.className = `ys-chat-message-group ${role === 'assistant' ? 'is-assistant' : 'is-user'}`;
+
+        if (variant === 'system') {
+            wrapper.classList.add('is-system');
+        }
 
         return wrapper;
     };
 
-    const appendTextBubble = (wrapper, role, answer) => {
+    const appendTextBubble = (wrapper, role, answer, variant = 'default') => {
         if (!answer) {
             return;
         }
 
         const bubble = document.createElement('div');
         bubble.className = `ys-chat-bubble ${role === 'assistant' ? 'is-assistant' : 'is-user'}`;
+
+        if (variant === 'system') {
+            bubble.classList.add('is-system');
+        }
+
         bubble.textContent = normalizeText(answer);
         wrapper.appendChild(bubble);
     };
@@ -173,8 +223,9 @@ export const initChatWidget = () => {
             return;
         }
 
-        const wrapper = createMessageGroup(role);
-        appendTextBubble(wrapper, role, payload.answer);
+        const variant = payload.variant ?? 'default';
+        const wrapper = createMessageGroup(role, variant);
+        appendTextBubble(wrapper, role, payload.answer, variant);
 
         appendResponseDetails(wrapper, role, payload);
         messages.appendChild(wrapper);
@@ -266,6 +317,8 @@ export const initChatWidget = () => {
 
         visualStatus?.classList.add('hidden');
         visualStatus?.classList.remove('grid');
+        setToolDrawerOpen(false);
+        syncRefineSummary();
     };
 
     const setPreview = (file) => {
@@ -282,6 +335,100 @@ export const initChatWidget = () => {
         visualFileName.textContent = file.name;
         visualStatus?.classList.remove('hidden');
         visualStatus?.classList.add('grid');
+    };
+
+    const setToolDrawerOpen = (isOpen) => {
+        if (!toolDrawer) {
+            return;
+        }
+
+        toolDrawer.classList.toggle('hidden', !isOpen);
+        toolDrawer.classList.toggle('grid', isOpen);
+        toolDrawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+        toolToggle?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        toolToggleInline?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        root.classList.toggle('is-tools-open', isOpen);
+    };
+
+    const toggleToolDrawer = (nextState = null) => {
+        const shouldOpen = typeof nextState === 'boolean'
+            ? nextState
+            : toolDrawer?.classList.contains('hidden');
+
+        setToolDrawerOpen(Boolean(shouldOpen));
+    };
+
+    const activeRefineFilters = () => refineFields
+        .map((field) => {
+            const value = String(field.value ?? '').trim();
+
+            if (!value) {
+                return null;
+            }
+
+            const label = field.dataset.filterLabel ?? field.name;
+            const displayValue = field instanceof HTMLSelectElement
+                ? field.options[field.selectedIndex]?.text ?? value
+                : value;
+
+            return { label, value: displayValue };
+        })
+        .filter(Boolean);
+
+    const syncRefineSummary = () => {
+        const hasUpload = Boolean(visualInput?.files?.[0]);
+        const filters = activeRefineFilters();
+        const filterCount = filters.length;
+
+        root.classList.toggle('has-visual-upload', hasUpload);
+
+        if (refineCount) {
+            refineCount.textContent = `${filterCount} filter${filterCount === 1 ? '' : 's'}`;
+        }
+
+        if (refineMeta) {
+            refineMeta.textContent = hasUpload
+                ? (filterCount
+                    ? 'Your uploaded image is ready with optional narrowing filters applied.'
+                    : 'Your uploaded image is ready. Add optional filters only if you want a narrower match.')
+                : 'Keep optional filters tucked away until you want a narrower match.';
+        }
+
+        if (visualChip && visualChipText) {
+            const chipSegments = [];
+
+            if (visualInput?.files?.[0]?.name) {
+                chipSegments.push(visualInput.files[0].name);
+            }
+
+            if (filterCount > 0) {
+                chipSegments.push(`${filterCount} filter${filterCount === 1 ? '' : 's'}`);
+            }
+
+            visualChipText.textContent = chipSegments.join(' | ');
+            visualChip.classList.toggle('hidden', !hasUpload);
+            visualChip.classList.toggle('flex', hasUpload);
+        }
+
+        if (refineSummary) {
+            const chips = [];
+
+            if (hasUpload) {
+                chips.push('<span class="ys-chat-refine-tag is-highlight">Image ready</span>');
+            }
+
+            filters.forEach((filter) => {
+                chips.push(`<span class="ys-chat-refine-tag">${escapeHtml(filter.label)}: ${escapeHtml(filter.value)}</span>`);
+            });
+
+            refineSummary.innerHTML = chips.join('');
+            refineSummary.classList.toggle('hidden', chips.length === 0);
+            refineSummary.classList.toggle('flex', chips.length > 0);
+        }
+
+        if (visualRerun) {
+            visualRerun.disabled = !hasUpload;
+        }
     };
 
     const validateImage = (file) => {
@@ -309,21 +456,21 @@ export const initChatWidget = () => {
     const postMessageJson = async (message) => {
         const response = await fetch(messageEndpoint, {
             method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-            },
+            credentials: 'same-origin',
+            headers: buildRequestHeaders({
+                contentType: 'application/json',
+                accept: 'application/json',
+            }),
             body: JSON.stringify({ message }),
         });
 
-        const payload = await response.json();
+        const payload = await safeJson(response);
 
         if (!response.ok) {
-            throw new Error(payload.message ?? firstValidationError(payload) ?? 'The assistant could not process that request.');
+            throw new Error(requestErrorMessage(response, payload, 'The assistant could not process that request.'));
         }
 
-        return payload;
+        return payload ?? {};
     };
 
     const streamMessage = async (message) => {
@@ -344,17 +491,17 @@ export const initChatWidget = () => {
         try {
             const response = await fetch(messageStreamEndpoint, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'text/event-stream',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
+                credentials: 'same-origin',
+                headers: buildRequestHeaders({
+                    contentType: 'application/json',
+                    accept: 'text/event-stream',
+                }),
                 body: JSON.stringify({ message }),
             });
 
             if (!response.ok || !response.body) {
                 const fallbackPayload = await safeJson(response);
-                throw new Error(fallbackPayload?.message ?? firstValidationError(fallbackPayload) ?? 'The assistant could not process that request.');
+                throw new Error(requestErrorMessage(response, fallbackPayload, 'The assistant could not process that request.'));
             }
 
             const reader = response.body.getReader();
@@ -451,6 +598,7 @@ export const initChatWidget = () => {
         } catch (error) {
             appendResponse('assistant', {
                 answer: error instanceof Error ? error.message : 'The assistant is temporarily unavailable. Please try again.',
+                variant: 'system',
             });
         } finally {
             toggleTyping(false);
@@ -463,6 +611,7 @@ export const initChatWidget = () => {
         if (!visualForm || !file || !visualSearchEndpoint) {
             appendResponse('assistant', {
                 answer: 'Select an image first to use Visual Search.',
+                variant: 'system',
             });
             return;
         }
@@ -470,7 +619,7 @@ export const initChatWidget = () => {
         const clientError = validateImage(file);
 
         if (clientError) {
-            appendResponse('assistant', { answer: clientError });
+            appendResponse('assistant', { answer: clientError, variant: 'system' });
             return;
         }
 
@@ -481,17 +630,15 @@ export const initChatWidget = () => {
             const startedAt = Date.now();
             const response = await fetch(visualSearchEndpoint, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
+                credentials: 'same-origin',
+                headers: buildRequestHeaders(),
                 body: formData,
             });
 
-            const payload = await response.json();
+            const payload = await safeJson(response);
 
             if (!response.ok) {
-                throw new Error(payload.message ?? firstValidationError(payload) ?? 'Visual Search could not process that image.');
+                throw new Error(requestErrorMessage(response, payload, 'Visual Search could not process that image.'));
             }
 
             const elapsed = Date.now() - startedAt;
@@ -499,10 +646,12 @@ export const initChatWidget = () => {
                 await wait(500 - elapsed);
             }
 
-            appendResponse('assistant', payload);
+            appendResponse('assistant', payload ?? {});
+            setToolDrawerOpen(false);
         } catch (error) {
             appendResponse('assistant', {
                 answer: error instanceof Error ? error.message : 'Visual Search is temporarily unavailable. Please try again.',
+                variant: 'system',
             });
         } finally {
             toggleTyping(false);
@@ -521,6 +670,7 @@ export const initChatWidget = () => {
 
         if (action.type === 'panel' && action.target === 'visual-search') {
             setOpen(true);
+            setToolDrawerOpen(true);
             visualInput?.click();
         }
     };
@@ -531,15 +681,19 @@ export const initChatWidget = () => {
 
         if (!isOpen) {
             input?.focus();
+        } else {
+            setToolDrawerOpen(false);
         }
     });
 
     closeButton?.addEventListener('click', () => {
         setOpen(false);
+        setToolDrawerOpen(false);
     });
 
     minimizeButton?.addEventListener('click', () => {
         setOpen(false);
+        setToolDrawerOpen(false);
     });
 
     promptButtons.forEach((button) => {
@@ -548,6 +702,7 @@ export const initChatWidget = () => {
             setOpen(true);
 
             if (prompt.toLowerCase().includes('image')) {
+                setToolDrawerOpen(true);
                 visualInput?.click();
                 return;
             }
@@ -559,6 +714,7 @@ export const initChatWidget = () => {
     visualLaunchers.forEach((button) => {
         button.addEventListener('click', () => {
             setOpen(true);
+            setToolDrawerOpen(true);
             visualInput?.click();
         });
     });
@@ -595,7 +751,22 @@ export const initChatWidget = () => {
 
     visualTrigger?.addEventListener('click', () => {
         setOpen(true);
+        setToolDrawerOpen(true);
         visualInput?.click();
+    });
+
+    toolToggle?.addEventListener('click', () => {
+        setOpen(true);
+        toggleToolDrawer();
+    });
+
+    toolToggleInline?.addEventListener('click', () => {
+        setOpen(true);
+        setToolDrawerOpen(true);
+    });
+
+    toolClose?.addEventListener('click', () => {
+        setToolDrawerOpen(false);
     });
 
     visualClear?.addEventListener('click', () => {
@@ -622,7 +793,7 @@ export const initChatWidget = () => {
 
         if (clientError) {
             resetPreview();
-            appendResponse('assistant', { answer: clientError });
+            appendResponse('assistant', { answer: clientError, variant: 'system' });
             return;
         }
 
@@ -632,9 +803,18 @@ export const initChatWidget = () => {
 
         setOpen(true);
         setPreview(file);
+        setToolDrawerOpen(true);
+        syncRefineSummary();
         appendVisualUploadMessage(file);
         submitVisualSearch();
     });
+
+    refineFields.forEach((field) => {
+        field.addEventListener(field instanceof HTMLSelectElement ? 'change' : 'input', syncRefineSummary);
+    });
+
+    setToolDrawerOpen(false);
+    syncRefineSummary();
 
     setOpen(false);
 };

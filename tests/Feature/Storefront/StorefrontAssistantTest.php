@@ -231,10 +231,33 @@ function uploadFromFixture(string $path, string $name): UploadedFile
     return new UploadedFile($path, $name, $mimeType, null, true);
 }
 
+function assistantCsrfHeaders(array $headers = []): array
+{
+    return array_merge([
+        'Accept' => 'application/json',
+        'X-CSRF-TOKEN' => 'assistant-test-token',
+        'X-Requested-With' => 'XMLHttpRequest',
+    ], $headers);
+}
+
+function assistantPostJson($test, string $route, array $payload = [], array $headers = [])
+{
+    return $test
+        ->withSession(['_token' => 'assistant-test-token'])
+        ->postJson($route, $payload, assistantCsrfHeaders($headers));
+}
+
+function assistantPost($test, string $route, array $payload = [], array $headers = [])
+{
+    return $test
+        ->withSession(['_token' => 'assistant-test-token'])
+        ->post($route, $payload, assistantCsrfHeaders($headers));
+}
+
 test('assistant returns product matches for running shoe questions', function () {
     $product = makeStorefrontProduct();
 
-    $this->postJson(route('storefront.assistant.message'), [
+    assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'I need running shoes',
     ])
         ->assertOk()
@@ -245,22 +268,22 @@ test('assistant returns product matches for running shoe questions', function ()
 test('assistant treats greetings as conversational and returns no products', function () {
     makeStorefrontProduct();
 
-    $this->postJson(route('storefront.assistant.message'), [
+    assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Hello',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Hello. I can help you find products, check stock, review your cart, or guide you through checkout.')
+        ->assertJsonPath('answer', 'Welcome to Ysabelle Retail. I can help you find the right pair, check stock, review your cart, or match a shoe photo from the current catalog.')
         ->assertJsonCount(0, 'products');
 });
 
 test('assistant keeps small talk domain-bounded and returns no products', function () {
     makeStorefrontProduct();
 
-    $this->postJson(route('storefront.assistant.message'), [
+    assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Thanks',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'You are welcome. I can help you find products, check stock, review your cart, or guide you through checkout.')
+        ->assertJsonPath('answer', 'You are very welcome. If you want, I can keep helping with products, sizing, stock, or a similar-by-image search.')
         ->assertJsonCount(0, 'products');
 });
 
@@ -285,9 +308,10 @@ test('assistant returns cart guidance from the active cart', function () {
     ]);
 
     $this->actingAs($user)
+        ->withSession(['_token' => 'assistant-test-token'])
         ->postJson(route('storefront.assistant.message'), [
             'message' => 'What is in my cart?',
-        ])
+        ], assistantCsrfHeaders())
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
         ->assertJsonPath('actions.0.label', 'View cart');
@@ -296,22 +320,22 @@ test('assistant returns cart guidance from the active cart', function () {
 test('assistant redirects out of scope questions back to storefront help', function () {
     makeStorefrontProduct();
 
-    $this->postJson(route('storefront.assistant.message'), [
+    assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'What is the capital of France?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'I can only help with Ysabelle Retail products, stock, cart, checkout, and store support.')
+        ->assertJsonPath('answer', 'I can only help with Ysabelle Retail shopping support, such as products, stock, sizing, cart, checkout, and catalog image search.')
         ->assertJsonCount(0, 'products');
 });
 
 test('assistant asks for clarification when the request is unclear', function () {
     makeStorefrontProduct();
 
-    $this->postJson(route('storefront.assistant.message'), [
+    assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Maybe',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'I can help you find products, check stock, or assist with your order. What would you like to do?')
+        ->assertJsonPath('answer', 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.')
         ->assertJsonCount(0, 'products');
 });
 
@@ -326,18 +350,18 @@ test('assistant falls back safely when ollama is unavailable', function () {
         'http://127.0.0.1:11434/api/generate' => Http::response(['error' => 'offline'], 503),
     ]);
 
-    $this->postJson(route('storefront.assistant.message'), [
+    assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Hello',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Hello. I can help you find products, check stock, review your cart, or guide you through checkout.')
+        ->assertJsonPath('answer', 'Welcome to Ysabelle Retail. I can help you find the right pair, check stock, review your cart, or match a shoe photo from the current catalog.')
         ->assertJsonCount(0, 'products');
 });
 
 test('assistant stream route returns event stream payload without breaking chat responses', function () {
     makeStorefrontProduct();
 
-    $response = $this->post(route('storefront.assistant.message.stream'), [
+    $response = assistantPost($this, route('storefront.assistant.message.stream'), [
         'message' => 'Hello',
     ], [
         'Accept' => 'text/event-stream',
@@ -351,7 +375,7 @@ test('assistant stream route returns event stream payload without breaking chat 
     expect($stream)
         ->toContain('event: chunk')
         ->toContain('event: done')
-        ->toContain('Hello. I can help you find products, check stock, review your cart, or guide you through checkout.');
+        ->toContain('Welcome to Ysabelle Retail. I can help you find the right pair, check stock, review your cart, or match a shoe photo from the current catalog.');
 });
 
 test('visual search returns similar products from local hints', function () {
@@ -363,7 +387,7 @@ test('visual search returns similar products from local hints', function () {
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('night-runner-product.png'), 'black-runner-query.png'),
         'category' => 'running',
         'color' => 'black',
@@ -377,7 +401,7 @@ test('visual search returns similar products from local hints', function () {
 });
 
 test('visual search rejects invalid file types', function () {
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => UploadedFile::fake()->create('notes.pdf', 64, 'application/pdf'),
     ], [
         'Accept' => 'application/json',
@@ -387,7 +411,7 @@ test('visual search rejects invalid file types', function () {
 });
 
 test('visual search requires an uploaded image', function () {
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'category' => 'running',
         'color' => 'black',
     ], [
@@ -430,7 +454,7 @@ test('visual search returns fallback recommendations for unrelated images', func
     drawObjectFixture('orange-object.png', '#ef7c28');
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('orange-object.png'), 'orange-object.png'),
     ], [
         'Accept' => 'application/json',
@@ -474,7 +498,7 @@ test('visual search does not let metadata hints override stronger visual similar
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('catalog-blue-shoe.png'), 'query-blue-shoe.png'),
         'color' => 'black',
         'category' => 'running',
@@ -503,7 +527,7 @@ test('visual search uses metadata hints to make fallback recommendations useful'
     drawObjectFixture('green-object.png', '#2f9f61');
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('green-object.png'), 'green-object.png'),
         'category' => 'running',
         'color' => 'gold',
@@ -528,7 +552,7 @@ test('visual search matches cropped uploads for the same product', function () {
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('crop-query-shoe.png'), 'crop-query-shoe.png'),
     ], [
         'Accept' => 'application/json',
@@ -550,7 +574,7 @@ test('visual search matches screenshot style uploads for the same product', func
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('screenshot-query-shoe.jpg'), 'screenshot-query-shoe.jpg'),
     ], [
         'Accept' => 'application/json',
@@ -586,7 +610,7 @@ test('visual search returns one representative for unrelated products sharing th
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $response = $this->post(route('storefront.assistant.visual-search'), [
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture($sharedImagePath, 'shared-cluster-shoe.jpg'),
     ], [
         'Accept' => 'application/json',
@@ -650,7 +674,7 @@ test('visual search keeps duplicate image clusters from dominating the final res
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $response = $this->post(route('storefront.assistant.visual-search'), [
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('unique-query-runner.png'), 'unique-query-runner.png'),
         'category' => 'running',
         'color' => 'blue',
@@ -678,7 +702,7 @@ test('visual search handles moderately blurry uploads without random fallback', 
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('blur-query-shoe.jpg'), 'blur-query-shoe.jpg'),
     ], [
         'Accept' => 'application/json',
@@ -704,15 +728,52 @@ test('visual search returns a safe message when the index is missing', function 
         'image_alt' => 'Missing index shoe',
     ]);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('missing-index-shoe.png'), 'missing-index-shoe.png'),
     ], [
         'Accept' => 'application/json',
     ])
         ->assertOk()
         ->assertJsonPath('match.confidence', 'no_match')
-        ->assertJsonPath('answer', 'Visual search is still building its product index. Please try again shortly.')
-        ->assertJsonCount(0, 'products');
+        ->assertJsonPath('match.reason', 'index_unavailable')
+        ->assertJsonPath('match.engine', 'catalog_guided')
+        ->assertJsonPath('answer', 'I could not compare the photo directly right now, but I picked active catalog options that still fit the style cues and filters you shared.')
+        ->assertJsonCount(1, 'products');
+});
+
+test('visual search no-index fallback excludes inactive products from recommendations', function () {
+    drawShoeFixture('inactive-fallback-query.png', '#1f1f1f');
+
+    makeStorefrontProduct([
+        'name' => 'Active Night Runner',
+        'slug' => 'active-night-runner',
+        'primary_image_url' => visualSearchFixtureUrl('inactive-fallback-query.png'),
+        'image_alt' => 'Active Night Runner product image',
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Inactive Night Runner',
+        'slug' => 'inactive-night-runner',
+        'primary_image_url' => visualSearchFixtureUrl('inactive-fallback-query.png'),
+        'image_alt' => 'Inactive Night Runner product image',
+        'status' => 'inactive',
+    ], [
+        'sku' => 'YS-INA-6200-9',
+    ]);
+
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('inactive-fallback-query.png'), 'inactive-fallback-query.png'),
+        'category' => 'running',
+        'color' => 'black',
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk()
+        ->assertJsonPath('match.reason', 'index_unavailable')
+        ->assertJsonPath('products.0.slug', 'active-night-runner')
+        ->assertJsonMissing([
+            'slug' => 'inactive-night-runner',
+        ]);
 });
 
 test('visual search falls back safely when the embedding service is unavailable', function () {
@@ -728,7 +789,7 @@ test('visual search falls back safely when the embedding service is unavailable'
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    assistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadFromFixture(visualSearchFixturePath('fallback-source-shoe.png'), 'fallback-source-shoe.png'),
     ], [
         'Accept' => 'application/json',

@@ -65,30 +65,68 @@
             <form class="ys-chat-visual-form" data-visual-search-form enctype="multipart/form-data" novalidate>
                 <input type="file" name="image" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" class="sr-only" data-visual-file-input>
 
-                <div class="ys-chat-visual-status hidden" data-visual-status>
-                    <img src="" alt="Selected visual search preview" class="ys-chat-visual-status-image" data-visual-preview-image>
-                    <div class="min-w-0 flex-1">
-                        <p class="ys-chat-visual-status-name" data-visual-file-name></p>
-                        <p class="ys-chat-visual-status-copy">Ready for visual search. Use refine controls below if you want a narrower match.</p>
-                    </div>
-                    <button type="button" class="ys-chat-inline-link" data-visual-clear>
-                        Remove
-                    </button>
-                </div>
+                <div
+                    id="assistant-image-tools"
+                    class="ys-chat-tool-drawer hidden"
+                    data-chat-tool-drawer
+                    aria-hidden="true"
+                >
+                    <div class="ys-chat-tool-drawer-header">
+                        <div class="ys-chat-tool-drawer-copy">
+                            <p class="ys-chat-tool-drawer-title">Image search tools</p>
+                            <p class="ys-chat-tool-drawer-meta" data-visual-refine-meta>
+                                Upload a shoe photo, then add optional filters only if you want a narrower match.
+                            </p>
+                        </div>
 
-                <details class="ys-chat-refine-details">
-                    <summary class="ys-chat-refine-summary">Refine image search</summary>
+                        <button
+                            type="button"
+                            class="ys-chat-tool-close"
+                            data-chat-tools-close
+                            aria-label="Close image search tools"
+                            title="Close image search tools"
+                        >
+                            <span class="text-base leading-none">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="ys-chat-visual-status hidden" data-visual-status>
+                        <img src="" alt="Selected visual search preview" class="ys-chat-visual-status-image" data-visual-preview-image>
+                        <div class="min-w-0 flex-1">
+                            <p class="ys-chat-visual-status-name" data-visual-file-name></p>
+                            <p class="ys-chat-visual-status-copy">Image ready. Refine the search or rerun it anytime.</p>
+                        </div>
+                        <button type="button" class="ys-chat-inline-link" data-visual-clear>
+                            Remove
+                        </button>
+                    </div>
+
+                    <div class="ys-chat-refine-summary">
+                        <span class="ys-chat-refine-summary-copy">
+                            <span class="ys-chat-refine-summary-title">Refine image search</span>
+                            <span class="ys-chat-refine-summary-meta">
+                                Keep the conversation in focus while these filters stay available on demand.
+                            </span>
+                        </span>
+                        <span class="ys-chat-refine-summary-state">
+                            <span class="ys-chat-refine-summary-count" data-visual-filter-count>
+                                0 filters
+                            </span>
+                        </span>
+                    </div>
+
+                    <div class="ys-chat-refine-tags hidden" data-visual-filter-summary aria-live="polite"></div>
 
                     <div class="ys-chat-refine-panel">
                         <div class="ys-chat-refine-grid">
                             <label class="ys-field">
                                 <span>Brand or style</span>
-                                <input type="text" name="brand_style" class="ys-input h-11" placeholder="Example: Onyx, runner, court">
+                                <input type="text" name="brand_style" class="ys-input h-11" placeholder="Example: Onyx, runner, court" data-visual-filter-field data-filter-label="Brand/style">
                             </label>
 
                             <label class="ys-field">
                                 <span>Color</span>
-                                <select name="color" class="ys-select h-11">
+                                <select name="color" class="ys-select h-11" data-visual-filter-field data-filter-label="Color">
                                     <option value="">Any color</option>
                                     @foreach ($visualColors as $value => $label)
                                         <option value="{{ $value }}">{{ $label }}</option>
@@ -98,7 +136,7 @@
 
                             <label class="ys-field">
                                 <span>Category</span>
-                                <select name="category" class="ys-select h-11">
+                                <select name="category" class="ys-select h-11" data-visual-filter-field data-filter-label="Category">
                                     <option value="">Any category</option>
                                     @foreach ($storefrontCategories ?? [] as $category)
                                         <option value="{{ $category->slug }}">{{ $category->name }}</option>
@@ -108,7 +146,7 @@
 
                             <label class="ys-field">
                                 <span>Use case</span>
-                                <select name="use_case" class="ys-select h-11">
+                                <select name="use_case" class="ys-select h-11" data-visual-filter-field data-filter-label="Use case">
                                     <option value="">Any use case</option>
                                     @foreach ($visualUseCases as $value => $label)
                                         <option value="{{ $value }}">{{ $label }}</option>
@@ -118,12 +156,15 @@
                         </div>
 
                         <div class="ys-chat-refine-actions">
-                            <button type="button" class="ys-button-secondary text-[0.84rem]" data-visual-rerun>
+                            <p class="ys-chat-refine-helper">
+                                Filters apply to the current uploaded image only.
+                            </p>
+                            <button type="button" class="ys-button-secondary ys-chat-rerun-button text-[0.84rem]" data-visual-rerun>
                                 Search Uploaded Image
                             </button>
                         </div>
                     </div>
-                </details>
+                </div>
             </form>
 
             <form class="ys-chat-input-bar" data-chat-form>
@@ -136,16 +177,45 @@
                     </svg>
                 </button>
 
-                <label class="sr-only" for="assistant-message">Message assistant</label>
-                <input
-                    id="assistant-message"
-                    type="text"
-                    name="message"
-                    class="ys-chat-input-bar-field"
-                    placeholder="Ask about shoes, size, stock, or budget..."
-                    maxlength="400"
-                    data-chat-input
+                <button
+                    type="button"
+                    class="ys-chat-input-icon"
+                    data-chat-tools-toggle
+                    aria-label="Open image search tools"
+                    title="Open image search tools"
+                    aria-expanded="false"
+                    aria-controls="assistant-image-tools"
                 >
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                        <path d="M4 7h16" stroke-linecap="round" />
+                        <path d="M7 12h10" stroke-linecap="round" />
+                        <path d="M10 17h4" stroke-linecap="round" />
+                        <circle cx="9" cy="7" r="1.5" fill="currentColor" stroke="none" />
+                        <circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                        <circle cx="12" cy="17" r="1.5" fill="currentColor" stroke="none" />
+                    </svg>
+                </button>
+
+                <div class="ys-chat-composer-body">
+                    <div class="ys-chat-composer-chip hidden" data-visual-chip>
+                        <span class="ys-chat-composer-chip-badge">Image ready</span>
+                        <span class="ys-chat-composer-chip-text" data-visual-chip-text></span>
+                        <button type="button" class="ys-chat-composer-chip-action" data-chat-tools-toggle-inline>
+                            Refine
+                        </button>
+                    </div>
+
+                    <label class="sr-only" for="assistant-message">Message assistant</label>
+                    <input
+                        id="assistant-message"
+                        type="text"
+                        name="message"
+                        class="ys-chat-input-bar-field"
+                        placeholder="Ask about shoes, size, stock, budget, or upload a photo..."
+                        maxlength="400"
+                        data-chat-input
+                    >
+                </div>
 
                 <button type="submit" class="ys-chat-send-button">
                     Send
