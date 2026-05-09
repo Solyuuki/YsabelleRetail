@@ -448,7 +448,16 @@ test('visual search requires an uploaded image', function () {
         ->assertJsonValidationErrors(['image']);
 });
 
-test('visual search returns a controlled failure when gd is unavailable', function () {
+test('visual search accepts png screenshot uploads without failing validation', function () {
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(public_path('apple-touch-icon.png'), 'Screenshot (711).png'),
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk();
+});
+
+test('visual search returns a safe index-unavailable failure when no engine can run', function () {
     config()->set('storefront.assistant.visual_search.embedding.enabled', false);
 
     assistantPost($this, route('storefront.assistant.visual-search'), [
@@ -458,9 +467,31 @@ test('visual search returns a controlled failure when gd is unavailable', functi
     ])
         ->assertOk()
         ->assertJsonPath('status', 'failed')
-        ->assertJsonPath('match.reason', 'gd_unavailable')
+        ->assertJsonPath('match.reason', 'index_unavailable')
         ->assertJsonPath('products', [])
         ->assertJsonPath('answer', 'I couldn\'t scan that image right now. Try again shortly.');
+});
+
+test('visual search gives screenshot crop guidance for screenshot-like uploads with weak shoe signal', function () {
+    makeStorefrontProduct([
+        'name' => 'Guide Runner',
+        'slug' => 'guide-runner',
+        'primary_image_url' => url('images/products/running/aurum-runner.jpg'),
+        'image_alt' => 'Guide Runner product image',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+    config()->set('storefront.assistant.visual_search.embedding.enabled', false);
+
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(public_path('apple-touch-icon.png'), 'Screenshot (711).png'),
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'failed')
+        ->assertJsonPath('match.reason', 'screenshot_needs_crop')
+        ->assertJsonPath('answer', 'I can read the screenshot, but the shoe is too small/noisy. Try cropping closer.');
 });
 
 test('visual search fails safely for unrelated non-shoe images', function () {
@@ -981,6 +1012,33 @@ test('visual search index stores distinct image URLs with embeddings for product
     expect(VisualSearchIndexEntry::query()->count())->toBe(3)
         ->and(VisualSearchIndexEntry::query()->distinct('image_url')->count('image_url'))->toBe(3)
         ->and(VisualSearchIndexEntry::query()->whereNotNull('embedding_vector')->count())->toBe(3);
+});
+
+test('visual search index resolves storage asset urls without requiring a public storage symlink', function () {
+    $directory = storage_path('app/public/testing/visual-search');
+
+    if (! is_dir($directory)) {
+        mkdir($directory, 0777, true);
+    }
+
+    $filename = 'storage-index-shoe.jpg';
+    $targetPath = $directory.DIRECTORY_SEPARATOR.$filename;
+    copy(public_path('images/products/running/aurum-runner.jpg'), $targetPath);
+
+    makeStorefrontProduct([
+        'name' => 'Storage Indexed Runner',
+        'slug' => 'storage-indexed-runner',
+        'primary_image_url' => url('storage/testing/visual-search/'.$filename),
+        'image_alt' => 'Storage indexed runner product image',
+    ], [
+        'sku' => 'YS-STO-6200-9',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])
+        ->assertExitCode(0);
+
+    expect(VisualSearchIndexEntry::query()->count())->toBe(1)
+        ->and(VisualSearchIndexEntry::query()->whereNotNull('embedding_vector')->count())->toBe(1);
 });
 
 test('visual search clear command removes indexed entries', function () {

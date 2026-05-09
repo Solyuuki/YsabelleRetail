@@ -14,17 +14,36 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Artisan::command('visual-search:index {--fresh : Clear the existing visual search index before rebuilding}', function (): void {
-    $stats = app(VisualSearchIndexService::class)->rebuildIndex((bool) $this->option('fresh'));
+Artisan::command('visual-search:index {--fresh : Clear the existing visual search index before rebuilding} {--limit= : Limit products/images for debugging}', function (): void {
+    $fresh = (bool) $this->option('fresh');
+    $limitOption = $this->option('limit');
+    $limit = is_numeric($limitOption) && (int) $limitOption > 0 ? (int) $limitOption : null;
+
+    $this->components->info(sprintf(
+        'Starting visual search indexing%s%s',
+        $fresh ? ' with fresh replacement' : '',
+        $limit !== null ? " (limit: {$limit})" : '',
+    ));
+
+    $stats = app(VisualSearchIndexService::class)->rebuildIndex($fresh, $limit);
 
     $this->table(
         ['Metric', 'Value'],
         [
+            ['Product limit', $limit ?? 'none'],
             ['Products scanned', $stats['products_scanned']],
+            ['Products with images', $stats['products_with_images']],
+            ['Products skipped', $stats['products_skipped']],
+            ['Images discovered', $stats['images_discovered']],
             ['Images indexed', $stats['images_indexed']],
             ['Images skipped', $stats['images_skipped']],
+            ['Missing image files', $stats['missing_image_files']],
             ['Embeddings generated', $stats['embeddings_generated']],
             ['Embeddings failed', $stats['embeddings_failed']],
+            ['Index entries before', $stats['index_entries_before']],
+            ['Entries with embeddings before', $stats['entries_with_embeddings_before']],
+            ['Index entries after', $stats['index_entries_after']],
+            ['Entries with embeddings after', $stats['entries_with_embeddings_after']],
             ['Entries deleted', $stats['entries_deleted']],
         ],
     );

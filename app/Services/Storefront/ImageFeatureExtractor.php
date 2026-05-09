@@ -24,7 +24,15 @@ class ImageFeatureExtractor
     {
         $result = $this->extractDetailedFromBinary($binary);
 
-        return $result['ok'] ? ($result['features'] ?? null) : null;
+        if ($result['ok']) {
+            return $result['features'] ?? null;
+        }
+
+        if (($result['error'] ?? '') === 'gd_unavailable') {
+            return $this->fallbackFeatures($binary);
+        }
+
+        return null;
     }
 
     public function extractDetailedFromBinary(string $binary): array
@@ -315,6 +323,41 @@ class ImageFeatureExtractor
         [$red, $green, $blue] = $this->pixelRgb($image, $x, $y);
 
         return (0.299 * $red) + (0.587 * $green) + (0.114 * $blue);
+    }
+
+    private function fallbackFeatures(string $binary): array
+    {
+        [$width, $height] = $this->dimensionsFromBinary($binary);
+
+        return [
+            'feature_version' => self::FEATURE_VERSION,
+            'width' => $width,
+            'height' => $height,
+            'aspect_ratio' => $height > 0 ? round($width / max($height, 1), 6) : 1.0,
+            'perceptual_hash' => '',
+            'color_histogram' => array_fill(0, 24, 0.0),
+            'shape_profile_x' => array_fill(0, 16, 0.0),
+            'shape_profile_y' => array_fill(0, 16, 0.0),
+            'dominant_colors' => [],
+            'mean_red' => 0.0,
+            'mean_green' => 0.0,
+            'mean_blue' => 0.0,
+            'edge_density' => 0.0,
+            'foreground_ratio' => 0.0,
+        ];
+    }
+
+    private function dimensionsFromBinary(string $binary): array
+    {
+        if (function_exists('getimagesizefromstring')) {
+            $size = @getimagesizefromstring($binary);
+
+            if (is_array($size)) {
+                return [(int) ($size[0] ?? 0), (int) ($size[1] ?? 0)];
+            }
+        }
+
+        return [0, 0];
     }
 
     private function foregroundWeight(int $red, int $green, int $blue): float

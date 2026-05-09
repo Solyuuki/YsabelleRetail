@@ -11,6 +11,7 @@ class StorefrontVisualSearchRequest extends FormRequest
     private const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
     private const ALLOWED_IMAGE_MIME_TYPES = [
         'image/jpeg',
+        'image/jpg',
         'image/png',
         'image/webp',
         'image/heic',
@@ -56,7 +57,7 @@ class StorefrontVisualSearchRequest extends FormRequest
         }
 
         if ($contentMime !== null && $this->shouldProbeDimensions($contentMime, $extension)) {
-            $dimensions = @getimagesize($image->getRealPath() ?: '');
+            $dimensions = @getimagesize($this->inspectablePath($image) ?: '');
 
             return is_array($dimensions) && str_starts_with(Str::lower((string) ($dimensions['mime'] ?? '')), 'image/');
         }
@@ -66,15 +67,31 @@ class StorefrontVisualSearchRequest extends FormRequest
 
     private function contentMimeType(UploadedFile $image): ?string
     {
-        $path = $image->getRealPath();
+        $path = $this->inspectablePath($image);
 
-        if (! is_string($path) || $path === '' || ! is_file($path)) {
+        if (! is_string($path) || $path === '' || ! is_file($path) || ! is_readable($path)) {
             return null;
         }
 
         $mime = @mime_content_type($path);
 
         return is_string($mime) && $mime !== '' ? Str::lower($mime) : null;
+    }
+
+    private function inspectablePath(UploadedFile $image): ?string
+    {
+        $candidates = array_unique(array_filter([
+            $image->getRealPath(),
+            $image->getPathname(),
+        ]));
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && $candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function isAllowedMime(?string $contentMime, string $detectedMime, string $clientMime, string $extension): bool

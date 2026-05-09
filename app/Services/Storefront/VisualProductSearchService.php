@@ -45,9 +45,14 @@ class VisualProductSearchService
             'use_case' => $hints['use_case'] ?? null,
             'filename' => pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME),
         ]);
+        $materializedUpload = null;
+        $uploadContext = $this->uploadContext($image);
 
         if (! $image->isValid()) {
-            $this->logFailure('upload_invalid', $image, ['criteria' => $criteria]);
+            $this->logFailure('upload_invalid', $image, [
+                'criteria' => $criteria,
+                'upload' => $uploadContext,
+            ]);
 
             return $this->failedVisualResponse(
                 reason: 'upload_invalid',
@@ -56,20 +61,14 @@ class VisualProductSearchService
             );
         }
 
-        if (! $this->featureExtractor->available()) {
-            $this->logFailure('gd_unavailable', $image, ['criteria' => $criteria]);
+        $materializedUpload = $this->imageSource->materializeFromUpload($image);
+        $uploadContext = $this->uploadContext($image, $materializedUpload);
 
-            return $this->failedVisualResponse(
-                reason: 'gd_unavailable',
-                answer: 'I couldn\'t scan that image right now. Try again shortly.',
-                engine: 'unavailable',
-            );
-        }
-
-        $binary = $this->imageSource->loadFromUpload($image);
-
-        if (! is_string($binary) || $binary === '') {
-            $this->logFailure('upload_read_failed', $image, ['criteria' => $criteria]);
+        if (! is_array($materializedUpload) || ! is_string($materializedUpload['path'] ?? null) || $materializedUpload['path'] === '') {
+            $this->logFailure('upload_materialization_failed', $image, [
+                'criteria' => $criteria,
+                'upload' => $uploadContext,
+            ]);
 
             return $this->failedVisualResponse(
                 reason: 'upload_read_failed',
@@ -78,177 +77,232 @@ class VisualProductSearchService
             );
         }
 
-        $featureExtraction = $this->featureExtractor->extractDetailedFromBinary($binary);
-        $fallbackFeatures = $featureExtraction['ok'] ? ($featureExtraction['features'] ?? null) : null;
-
-        if (! is_array($fallbackFeatures)) {
-            $this->logFailure((string) ($featureExtraction['error'] ?? 'processing_error'), $image, [
-                'criteria' => $criteria,
-                'message' => $featureExtraction['message'] ?? null,
-            ]);
-
-            return $this->failedVisualResponse(
-                reason: (string) ($featureExtraction['error'] ?? 'processing_error'),
-                answer: 'I couldn\'t scan that image. Try another photo.',
-                engine: 'processing',
-            );
-        }
-
         try {
-            $embeddingPayload = $this->embeddingService->embedUpload($image);
-        } catch (\Throwable $exception) {
-            $embeddingPayload = null;
-            $this->debugLog('embedding_unavailable', [
+            $binary = @file_get_contents($materializedUpload['path']);
+
+            if (! is_string($binary) || $binary === '') {
+                $this->logFailure('upload_read_failed', $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                ]);
+
+                return $this->failedVisualResponse(
+                    reason: 'upload_read_failed',
+                    answer: 'I couldn\'t read that upload. Try another photo.',
+                    engine: 'upload',
+                );
+            }
+
+            $fallbackFeatures = $this->featureExtractor->extractFromBinary($binary);
+            $embeddingException = null;
+
+            try {
+                $embeddingPayload = $this->embeddingService->embedPath($materializedUpload['path']);
+            } catch (\Throwable $exception) {
+                $embeddingPayload = null;
+                $embeddingException = $exception;
+                $this->logFailure('embedding_unavailable', $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                    'message' => $exception->getMessage(),
+                    'exception_class' => $exception::class,
+                ]);
+                $this->debugLog('embedding_unavailable', [
+                    'upload_filename' => $image->getClientOriginalName(),
+                    'upload' => $uploadContext,
+                    'message' => $exception->getMessage(),
+                    'exception_class' => $exception::class,
+                ]);
+            }
+
+            $embeddingGenerated = is_array($embeddingPayload)
+                && ($embeddingPayload['ok'] ?? false) === true
+                && is_array($embeddingPayload['embedding'] ?? null);
+
+            if ($embeddingPayload === null && $embeddingException === null && $this->embeddingService->enabled()) {
+                $this->logFailure('embedding_missing', $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                    'message' => 'Embedding service returned no payload for the upload.',
+                ]);
+            }
+
+            if (! is_array($fallbackFeatures) && ! $embeddingGenerated) {
+                $this->logFailure('processing_error', $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                    'message' => 'Image processing failed and no embedding was generated.',
+                ]);
+
+                return $this->failedVisualResponse(
+                    reason: 'processing_error',
+                    answer: 'I couldn\'t scan that image. Try another photo.',
+                    engine: 'processing',
+                );
+            }
+
+            $indexEntries = $this->indexService->indexedEntries();
+            $indexedEmbeddingEntries = $indexEntries->filter(fn (VisualSearchIndexEntry $entry): bool => is_array($entry->embedding_vector) && $entry->embedding_vector !== []);
+            $visualSignals = $this->buildVisualSignals($fallbackFeatures, $embeddingPayload);
+
+            $context = [
                 'upload_filename' => $image->getClientOriginalName(),
-                'message' => $exception->getMessage(),
-            ]);
-        }
+                'upload' => $uploadContext,
+                'embedding_generated' => $embeddingGenerated,
+                'index_count' => $indexEntries->count(),
+                'indexed_embedding_count' => $indexedEmbeddingEntries->count(),
+                'upload_shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
+                'upload_blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
+                'preprocessing' => is_array($embeddingPayload['metadata'] ?? null) ? $embeddingPayload['metadata'] : null,
+                'visual_signals' => $visualSignals,
+                'similarity_reached' => false,
+            ];
 
-        $embeddingGenerated = is_array($embeddingPayload)
-            && ($embeddingPayload['ok'] ?? false) === true
-            && is_array($embeddingPayload['embedding'] ?? null);
+            if ($indexEntries->isEmpty()) {
+                $this->logFailure('index_unavailable', $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                ] + $context);
+                $this->debugLog('no_index', $context);
 
-        $indexEntries = $this->indexService->indexedEntries();
-        $indexedEmbeddingEntries = $indexEntries->filter(fn (VisualSearchIndexEntry $entry): bool => is_array($entry->embedding_vector) && $entry->embedding_vector !== []);
-        $visualSignals = $this->buildVisualSignals($fallbackFeatures, $embeddingPayload);
+                return $this->failedVisualResponse(
+                    reason: 'index_unavailable',
+                    answer: 'I couldn\'t scan that image right now. Try again shortly.',
+                    engine: 'catalog_unavailable',
+                    signals: $visualSignals,
+                );
+            }
 
-        $context = [
-            'upload_filename' => $image->getClientOriginalName(),
-            'embedding_generated' => $embeddingGenerated,
-            'index_count' => $indexEntries->count(),
-            'indexed_embedding_count' => $indexedEmbeddingEntries->count(),
-            'upload_shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
-            'upload_blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
-            'preprocessing' => is_array($embeddingPayload['metadata'] ?? null) ? $embeddingPayload['metadata'] : null,
-            'visual_signals' => $visualSignals,
-            'similarity_reached' => false,
-        ];
+            $engine = 'fallback';
+            $scoredProducts = collect();
 
-        if ($indexEntries->isEmpty()) {
-            $this->debugLog('no_index', $context);
+            if ($embeddingGenerated && $indexedEmbeddingEntries->isNotEmpty()) {
+                $engine = 'embedding';
+                $scoredProducts = $this->rankProductsByEmbedding($embeddingPayload, $indexedEmbeddingEntries, $criteria, $visualSignals);
+                $context['similarity_reached'] = true;
+            }
 
-            return $this->failedVisualResponse(
-                reason: 'index_unavailable',
-                answer: 'I couldn\'t scan that image right now. Try again shortly.',
-                engine: 'catalog_unavailable',
-                signals: $visualSignals,
-            );
-        }
+            if ($scoredProducts->isEmpty() && is_array($fallbackFeatures)) {
+                $scoredProducts = $this->rankProductsByFallback($fallbackFeatures, $indexEntries, $criteria, $visualSignals);
+                $engine = $engine === 'embedding' ? $engine : 'fallback';
+            }
 
-        $engine = 'fallback';
-        $scoredProducts = collect();
+            if ($scoredProducts->isEmpty()) {
+                $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, null, $criteria, $uploadContext);
+                $this->logFailure($reason, $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                    'top_products' => [],
+                ] + $context);
+                $this->debugLog('no_match', $context + [
+                    'reason' => $reason,
+                    'top_products' => [],
+                ]);
 
-        if ($embeddingGenerated && $indexedEmbeddingEntries->isNotEmpty()) {
-            $engine = 'embedding';
-            $scoredProducts = $this->rankProductsByEmbedding($embeddingPayload, $indexedEmbeddingEntries, $criteria, $visualSignals);
-            $context['similarity_reached'] = true;
-        }
+                return $this->failedVisualResponse(
+                    reason: $reason,
+                    answer: $this->failedAnswerFor($reason),
+                    engine: $engine,
+                    signals: $visualSignals,
+                );
+            }
 
-        if ($scoredProducts->isEmpty() && is_array($fallbackFeatures)) {
-            $scoredProducts = $this->rankProductsByFallback($fallbackFeatures, $indexEntries, $criteria, $visualSignals);
-            $engine = $engine === 'embedding' ? $engine : 'fallback';
-        }
+            $topCandidate = $scoredProducts->first();
+            $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate, $criteria, $uploadContext);
+            $topProducts = $this->debugCandidates($scoredProducts);
+            $searchConfidence = $this->searchConfidenceForCandidate($topCandidate, $engine);
 
-        if ($scoredProducts->isEmpty()) {
-            $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, null);
-            $this->debugLog('no_match', $context + [
-                'reason' => $reason,
-                'top_products' => [],
-            ]);
+            if ($this->shouldFailVisualSearch($reason, $topCandidate)) {
+                $this->logFailure($reason, $image, [
+                    'criteria' => $criteria,
+                    'upload' => $uploadContext,
+                    'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
+                    'top_products' => $topProducts,
+                ] + $context);
+                $this->debugLog('failed_visual_search', $context + [
+                    'reason' => $reason,
+                    'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
+                    'top_products' => $topProducts,
+                ]);
 
-            return $this->failedVisualResponse(
-                reason: $reason,
-                answer: $this->failedAnswerFor($reason),
-                engine: $engine,
-                signals: $visualSignals,
-            );
-        }
+                return $this->failedVisualResponse(
+                    reason: $reason,
+                    answer: $this->failedAnswerFor($reason),
+                    engine: $engine,
+                    signals: $visualSignals,
+                );
+            }
 
-        $topCandidate = $scoredProducts->first();
-        $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate);
-        $topProducts = $this->debugCandidates($scoredProducts);
-        $searchConfidence = $this->searchConfidenceForCandidate($topCandidate, $engine);
+            if ($searchConfidence === 'low_confidence') {
+                $fallbackResponse = $this->lowConfidenceResponse(
+                    candidates: $scoredProducts,
+                    criteria: $criteria,
+                    topCandidate: $topCandidate,
+                    engine: $engine,
+                    signals: $visualSignals,
+                );
 
-        if ($this->shouldFailVisualSearch($reason, $topCandidate)) {
-            $this->debugLog('failed_visual_search', $context + [
-                'reason' => $reason,
-                'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
-                'top_products' => $topProducts,
-            ]);
+                $this->debugLog('low_confidence', $context + [
+                    'reason' => 'approximate_match',
+                    'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
+                    'top_products' => $topProducts,
+                ]);
 
-            return $this->failedVisualResponse(
-                reason: $reason,
-                answer: $this->failedAnswerFor($reason),
-                engine: $engine,
-                signals: $visualSignals,
-            );
-        }
+                return $fallbackResponse;
+            }
 
-        if ($searchConfidence === 'low_confidence') {
-            $fallbackResponse = $this->lowConfidenceResponse(
-                candidates: $scoredProducts,
-                criteria: $criteria,
-                topCandidate: $topCandidate,
-                engine: $engine,
-                signals: $visualSignals,
-            );
+            $products = $this->presentableCandidates($scoredProducts)
+                ->take(4)
+                ->map(function (array $candidate) use ($engine): array {
+                    $product = $this->productDiscovery->formatProduct($candidate['product']);
+                    $product['match'] = [
+                        'confidence' => $candidate['confidence'],
+                        'label' => $this->confidenceLabel($candidate['confidence'], $engine),
+                        'score' => round((float) ($candidate['confidence_score'] ?? $candidate['visual_score']), 4),
+                        'score_percent' => (int) round(((float) ($candidate['confidence_score'] ?? $candidate['visual_score'])) * 100),
+                    ];
 
-            $this->debugLog('low_confidence', $context + [
-                'reason' => 'approximate_match',
-                'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
-                'top_products' => $topProducts,
-            ]);
+                    return $product;
+                })
+                ->values()
+                ->all();
 
-            return $fallbackResponse;
-        }
-
-        $products = $this->presentableCandidates($scoredProducts)
-            ->take(4)
-            ->map(function (array $candidate) use ($engine): array {
-                $product = $this->productDiscovery->formatProduct($candidate['product']);
-                $product['match'] = [
-                    'confidence' => $candidate['confidence'],
-                    'label' => $this->confidenceLabel($candidate['confidence'], $engine),
-                    'score' => round((float) ($candidate['confidence_score'] ?? $candidate['visual_score']), 4),
-                    'score_percent' => (int) round(((float) ($candidate['confidence_score'] ?? $candidate['visual_score'])) * 100),
-                ];
-
-                return $product;
-            })
-            ->values()
-            ->all();
-
-        $this->debugLog('match', $context + [
-            'engine' => $engine,
-            'top_products' => $topProducts,
-        ]);
-
-        return [
-            'status' => 'success',
-            'search_confidence' => $searchConfidence,
-            'answer' => $this->successfulMatchAnswer($searchConfidence, $engine),
-            'match' => [
-                'confidence' => $topCandidate['confidence'],
-                'label' => $this->confidenceLabel($topCandidate['confidence'], $engine),
-                'score' => round((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score']), 4),
-                'score_percent' => (int) round(((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'])) * 100),
+            $this->debugLog('match', $context + [
                 'engine' => $engine,
-                'reason' => $topCandidate['confidence'],
-                'search_confidence' => $searchConfidence,
-            ],
-            'visual_search' => [
+                'top_products' => $topProducts,
+            ]);
+
+            return [
                 'status' => 'success',
-                'confidence' => $searchConfidence,
-                'engine' => $engine,
-                'reason' => $topCandidate['confidence'],
-                'signals' => $visualSignals,
-            ],
-            'products' => $products,
-            'actions' => [
-                ['label' => 'Browse full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
-                ['label' => 'Ask assistant', 'type' => 'message', 'message' => 'Help me choose a shoe for daily use'],
-            ],
-        ];
+                'search_confidence' => $searchConfidence,
+                'answer' => $this->successfulMatchAnswer($searchConfidence, $engine),
+                'match' => [
+                    'confidence' => $topCandidate['confidence'],
+                    'label' => $this->confidenceLabel($topCandidate['confidence'], $engine),
+                    'score' => round((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score']), 4),
+                    'score_percent' => (int) round(((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'])) * 100),
+                    'engine' => $engine,
+                    'reason' => $topCandidate['confidence'],
+                    'search_confidence' => $searchConfidence,
+                ],
+                'visual_search' => [
+                    'status' => 'success',
+                    'confidence' => $searchConfidence,
+                    'engine' => $engine,
+                    'reason' => $topCandidate['confidence'],
+                    'signals' => $visualSignals,
+                ],
+                'products' => $products,
+                'actions' => [
+                    ['label' => 'Browse full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                    ['label' => 'Ask assistant', 'type' => 'message', 'message' => 'Help me choose a shoe for daily use'],
+                ],
+            ];
+        } finally {
+            if (($materializedUpload['temporary'] ?? false) === true && is_string($materializedUpload['path'] ?? null)) {
+                @unlink($materializedUpload['path']);
+            }
+        }
     }
 
     private function rankProductsByEmbedding(array $uploadEmbedding, Collection $indexEntries, array $criteria, array $visualSignals): Collection
@@ -541,25 +595,39 @@ class VisualProductSearchService
         return 1 - min($distance / 3, 1.0);
     }
 
-    private function buildVisualSignals(array $features, ?array $embeddingPayload): array
+    private function buildVisualSignals(?array $features, ?array $embeddingPayload): array
     {
-        $dominantHex = (string) ($features['dominant_colors'][0] ?? '');
-        [$red, $green, $blue] = $this->hexToRgb($dominantHex !== '' ? $dominantHex : $this->rgbToHex(
-            (float) ($features['mean_red'] ?? 0.0),
-            (float) ($features['mean_green'] ?? 0.0),
-            (float) ($features['mean_blue'] ?? 0.0),
-        ));
-        [$hue, $saturation, $lightness] = $this->rgbToHsl($red, $green, $blue);
-        $brightness = round(((float) ($features['mean_red'] ?? 0.0) + (float) ($features['mean_green'] ?? 0.0) + (float) ($features['mean_blue'] ?? 0.0)) / 3, 6);
+        $dominantColors = is_array($features) ? ($features['dominant_colors'] ?? []) : [];
+        $meanRed = is_array($features) ? (float) ($features['mean_red'] ?? 0.0) : 0.0;
+        $meanGreen = is_array($features) ? (float) ($features['mean_green'] ?? 0.0) : 0.0;
+        $meanBlue = is_array($features) ? (float) ($features['mean_blue'] ?? 0.0) : 0.0;
+        $foregroundRatio = is_array($features) ? (float) ($features['foreground_ratio'] ?? 0.0) : 0.0;
+        $edgeDensity = is_array($features) ? (float) ($features['edge_density'] ?? 0.0) : 0.0;
+
+        $hasVisualFeatures = is_array($features) && ($dominantColors !== [] || $meanRed !== 0.0 || $meanGreen !== 0.0 || $meanBlue !== 0.0);
+
+        if ($hasVisualFeatures) {
+            $dominantHex = (string) ($dominantColors[0] ?? '');
+            [$red, $green, $blue] = $this->hexToRgb($dominantHex !== '' ? $dominantHex : $this->rgbToHex($meanRed, $meanGreen, $meanBlue));
+            [$hue, $saturation, $lightness] = $this->rgbToHsl($red, $green, $blue);
+            $colorFamily = $this->inferVisualColorFamily($hue, $saturation, $lightness);
+            $lightProfile = $lightness >= 0.78 ? 'light' : ($lightness <= 0.28 ? 'dark' : 'balanced');
+        } else {
+            [$hue, $saturation, $lightness] = [0.0, 0.0, 0.5];
+            $colorFamily = null;
+            $lightProfile = 'balanced';
+        }
+
+        $brightness = round(($meanRed + $meanGreen + $meanBlue) / 3, 6);
 
         return [
-            'dominant_colors' => $features['dominant_colors'] ?? [],
-            'color_family' => $this->inferVisualColorFamily($hue, $saturation, $lightness),
-            'light_profile' => $lightness >= 0.78 ? 'light' : ($lightness <= 0.28 ? 'dark' : 'balanced'),
+            'dominant_colors' => $dominantColors,
+            'color_family' => $colorFamily,
+            'light_profile' => $lightProfile,
             'brightness' => $brightness,
-            'foreground_ratio' => round((float) ($features['foreground_ratio'] ?? 0.0), 6),
-            'edge_density' => round((float) ($features['edge_density'] ?? 0.0), 6),
-            'subject' => $this->resemblesShoe($features) ? 'shoe' : 'uncertain',
+            'foreground_ratio' => round($foregroundRatio, 6),
+            'edge_density' => round($edgeDensity, 6),
+            'subject' => $hasVisualFeatures && $this->resemblesShoe($features) ? 'shoe' : 'uncertain',
             'shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
             'blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
         ];
@@ -1089,15 +1157,16 @@ class VisualProductSearchService
         return match ($reason) {
             'blurred_upload' => 'I couldn\'t scan that image. Try a clearer photo.',
             'non_shoe' => 'I couldn\'t scan that image. Try another shoe photo.',
+            'screenshot_needs_crop' => 'I can read the screenshot, but the shoe is too small/noisy. Try cropping closer.',
             'gd_unavailable', 'index_unavailable', 'processing_error' => 'I couldn\'t scan that image right now. Try again shortly.',
-            'upload_invalid', 'upload_read_failed', 'decode_failed', 'empty_image', 'image_too_small' => 'I couldn\'t scan that image. Try another photo.',
+            'upload_invalid', 'upload_materialization_failed', 'upload_read_failed', 'decode_failed', 'empty_image', 'image_too_small' => 'I couldn\'t scan that image. Try another photo.',
             default => 'I couldn\'t scan that image. Try another photo.',
         };
     }
 
     private function shouldFailVisualSearch(string $reason, array $topCandidate): bool
     {
-        if (in_array($reason, ['non_shoe', 'blurred_upload'], true)) {
+        if (in_array($reason, ['non_shoe', 'blurred_upload', 'screenshot_needs_crop'], true)) {
             return true;
         }
 
@@ -1122,8 +1191,16 @@ class VisualProductSearchService
         };
     }
 
-    private function noMatchReason(?array $embeddingPayload, ?array $fallbackFeatures, ?array $topCandidate): string
+    private function noMatchReason(
+        ?array $embeddingPayload,
+        ?array $fallbackFeatures,
+        ?array $topCandidate,
+        array $criteria = [],
+        array $uploadContext = [],
+    ): string
     {
+        $screenshotLike = $this->isScreenshotLikeUpload($criteria, $uploadContext, $embeddingPayload, $fallbackFeatures);
+
         if ($topCandidate === null) {
             if (is_array($embeddingPayload) && (($embeddingPayload['metadata']['blur_score'] ?? 1) < $this->blurFloor())) {
                 return 'blurred_upload';
@@ -1132,19 +1209,23 @@ class VisualProductSearchService
             $shoeProbability = (float) ($embeddingPayload['shoe_probability'] ?? 0.0);
 
             if ($shoeProbability < $this->shoeProbabilityFloor() && ! $this->resemblesShoe($fallbackFeatures)) {
-                return 'non_shoe';
+                return $screenshotLike ? 'screenshot_needs_crop' : 'non_shoe';
             }
 
             return 'no_visual_candidate';
         }
 
         if ($this->isClearlyNonShoe($embeddingPayload, $fallbackFeatures, $topCandidate)) {
-            return 'non_shoe';
+            return $screenshotLike ? 'screenshot_needs_crop' : 'non_shoe';
         }
 
         if (($topCandidate['confidence_score'] ?? $topCandidate['visual_score'] ?? 0.0) < $this->similarMatchThreshold()) {
             if (is_array($embeddingPayload) && (($embeddingPayload['metadata']['blur_score'] ?? 1) < $this->blurFloor())) {
                 return 'blurred_upload';
+            }
+
+            if ($screenshotLike) {
+                return 'screenshot_needs_crop';
             }
 
             return 'low_similarity';
@@ -1274,6 +1355,50 @@ class VisualProductSearchService
             'client_mime' => $image->getClientMimeType(),
             'size_bytes' => $image->getSize(),
         ]);
+    }
+
+    private function uploadContext(UploadedFile $image, ?array $materializedUpload = null): array
+    {
+        $realPath = $image->getRealPath();
+        $pathname = $image->getPathname();
+
+        return [
+            'original_filename' => $image->getClientOriginalName(),
+            'client_extension' => Str::lower((string) $image->getClientOriginalExtension()),
+            'detected_mime' => $image->getMimeType(),
+            'client_mime' => $image->getClientMimeType(),
+            'size_bytes' => $image->getSize(),
+            'real_path' => is_string($realPath) ? $realPath : null,
+            'real_path_exists' => is_string($realPath) && $realPath !== '' ? is_file($realPath) : false,
+            'real_path_readable' => is_string($realPath) && $realPath !== '' ? is_readable($realPath) : false,
+            'pathname' => is_string($pathname) ? $pathname : null,
+            'pathname_exists' => is_string($pathname) && $pathname !== '' ? is_file($pathname) : false,
+            'pathname_readable' => is_string($pathname) && $pathname !== '' ? is_readable($pathname) : false,
+            'materialized_path' => is_array($materializedUpload) ? ($materializedUpload['path'] ?? null) : null,
+            'materialized_temporary' => is_array($materializedUpload) ? (bool) ($materializedUpload['temporary'] ?? false) : null,
+            'materialized_disk' => is_array($materializedUpload) ? ($materializedUpload['disk'] ?? null) : null,
+        ];
+    }
+
+    private function isScreenshotLikeUpload(
+        array $criteria,
+        array $uploadContext,
+        ?array $embeddingPayload,
+        ?array $fallbackFeatures,
+    ): bool {
+        $filename = Str::lower((string) ($criteria['filename'] ?? $uploadContext['original_filename'] ?? ''));
+
+        if ($filename !== '' && preg_match('/screenshot|screen[-_\s]?shot|screen[-_\s]?cap|screen[-_\s]?capture/', $filename) === 1) {
+            return true;
+        }
+
+        $width = (int) data_get($embeddingPayload, 'metadata.original_width', $fallbackFeatures['width'] ?? 0);
+        $height = (int) data_get($embeddingPayload, 'metadata.original_height', $fallbackFeatures['height'] ?? 0);
+        $clientMime = Str::lower((string) ($uploadContext['client_mime'] ?? ''));
+
+        return in_array($clientMime, ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'], true)
+            && $width >= 900
+            && $height >= 600;
     }
 
     private function debugLog(string $event, array $context): void
