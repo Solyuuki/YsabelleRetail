@@ -227,6 +227,10 @@ class VisualSearchIndexService
         if (! $this->indexTableExists()) {
             return [
                 'table_exists' => false,
+                'gd_available' => $this->featureExtractor->available(),
+                'gd_message' => $this->featureExtractor->available()
+                    ? 'GD image support is available.'
+                    : 'GD image support is unavailable.',
                 'entries' => 0,
                 'embedded_entries' => 0,
                 'fallback_only_entries' => 0,
@@ -251,6 +255,10 @@ class VisualSearchIndexService
 
         return [
             'table_exists' => true,
+            'gd_available' => $this->featureExtractor->available(),
+            'gd_message' => $this->featureExtractor->available()
+                ? 'GD image support is available.'
+                : 'GD image support is unavailable.',
             'entries' => $entries,
             'embedded_entries' => $embeddedEntries,
             'fallback_only_entries' => max(0, $entries - $embeddedEntries),

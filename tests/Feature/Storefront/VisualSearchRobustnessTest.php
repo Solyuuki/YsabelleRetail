@@ -13,6 +13,23 @@ beforeEach(function (): void {
     config()->set('storefront.assistant.ai.enabled', false);
 });
 
+function ensureRobustVisualSearchGdAvailable(): void
+{
+    foreach ([
+        'imagecreatetruecolor',
+        'imagecreatefrompng',
+        'imagecreatefromstring',
+        'imagepng',
+        'imagejpeg',
+        'imagewebp',
+        'imagedestroy',
+    ] as $function) {
+        if (! function_exists($function)) {
+            \PHPUnit\Framework\Assert::markTestSkipped('GD extension support is not available in this environment.');
+        }
+    }
+}
+
 function makeVisualSearchProduct(array $overrides = [], array $variantOverrides = []): Product
 {
     $category = Category::query()->firstOrCreate(
@@ -87,6 +104,8 @@ function allocateFixtureColor(GdImage $image, string $hex, int $alpha = 0): int
 
 function drawRobustShoeFixture(string $filename, string $upperHex, bool $transparent = false): string
 {
+    ensureRobustVisualSearchGdAvailable();
+
     $path = robustnessFixturePath($filename);
     $image = imagecreatetruecolor(260, 160);
     imagealphablending($image, false);
@@ -131,6 +150,8 @@ function drawRobustShoeFixture(string $filename, string $upperHex, bool $transpa
 
 function createWebpFixture(string $sourceFilename, string $targetFilename): string
 {
+    ensureRobustVisualSearchGdAvailable();
+
     $source = imagecreatefrompng(robustnessFixturePath($sourceFilename));
     $targetPath = robustnessFixturePath($targetFilename);
 
@@ -143,6 +164,8 @@ function createWebpFixture(string $sourceFilename, string $targetFilename): stri
 
 function createCompressedFixture(string $sourceFilename, string $targetFilename, int $quality = 28): string
 {
+    ensureRobustVisualSearchGdAvailable();
+
     $source = imagecreatefromstring(file_get_contents(robustnessFixturePath($sourceFilename)));
     $targetPath = robustnessFixturePath($targetFilename);
 
@@ -166,6 +189,22 @@ function uploadRobustFixture(string $path, string $name, ?string $mimeType = nul
     return new UploadedFile($path, $name, $mime, null, true);
 }
 
+function robustAssistantHeaders(array $headers = []): array
+{
+    return array_merge([
+        'Accept' => 'application/json',
+        'X-CSRF-TOKEN' => 'assistant-test-token',
+        'X-Requested-With' => 'XMLHttpRequest',
+    ], $headers);
+}
+
+function robustAssistantPost($test, string $route, array $payload = [], array $headers = [])
+{
+    return $test
+        ->withSession(['_token' => 'assistant-test-token'])
+        ->post($route, $payload, robustAssistantHeaders($headers));
+}
+
 test('visual search matches transparent png uploads', function () {
     drawRobustShoeFixture('transparent-source.png', '#274fd2', transparent: true);
     $product = makeVisualSearchProduct([
@@ -177,10 +216,8 @@ test('visual search matches transparent png uploads', function () {
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    robustAssistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadRobustFixture(robustnessFixturePath('transparent-source.png'), 'transparent-source.png'),
-    ], [
-        'Accept' => 'application/json',
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
@@ -203,10 +240,8 @@ test('visual search matches webp uploads', function () {
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    robustAssistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadRobustFixture(robustnessFixturePath('webp-query.webp'), 'webp-query.webp'),
-    ], [
-        'Accept' => 'application/json',
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
@@ -214,6 +249,8 @@ test('visual search matches webp uploads', function () {
 });
 
 test('visual search accepts downloaded product jpg inputs', function () {
+    ensureRobustVisualSearchGdAvailable();
+
     $sourcePath = public_path('images/products/running/aurum-runner.jpg');
     $product = makeVisualSearchProduct([
         'name' => 'Downloaded Runner',
@@ -224,10 +261,8 @@ test('visual search accepts downloaded product jpg inputs', function () {
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    robustAssistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadRobustFixture($sourcePath, 'downloaded-runner.jpg'),
-    ], [
-        'Accept' => 'application/json',
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
@@ -246,10 +281,8 @@ test('visual search keeps compressed shoe uploads searchable', function () {
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    robustAssistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadRobustFixture(robustnessFixturePath('compressed-query.jpg'), 'compressed-query.jpg'),
-    ], [
-        'Accept' => 'application/json',
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug);
@@ -269,10 +302,8 @@ test('visual search debug logs include preprocessing and similarity context', fu
 
     $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
 
-    $this->post(route('storefront.assistant.visual-search'), [
+    robustAssistantPost($this, route('storefront.assistant.visual-search'), [
         'image' => uploadRobustFixture(robustnessFixturePath('logged-source.png'), 'logged-source.png'),
-    ], [
-        'Accept' => 'application/json',
     ])->assertOk();
 
     Log::shouldHaveReceived('debug')

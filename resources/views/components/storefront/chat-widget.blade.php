@@ -73,10 +73,8 @@
                 >
                     <div class="ys-chat-tool-drawer-header">
                         <div class="ys-chat-tool-drawer-copy">
-                            <p class="ys-chat-tool-drawer-title">Image search tools</p>
-                            <p class="ys-chat-tool-drawer-meta" data-visual-refine-meta>
-                                Upload a shoe photo, then add optional filters only if you want a narrower match.
-                            </p>
+                            <p class="ys-chat-tool-drawer-title">Image Search</p>
+                            <p class="ys-chat-tool-drawer-meta">Upload a shoe photo and refine only if you need to.</p>
                         </div>
 
                         <button
@@ -90,32 +88,47 @@
                         </button>
                     </div>
 
-                    <div class="ys-chat-visual-status hidden" data-visual-status>
+                    <div class="ys-chat-visual-status hidden max-w-full overflow-hidden" data-visual-status>
                         <img src="" alt="Selected visual search preview" class="ys-chat-visual-status-image" data-visual-preview-image>
-                        <div class="min-w-0 flex-1">
-                            <p class="ys-chat-visual-status-name" data-visual-file-name></p>
-                            <p class="ys-chat-visual-status-copy">Image ready. Refine the search or rerun it anytime.</p>
+                        <div class="ys-chat-visual-status-body min-w-0">
+                            <div class="ys-chat-visual-status-top min-w-0">
+                                <p class="ys-chat-visual-status-name" data-visual-file-name></p>
+                                <span class="ys-chat-visual-state-chip is-idle" data-visual-state-chip>Ready</span>
+                            </div>
+                            <p class="ys-chat-visual-status-copy" data-visual-status-copy>Ready to scan.</p>
+                            <div class="ys-chat-refine-tags hidden" data-visual-filter-summary aria-live="polite"></div>
                         </div>
-                        <button type="button" class="ys-chat-inline-link" data-visual-clear>
-                            Remove
-                        </button>
+                        <div class="ys-chat-visual-status-actions">
+                            <button type="button" class="ys-chat-icon-button hidden" data-visual-retry aria-label="Retry image search" title="Retry image search">
+                                <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M20 4v6h-6" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </button>
+                            <button type="button" class="ys-chat-icon-button" data-visual-clear aria-label="Remove image" title="Remove image">
+                                <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M5 7h14" stroke-linecap="round" />
+                                    <path d="M10 11v5" stroke-linecap="round" />
+                                    <path d="M14 11v5" stroke-linecap="round" />
+                                    <path d="M7 7l1 11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-11" stroke-linejoin="round" />
+                                    <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" stroke-linejoin="round" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="ys-chat-refine-summary">
-                        <span class="ys-chat-refine-summary-copy">
-                            <span class="ys-chat-refine-summary-title">Refine image search</span>
-                            <span class="ys-chat-refine-summary-meta">
-                                Keep the conversation in focus while these filters stay available on demand.
-                            </span>
+                    <div class="ys-chat-refine-summary max-w-full overflow-hidden">
+                        <span class="ys-chat-refine-summary-copy min-w-0">
+                            <span class="ys-chat-refine-summary-title">Refine</span>
+                            <span class="ys-chat-refine-summary-meta" data-visual-refine-meta>Optional filters</span>
                         </span>
                         <span class="ys-chat-refine-summary-state">
-                            <span class="ys-chat-refine-summary-count" data-visual-filter-count>
-                                0 filters
-                            </span>
+                            <span class="ys-chat-refine-summary-count" data-visual-filter-count>0</span>
+                            <button type="button" class="ys-button-secondary ys-chat-rerun-button text-[0.8rem]" data-visual-rerun>
+                                Search
+                            </button>
                         </span>
                     </div>
-
-                    <div class="ys-chat-refine-tags hidden" data-visual-filter-summary aria-live="polite"></div>
 
                     <div class="ys-chat-refine-panel">
                         <div class="ys-chat-refine-grid">
@@ -154,20 +167,11 @@
                                 </select>
                             </label>
                         </div>
-
-                        <div class="ys-chat-refine-actions">
-                            <p class="ys-chat-refine-helper">
-                                Filters apply to the current uploaded image only.
-                            </p>
-                            <button type="button" class="ys-button-secondary ys-chat-rerun-button text-[0.84rem]" data-visual-rerun>
-                                Search Uploaded Image
-                            </button>
-                        </div>
                     </div>
                 </div>
             </form>
 
-            <form class="ys-chat-input-bar" data-chat-form>
+            <form class="ys-chat-input-bar w-full min-w-0 max-w-full overflow-hidden" data-chat-form>
                 <button type="button" class="ys-chat-input-icon" data-visual-file-trigger aria-label="Upload image" title="Upload image">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
                         <path d="M12 16V7.5" stroke-linecap="round" />
@@ -181,8 +185,8 @@
                     type="button"
                     class="ys-chat-input-icon"
                     data-chat-tools-toggle
-                    aria-label="Open image search tools"
-                    title="Open image search tools"
+                    aria-label="Open refine options"
+                    title="Open refine options"
                     aria-expanded="false"
                     aria-controls="assistant-image-tools"
                 >
@@ -196,13 +200,18 @@
                     </svg>
                 </button>
 
-                <div class="ys-chat-composer-body">
-                    <div class="ys-chat-composer-chip hidden" data-visual-chip>
-                        <span class="ys-chat-composer-chip-badge">Image ready</span>
+                <div class="ys-chat-composer-body min-w-0 overflow-hidden">
+                    <div class="ys-chat-composer-chip hidden max-w-full overflow-hidden" data-visual-chip>
+                        <span class="ys-chat-composer-chip-badge" data-visual-chip-badge>Ready</span>
                         <span class="ys-chat-composer-chip-text" data-visual-chip-text></span>
-                        <button type="button" class="ys-chat-composer-chip-action" data-chat-tools-toggle-inline>
-                            Refine
-                        </button>
+                        <span class="ys-chat-composer-chip-actions">
+                            <button type="button" class="ys-chat-composer-chip-action hidden" data-visual-chip-retry>
+                                Retry
+                            </button>
+                            <button type="button" class="ys-chat-composer-chip-action" data-chat-tools-toggle-inline>
+                                Refine
+                            </button>
+                        </span>
                     </div>
 
                     <label class="sr-only" for="assistant-message">Message assistant</label>
@@ -217,8 +226,20 @@
                     >
                 </div>
 
-                <button type="submit" class="ys-chat-send-button">
-                    Send
+                <button
+                    type="submit"
+                    class="ys-chat-send-button"
+                    data-chat-send
+                    aria-label="Send message"
+                    title="Send message"
+                >
+                    <span class="ys-chat-send-button-icon" data-chat-send-icon aria-hidden="true">
+                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                            <path d="M4 12 20 4l-4.5 16-4-6-7.5-2Z" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <span class="ys-chat-send-button-spinner hidden" data-chat-send-spinner aria-hidden="true"></span>
+                    <span class="sr-only" data-chat-send-label>Send message</span>
                 </button>
             </form>
         </div>

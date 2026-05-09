@@ -7,29 +7,52 @@ use GdImage;
 class ImageFeatureExtractor
 {
     public const FEATURE_VERSION = 'v1';
+    private const REQUIRED_GD_FUNCTIONS = [
+        'imagecreatefromstring',
+        'imagecreatetruecolor',
+        'imagecolorallocate',
+        'imagefill',
+        'imagecopy',
+        'imagecopyresampled',
+        'imagesx',
+        'imagesy',
+        'imagecolorat',
+        'imagedestroy',
+    ];
 
     public function extractFromBinary(string $binary): ?array
     {
+        $result = $this->extractDetailedFromBinary($binary);
+
+        return $result['ok'] ? ($result['features'] ?? null) : null;
+    }
+
+    public function extractDetailedFromBinary(string $binary): array
+    {
         if ($binary === '') {
-            return null;
+            return $this->failedResult('empty_image', 'Image data is empty.');
         }
 
-        $image = @imagecreatefromstring($binary);
+        if (! $this->available()) {
+            return $this->failedResult('gd_unavailable', 'The GD image extension is unavailable.');
+        }
+
+        $image = @\imagecreatefromstring($binary);
 
         if (! $image instanceof GdImage) {
-            return null;
+            return $this->failedResult('decode_failed', 'The image could not be decoded.');
         }
 
         $source = $this->flattenTransparency($image);
-        imagedestroy($image);
+        \imagedestroy($image);
 
-        $width = imagesx($source);
-        $height = imagesy($source);
+        $width = \imagesx($source);
+        $height = \imagesy($source);
 
         if ($width < 2 || $height < 2) {
-            imagedestroy($source);
+            \imagedestroy($source);
 
-            return null;
+            return $this->failedResult('image_too_small', 'The image is too small to analyze.');
         }
 
         $featureImage = $this->resize($source, 32, 32);
@@ -61,31 +84,47 @@ class ImageFeatureExtractor
         $features['foreground_ratio'] = $foregroundRatio;
         $features['edge_density'] = $edgeDensity;
 
-        imagedestroy($source);
-        imagedestroy($featureImage);
-        imagedestroy($hashImage);
-        imagedestroy($shapeImage);
+        \imagedestroy($source);
+        \imagedestroy($featureImage);
+        \imagedestroy($hashImage);
+        \imagedestroy($shapeImage);
 
-        return $features;
+        return [
+            'ok' => true,
+            'error' => null,
+            'message' => null,
+            'features' => $features,
+        ];
+    }
+
+    public function available(): bool
+    {
+        foreach (self::REQUIRED_GD_FUNCTIONS as $function) {
+            if (! \function_exists($function)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function flattenTransparency(GdImage $source): GdImage
     {
-        $width = imagesx($source);
-        $height = imagesy($source);
-        $canvas = imagecreatetruecolor($width, $height);
+        $width = \imagesx($source);
+        $height = \imagesy($source);
+        $canvas = \imagecreatetruecolor($width, $height);
 
-        $white = imagecolorallocate($canvas, 255, 255, 255);
-        imagefill($canvas, 0, 0, $white);
-        imagecopy($canvas, $source, 0, 0, 0, 0, $width, $height);
+        $white = \imagecolorallocate($canvas, 255, 255, 255);
+        \imagefill($canvas, 0, 0, $white);
+        \imagecopy($canvas, $source, 0, 0, 0, 0, $width, $height);
 
         return $canvas;
     }
 
     private function resize(GdImage $source, int $width, int $height): GdImage
     {
-        $canvas = imagecreatetruecolor($width, $height);
-        imagecopyresampled($canvas, $source, 0, 0, 0, 0, $width, $height, imagesx($source), imagesy($source));
+        $canvas = \imagecreatetruecolor($width, $height);
+        \imagecopyresampled($canvas, $source, 0, 0, 0, 0, $width, $height, \imagesx($source), \imagesy($source));
 
         return $canvas;
     }
@@ -262,7 +301,7 @@ class ImageFeatureExtractor
 
     private function pixelRgb(GdImage $image, int $x, int $y): array
     {
-        $rgb = imagecolorat($image, $x, $y);
+        $rgb = \imagecolorat($image, $x, $y);
 
         return [
             ($rgb >> 16) & 0xFF,
@@ -317,5 +356,15 @@ class ImageFeatureExtractor
         $saturation = $max === 0.0 ? 0.0 : $delta / $max;
 
         return [$hue, $saturation];
+    }
+
+    private function failedResult(string $error, string $message): array
+    {
+        return [
+            'ok' => false,
+            'error' => $error,
+            'message' => $message,
+            'features' => null,
+        ];
     }
 }

@@ -17,6 +17,22 @@ beforeEach(function (): void {
     config()->set('storefront.assistant.ai.enabled', false);
 });
 
+function ensureVisualSearchGdAvailable(): void
+{
+    foreach ([
+        'imagecreatetruecolor',
+        'imagecreatefrompng',
+        'imagecreatefromstring',
+        'imagepng',
+        'imagejpeg',
+        'imagedestroy',
+    ] as $function) {
+        if (! function_exists($function)) {
+            \PHPUnit\Framework\Assert::markTestSkipped('GD extension support is not available in this environment.');
+        }
+    }
+}
+
 function makeStorefrontProduct(array $overrides = [], array $variantOverrides = [], array $inventoryOverrides = []): Product
 {
     $categorySlug = $overrides['category_slug'] ?? 'running';
@@ -81,6 +97,8 @@ function visualSearchFixtureUrl(string $filename): string
 
 function drawShoeFixture(string $filename, string $upperHex, string $soleHex = '#202020', bool $stripe = true): string
 {
+    ensureVisualSearchGdAvailable();
+
     $path = visualSearchFixturePath($filename);
     $image = imagecreatetruecolor(240, 140);
     $white = allocateHexColor($image, '#ffffff');
@@ -129,6 +147,8 @@ function drawShoeFixture(string $filename, string $upperHex, string $soleHex = '
 
 function drawObjectFixture(string $filename, string $fillHex): string
 {
+    ensureVisualSearchGdAvailable();
+
     $path = visualSearchFixturePath($filename);
     $image = imagecreatetruecolor(240, 140);
     $white = allocateHexColor($image, '#ffffff');
@@ -147,6 +167,8 @@ function drawObjectFixture(string $filename, string $fillHex): string
 
 function createCroppedFixture(string $sourceFilename, string $targetFilename): string
 {
+    ensureVisualSearchGdAvailable();
+
     $sourcePath = visualSearchFixturePath($sourceFilename);
     $targetPath = visualSearchFixturePath($targetFilename);
     $source = imagecreatefrompng($sourcePath);
@@ -166,6 +188,8 @@ function createCroppedFixture(string $sourceFilename, string $targetFilename): s
 
 function createScreenshotFixture(string $sourceFilename, string $targetFilename): string
 {
+    ensureVisualSearchGdAvailable();
+
     $sourcePath = is_file($sourceFilename) ? $sourceFilename : visualSearchFixturePath($sourceFilename);
     $targetPath = visualSearchFixturePath($targetFilename);
     $source = imagecreatefromstring(file_get_contents($sourcePath));
@@ -190,6 +214,8 @@ function createScreenshotFixture(string $sourceFilename, string $targetFilename)
 
 function createBlurredFixture(string $sourceFilename, string $targetFilename): string
 {
+    ensureVisualSearchGdAvailable();
+
     $sourcePath = visualSearchFixturePath($sourceFilename);
     $targetPath = visualSearchFixturePath($targetFilename);
     $source = imagecreatefrompng($sourcePath);
@@ -397,6 +423,7 @@ test('visual search returns similar products from local hints', function () {
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
         ->assertJsonPath('products.0.match.confidence', 'strong_match')
+        ->assertJsonPath('search_confidence', 'high_confidence')
         ->assertJsonPath('match.engine', 'embedding');
 });
 
@@ -421,7 +448,22 @@ test('visual search requires an uploaded image', function () {
         ->assertJsonValidationErrors(['image']);
 });
 
-test('visual search returns fallback recommendations for unrelated images', function () {
+test('visual search returns a controlled failure when gd is unavailable', function () {
+    config()->set('storefront.assistant.visual_search.embedding.enabled', false);
+
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(public_path('images/products/running/aurum-runner.jpg'), 'aurum-runner.jpg'),
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'failed')
+        ->assertJsonPath('match.reason', 'gd_unavailable')
+        ->assertJsonPath('products', [])
+        ->assertJsonPath('answer', 'I couldn\'t scan that image right now. Try again shortly.');
+});
+
+test('visual search fails safely for unrelated non-shoe images', function () {
     drawShoeFixture('catalog-blue-runner.png', '#2d61d2');
     drawShoeFixture('catalog-black-runner.png', '#232323');
 
@@ -460,10 +502,10 @@ test('visual search returns fallback recommendations for unrelated images', func
         'Accept' => 'application/json',
     ])
         ->assertOk()
-        ->assertJsonPath('match.confidence', 'fallback_recommendation')
+        ->assertJsonPath('status', 'failed')
         ->assertJsonPath('match.reason', 'non_shoe')
-        ->assertJsonPath('products.0.match.confidence', 'fallback_recommendation')
-        ->assertJsonCount(2, 'products');
+        ->assertJsonPath('answer', 'I couldn\'t scan that image. Try another shoe photo.')
+        ->assertJsonCount(0, 'products');
 });
 
 test('visual search does not let metadata hints override stronger visual similarity', function () {
@@ -509,7 +551,7 @@ test('visual search does not let metadata hints override stronger visual similar
         ->assertJsonPath('products.0.slug', $blueProduct->slug);
 });
 
-test('visual search uses metadata hints to make fallback recommendations useful', function () {
+test('visual search keeps non-shoe uploads from turning into fake hinted matches', function () {
     drawShoeFixture('catalog-gold-shoe.png', '#b68f2a');
     makeStorefrontProduct([
         'name' => 'Aurum Runner',
@@ -536,8 +578,9 @@ test('visual search uses metadata hints to make fallback recommendations useful'
         'Accept' => 'application/json',
     ])
         ->assertOk()
-        ->assertJsonPath('match.confidence', 'fallback_recommendation')
-        ->assertJsonPath('products.0.slug', 'aurum-runner');
+        ->assertJsonPath('status', 'failed')
+        ->assertJsonPath('match.reason', 'non_shoe')
+        ->assertJsonCount(0, 'products');
 });
 
 test('visual search matches cropped uploads for the same product', function () {
@@ -585,6 +628,8 @@ test('visual search matches screenshot style uploads for the same product', func
 });
 
 test('visual search returns one representative for unrelated products sharing the same image', function () {
+    ensureVisualSearchGdAvailable();
+
     $sharedImageUrl = url('images/products/running/aurum-runner.jpg');
     $sharedImagePath = public_path('images/products/running/aurum-runner.jpg');
 
@@ -717,8 +762,21 @@ test('visual search scores in the candidate band become approximate matches', fu
     $confidenceForScore = $reflection->getMethod('confidenceForScore');
     $confidenceForScore->setAccessible(true);
 
-    expect($confidenceForScore->invoke($service, 0.71))->toBe('approximate_match')
+    expect($confidenceForScore->invoke($service, 0.74))->toBe('approximate_match')
+        ->and($confidenceForScore->invoke($service, 0.71))->toBe('no_match')
         ->and($confidenceForScore->invoke($service, 0.61))->toBe('no_match');
+});
+
+test('visual search maps embedding and fallback candidates to confidence-aware result bands', function () {
+    $service = app(VisualProductSearchService::class);
+    $reflection = new ReflectionClass($service);
+    $searchConfidenceForCandidate = $reflection->getMethod('searchConfidenceForCandidate');
+    $searchConfidenceForCandidate->setAccessible(true);
+
+    expect($searchConfidenceForCandidate->invoke($service, ['confidence' => 'strong_match'], 'embedding'))->toBe('high_confidence')
+        ->and($searchConfidenceForCandidate->invoke($service, ['confidence' => 'likely_match'], 'embedding'))->toBe('medium_confidence')
+        ->and($searchConfidenceForCandidate->invoke($service, ['confidence' => 'approximate_match'], 'embedding'))->toBe('low_confidence')
+        ->and($searchConfidenceForCandidate->invoke($service, ['confidence' => 'strong_match'], 'fallback'))->toBe('low_confidence');
 });
 
 test('visual search returns a safe message when the index is missing', function () {
@@ -734,14 +792,16 @@ test('visual search returns a safe message when the index is missing', function 
         'Accept' => 'application/json',
     ])
         ->assertOk()
+        ->assertJsonPath('status', 'failed')
+        ->assertJsonPath('search_confidence', 'failed')
         ->assertJsonPath('match.confidence', 'no_match')
         ->assertJsonPath('match.reason', 'index_unavailable')
-        ->assertJsonPath('match.engine', 'catalog_guided')
-        ->assertJsonPath('answer', 'I could not compare the photo directly right now, but I picked active catalog options that still fit the style cues and filters you shared.')
-        ->assertJsonCount(1, 'products');
+        ->assertJsonPath('match.engine', 'catalog_unavailable')
+        ->assertJsonPath('answer', 'I couldn\'t scan that image right now. Try again shortly.')
+        ->assertJsonCount(0, 'products');
 });
 
-test('visual search no-index fallback excludes inactive products from recommendations', function () {
+test('visual search no-index failures do not leak catalog recommendations', function () {
     drawShoeFixture('inactive-fallback-query.png', '#1f1f1f');
 
     makeStorefrontProduct([
@@ -770,7 +830,7 @@ test('visual search no-index fallback excludes inactive products from recommenda
     ])
         ->assertOk()
         ->assertJsonPath('match.reason', 'index_unavailable')
-        ->assertJsonPath('products.0.slug', 'active-night-runner')
+        ->assertJsonCount(0, 'products')
         ->assertJsonMissing([
             'slug' => 'inactive-night-runner',
         ]);
@@ -795,8 +855,85 @@ test('visual search falls back safely when the embedding service is unavailable'
         'Accept' => 'application/json',
     ])
         ->assertOk()
+        ->assertJsonPath('search_confidence', 'low_confidence')
+        ->assertJsonPath('answer', 'No exact match found. Try these nearby catalog options.')
         ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('products.0.match.label', 'Approximate image-cue match')
         ->assertJsonPath('match.engine', 'fallback');
+});
+
+test('visual search keeps white sneaker matches ahead of orange and black mismatches when better options exist', function () {
+    drawShoeFixture('exact-white-runner.png', '#f1efe8', '#d6d2c8');
+    drawShoeFixture('nearby-ivory-runner.png', '#e6decd', '#d2c6b2');
+    drawShoeFixture('orange-mismatch-runner.png', '#dd7e2f');
+    drawShoeFixture('black-mismatch-runner.png', '#1f1f1f');
+
+    $exact = makeStorefrontProduct([
+        'name' => 'Arctic Sprint',
+        'slug' => 'arctic-sprint',
+        'primary_image_url' => visualSearchFixtureUrl('exact-white-runner.png'),
+        'image_alt' => 'Arctic Sprint product image',
+    ], [
+        'sku' => 'YS-ARC-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'White',
+        ],
+    ]);
+
+    $nearby = makeStorefrontProduct([
+        'name' => 'Ivory Sprint',
+        'slug' => 'ivory-sprint',
+        'primary_image_url' => visualSearchFixtureUrl('nearby-ivory-runner.png'),
+        'image_alt' => 'Ivory Sprint product image',
+    ], [
+        'sku' => 'YS-IVS-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Ivory',
+        ],
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Orange Flash',
+        'slug' => 'orange-flash',
+        'primary_image_url' => visualSearchFixtureUrl('orange-mismatch-runner.png'),
+        'image_alt' => 'Orange Flash product image',
+    ], [
+        'sku' => 'YS-ORF-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Gold',
+        ],
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Midnight Flash',
+        'slug' => 'midnight-flash',
+        'primary_image_url' => visualSearchFixtureUrl('black-mismatch-runner.png'),
+        'image_alt' => 'Midnight Flash product image',
+    ], [
+        'sku' => 'YS-MDF-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Black',
+        ],
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('exact-white-runner.png'), 'exact-white-runner.png'),
+        'category' => 'running',
+        'color' => 'white',
+    ], [
+        'Accept' => 'application/json',
+    ])->assertOk()
+        ->assertJsonPath('products.0.slug', $exact->slug)
+        ->assertJsonPath('search_confidence', 'high_confidence');
+
+    expect(collect($response->json('products'))->pluck('slug')->take(2)->all())
+        ->toBe([$exact->slug, $nearby->slug]);
 });
 
 test('visual search index command builds entries for catalog images', function () {
@@ -914,4 +1051,17 @@ test('catalog search supports color keywords, price filters, and the cart label'
         ->assertSee('data-inline-visual-search-clear', escape: false)
         ->assertSee('data-storefront-product-grid', escape: false)
         ->assertDontSee('data-chat-open-visual', escape: false);
+});
+
+test('chat widget renders stable composer constraints for visual search state', function () {
+    makeStorefrontProduct();
+
+    $this->get(route('storefront.shop'))
+        ->assertOk()
+        ->assertSee('ys-chat-input-bar w-full min-w-0 max-w-full overflow-hidden', escape: false)
+        ->assertSee('ys-chat-composer-body min-w-0 overflow-hidden', escape: false)
+        ->assertSee('ys-chat-composer-chip hidden max-w-full overflow-hidden', escape: false)
+        ->assertSee('data-chat-send', escape: false)
+        ->assertSee('data-chat-send-spinner', escape: false)
+        ->assertSee('data-visual-chip-retry', escape: false);
 });

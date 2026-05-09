@@ -9,6 +9,15 @@ use Illuminate\Support\Str;
 class StorefrontVisualSearchRequest extends FormRequest
 {
     private const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+    private const ALLOWED_IMAGE_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/heic',
+        'image/heif',
+        'image/heic-sequence',
+        'image/heif-sequence',
+    ];
 
     public function authorize(): bool
     {
@@ -40,15 +49,51 @@ class StorefrontVisualSearchRequest extends FormRequest
         $detectedMime = Str::lower((string) $image->getMimeType());
         $clientMime = Str::lower((string) $image->getClientMimeType());
         $extension = Str::lower((string) $image->getClientOriginalExtension());
+        $contentMime = $this->contentMimeType($image);
 
-        if (str_starts_with($detectedMime, 'image/')) {
-            return true;
+        if (! $this->isAllowedMime($contentMime, $detectedMime, $clientMime, $extension)) {
+            return false;
         }
 
-        if (str_starts_with($clientMime, 'image/')) {
-            return true;
+        if ($contentMime !== null && $this->shouldProbeDimensions($contentMime, $extension)) {
+            $dimensions = @getimagesize($image->getRealPath() ?: '');
+
+            return is_array($dimensions) && str_starts_with(Str::lower((string) ($dimensions['mime'] ?? '')), 'image/');
+        }
+
+        return true;
+    }
+
+    private function contentMimeType(UploadedFile $image): ?string
+    {
+        $path = $image->getRealPath();
+
+        if (! is_string($path) || $path === '' || ! is_file($path)) {
+            return null;
+        }
+
+        $mime = @mime_content_type($path);
+
+        return is_string($mime) && $mime !== '' ? Str::lower($mime) : null;
+    }
+
+    private function isAllowedMime(?string $contentMime, string $detectedMime, string $clientMime, string $extension): bool
+    {
+        foreach (array_filter([$contentMime, $detectedMime, $clientMime]) as $mime) {
+            if (in_array($mime, self::ALLOWED_IMAGE_MIME_TYPES, true)) {
+                return true;
+            }
         }
 
         return in_array($extension, self::ALLOWED_IMAGE_EXTENSIONS, true);
+    }
+
+    private function shouldProbeDimensions(string $contentMime, string $extension): bool
+    {
+        if (in_array($extension, ['heic', 'heif'], true)) {
+            return false;
+        }
+
+        return ! in_array($contentMime, ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'], true);
     }
 }

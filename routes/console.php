@@ -55,6 +55,8 @@ Artisan::command('visual-search:health', function (): void {
             ['Embedding version', $embedding['embedding_version'] ?? 'n/a'],
             ['Embedding device', $embedding['device'] ?? 'n/a'],
             ['Embedding message', $embedding['message'] ?? 'n/a'],
+            ['GD available', ($index['gd_available'] ?? false) ? 'yes' : 'no'],
+            ['GD message', $index['gd_message'] ?? 'n/a'],
             ['Index table exists', $index['table_exists'] ? 'yes' : 'no'],
             ['Index entries', $index['entries']],
             ['Entries with embeddings', $index['embedded_entries']],

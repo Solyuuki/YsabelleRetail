@@ -843,6 +843,8 @@
         height: min(42rem, calc(100vh - 7rem));
         min-height: min(34rem, calc(100vh - 7rem));
         max-height: min(42rem, calc(100vh - 7rem));
+        min-width: 0;
+        max-width: 100%;
         z-index: 2;
         transform: translateY(16px) scale(0.98);
         transform-origin: bottom right;
@@ -892,6 +894,10 @@
         background: linear-gradient(180deg, rgba(10, 10, 11, 0), rgba(10, 10, 11, 0.92) 18%, rgba(10, 10, 11, 0.98));
         backdrop-filter: blur(18px);
         position: relative;
+        display: grid;
+        gap: 0.75rem;
+        min-width: 0;
+        overflow: hidden;
     }
 
     .ys-chat-visual-form {
@@ -899,7 +905,13 @@
     }
 
     .ys-chat-tool-drawer {
-        @apply mb-3 gap-3 rounded-[1.5rem] border border-ys-gold/14 bg-[#120f0b]/96 p-3.5 shadow-[0_24px_60px_rgba(0,0,0,0.4)];
+        @apply gap-3 rounded-[1.4rem] border border-ys-gold/14 bg-[#120f0b]/96 p-3.5 shadow-[0_24px_60px_rgba(0,0,0,0.4)];
+        max-height: min(19rem, calc(100vh - 18rem));
+        min-width: 0;
+        max-width: 100%;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(212, 166, 59, 0.22) transparent;
     }
 
     .ys-chat-tool-drawer-header {
@@ -923,19 +935,71 @@
     }
 
     .ys-chat-visual-status {
-        @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5;
+        @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-3 py-2.5;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .ys-chat-visual-status-image {
         @apply h-11 w-11 rounded-[0.9rem] border border-white/8 object-cover;
     }
 
+    .ys-chat-visual-status-body {
+        @apply min-w-0;
+    }
+
+    .ys-chat-visual-status-top {
+        @apply flex items-start justify-between gap-2;
+        min-width: 0;
+    }
+
     .ys-chat-visual-status-name {
         @apply truncate text-sm font-semibold text-ys-ivory;
+        min-width: 0;
     }
 
     .ys-chat-visual-status-copy {
         @apply mt-1 text-xs leading-5 text-ys-ivory/48;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .ys-chat-visual-status-actions {
+        @apply flex items-center gap-2;
+        flex-shrink: 0;
+    }
+
+    .ys-chat-visual-state-chip {
+        @apply inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.16em];
+    }
+
+    .ys-chat-visual-state-chip.is-idle {
+        @apply border-white/10 bg-black/26 text-ys-ivory/72;
+    }
+
+    .ys-chat-visual-state-chip.is-processing {
+        @apply border-ys-gold/25 bg-ys-gold/10 text-ys-gold;
+    }
+
+    .ys-chat-visual-state-chip.is-success {
+        @apply border-[#21412c] bg-[#102217] text-[#9fe1b1];
+    }
+
+    .ys-chat-visual-state-chip.is-medium-confidence {
+        @apply border-[#35556b] bg-[#132432] text-[#9dd5ff];
+    }
+
+    .ys-chat-visual-state-chip.is-low-confidence {
+        @apply border-[#5a4315] bg-[#2a1f0b] text-[#f0c36f];
+    }
+
+    .ys-chat-visual-state-chip.is-failed {
+        @apply border-[#5b1e22] bg-[#2a1214] text-[#ffb0b0];
+    }
+
+    .ys-chat-icon-button {
+        @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-ys-ivory/58 transition duration-300 hover:border-ys-gold/32 hover:text-ys-gold;
     }
 
     .ys-chat-inline-link {
@@ -943,8 +1007,11 @@
     }
 
     .ys-chat-refine-summary {
-        @apply flex w-full items-center justify-between gap-3 rounded-[1.1rem] border border-white/7 bg-white/[0.02] px-3.5 py-3 text-left text-[0.8rem] font-semibold text-ys-ivory/54;
+        @apply flex w-full items-center justify-between gap-3 rounded-[1.1rem] border border-white/7 bg-white/[0.02] px-3.5 py-2.5 text-left text-[0.8rem] font-semibold text-ys-ivory/54;
         letter-spacing: 0.01em;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .ys-chat-refine-summary-copy {
@@ -962,6 +1029,8 @@
 
     .ys-chat-refine-summary-state {
         @apply inline-flex shrink-0 items-center gap-2 self-start;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
 
     .ys-chat-refine-summary-count {
@@ -969,7 +1038,7 @@
     }
 
     .ys-chat-refine-tags {
-        @apply flex flex-wrap gap-2 px-1;
+        @apply mt-2 flex flex-wrap gap-2;
     }
 
     .ys-chat-refine-tag {
@@ -988,24 +1057,28 @@
         @apply grid gap-3 sm:grid-cols-2;
     }
 
-    .ys-chat-refine-actions {
-        @apply mt-3 flex items-center justify-between gap-3;
-    }
-
-    .ys-chat-refine-helper {
-        @apply text-[0.72rem] leading-5 text-ys-ivory/44;
-    }
-
     .ys-chat-rerun-button:disabled {
         @apply cursor-not-allowed border-white/8 bg-white/[0.03] text-ys-ivory/32 shadow-none;
     }
 
     .ys-chat-input-bar {
         @apply mt-0 flex items-center gap-2.5 rounded-[1.45rem] border border-white/10 bg-black/36 px-2.5 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.22)];
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .ys-chat-input-icon {
         @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-ys-ivory/62 transition duration-300 hover:border-ys-gold/32 hover:text-ys-gold;
+    }
+
+    .ys-chat-input-icon:disabled,
+    .ys-chat-composer-chip-action:disabled,
+    .ys-chat-rerun-button:disabled,
+    .ys-chat-icon-button:disabled {
+        @apply cursor-not-allowed text-ys-ivory/28 hover:border-white/8 hover:text-ys-ivory/28;
+        transform: none;
     }
 
     .ys-chat-input-icon[aria-expanded="true"] {
@@ -1014,10 +1087,18 @@
 
     .ys-chat-composer-body {
         @apply min-w-0 flex-1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        overflow: hidden;
     }
 
     .ys-chat-composer-chip {
         @apply mb-2 items-center gap-2 rounded-[1rem] border border-ys-gold/16 bg-ys-gold/8 px-3 py-2;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        margin-bottom: 0;
     }
 
     .ys-chat-composer-chip-badge {
@@ -1028,12 +1109,19 @@
         @apply min-w-0 flex-1 truncate text-[0.76rem] text-ys-ivory/74;
     }
 
+    .ys-chat-composer-chip-actions {
+        @apply inline-flex shrink-0 items-center gap-2;
+        white-space: nowrap;
+    }
+
     .ys-chat-composer-chip-action {
         @apply text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-ys-gold transition duration-300 hover:text-ys-ivory;
+        white-space: nowrap;
     }
 
     .ys-chat-input-bar-field {
         @apply block min-w-0 w-full border-0 bg-transparent px-1 text-[0.95rem] text-ys-ivory placeholder:text-ys-ivory/34 focus:outline-none;
+        flex: 1 1 auto;
     }
 
     .ys-chat-messages {
@@ -1110,7 +1198,35 @@
     }
 
     .ys-chat-send-button {
-        @apply inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-ys-gold px-4.5 text-[0.88rem] font-semibold text-[#17110a] transition duration-300 hover:brightness-105;
+        @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ys-gold text-[#17110a] transition duration-300 hover:brightness-105;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ys-chat-send-button:disabled {
+        @apply cursor-not-allowed brightness-90;
+        transform: none;
+    }
+
+    .ys-chat-send-button-icon {
+        @apply inline-flex items-center justify-center;
+        transition:
+            opacity 160ms ease,
+            transform 160ms ease;
+    }
+
+    .ys-chat-send-button-spinner {
+        @apply absolute h-4.5 w-4.5 rounded-full border-2 border-current border-t-transparent;
+        animation: ys-chat-send-spin 0.8s linear infinite;
+    }
+
+    .ys-chat-send-button.is-loading .ys-chat-send-button-icon {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+
+    .ys-chat-send-button.is-loading .ys-chat-send-button-spinner {
+        display: inline-flex;
     }
 
     .ys-chat-product-grid {
@@ -1160,6 +1276,10 @@
 
     .ys-assistant-match-label.is-likely_match {
         @apply text-[#f0c36f];
+    }
+
+    .ys-assistant-match-label.is-approximate_match {
+        @apply text-ys-gold;
     }
 
     .ys-assistant-match-label.is-similar_match {
@@ -1262,6 +1382,16 @@
     100% {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@keyframes ys-chat-send-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
     }
 }
 
@@ -1547,7 +1677,8 @@
         }
 
         .ys-chat-tool-drawer {
-            @apply mb-2.5 p-3;
+            @apply p-3;
+            max-height: min(16rem, calc(100vh - 15rem));
         }
 
         .ys-chat-refine-panel {
@@ -1564,14 +1695,6 @@
 
         .ys-chat-refine-tags {
             @apply px-0;
-        }
-
-        .ys-chat-refine-actions {
-            @apply flex-col items-stretch;
-        }
-
-        .ys-chat-refine-helper {
-            @apply text-[0.68rem];
         }
 
         .ys-chat-input-bar {
@@ -1595,7 +1718,7 @@
         }
 
         .ys-chat-send-button {
-            @apply h-10 px-4 text-[0.82rem];
+            @apply h-10 w-10 px-0 text-[0.82rem];
         }
 
         .ys-chat-bubble,
@@ -1619,7 +1742,7 @@
             @apply h-10 w-10;
         }
 
-        .ys-chat-inline-link {
+        .ys-chat-visual-status-actions {
             @apply col-span-full mt-1 justify-self-start;
         }
 

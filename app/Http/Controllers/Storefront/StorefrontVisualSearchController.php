@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Storefront\Assistant\StorefrontVisualSearchRequest;
 use App\Services\Storefront\VisualProductSearchService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class StorefrontVisualSearchController extends Controller
 {
@@ -13,9 +14,18 @@ class StorefrontVisualSearchController extends Controller
         StorefrontVisualSearchRequest $request,
         VisualProductSearchService $visualSearch,
     ): JsonResponse {
-        return response()->json($visualSearch->search(
-            image: $request->file('image'),
-            hints: $request->safe()->except('image'),
-        ));
+        try {
+            return response()->json($visualSearch->search(
+                image: $request->file('image'),
+                hints: $request->safe()->except('image'),
+            ));
+        } catch (\Throwable $exception) {
+            Log::error('visual-search.unhandled', [
+                'message' => $exception->getMessage(),
+                'upload_filename' => $request->file('image')?->getClientOriginalName(),
+            ]);
+
+            return response()->json($visualSearch->unexpectedFailureResponse());
+        }
     }
 }

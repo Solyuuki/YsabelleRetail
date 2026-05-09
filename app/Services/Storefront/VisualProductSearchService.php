@@ -18,6 +18,15 @@ class VisualProductSearchService
         'gym' => ['training-shoes', 'basketball-shoes'],
         'performance' => ['basketball-shoes', 'training-shoes', 'running'],
     ];
+    private const COLOR_FAMILY_KEYWORDS = [
+        'black' => ['black', 'onyx', 'shadow'],
+        'white' => ['white'],
+        'ivory' => ['ivory', 'cream', 'beige'],
+        'blue' => ['blue', 'azure', 'navy'],
+        'graphite' => ['graphite', 'grey', 'gray', 'charcoal', 'slate'],
+        'gold' => ['gold', 'amber', 'bronze', 'tan'],
+        'volt' => ['volt', 'lime', 'neon', 'green'],
+    ];
 
     public function __construct(
         private readonly ProductDiscoveryService $productDiscovery,
@@ -29,8 +38,61 @@ class VisualProductSearchService
 
     public function search(UploadedFile $image, array $hints = []): array
     {
+        $criteria = $this->productDiscovery->normalizeCriteria([
+            'brand_style' => $hints['brand_style'] ?? null,
+            'color' => $hints['color'] ?? null,
+            'category' => $hints['category'] ?? null,
+            'use_case' => $hints['use_case'] ?? null,
+            'filename' => pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME),
+        ]);
+
+        if (! $image->isValid()) {
+            $this->logFailure('upload_invalid', $image, ['criteria' => $criteria]);
+
+            return $this->failedVisualResponse(
+                reason: 'upload_invalid',
+                answer: 'I couldn\'t read that upload. Try another photo.',
+                engine: 'upload',
+            );
+        }
+
+        if (! $this->featureExtractor->available()) {
+            $this->logFailure('gd_unavailable', $image, ['criteria' => $criteria]);
+
+            return $this->failedVisualResponse(
+                reason: 'gd_unavailable',
+                answer: 'I couldn\'t scan that image right now. Try again shortly.',
+                engine: 'unavailable',
+            );
+        }
+
         $binary = $this->imageSource->loadFromUpload($image);
-        $fallbackFeatures = is_string($binary) ? $this->featureExtractor->extractFromBinary($binary) : null;
+
+        if (! is_string($binary) || $binary === '') {
+            $this->logFailure('upload_read_failed', $image, ['criteria' => $criteria]);
+
+            return $this->failedVisualResponse(
+                reason: 'upload_read_failed',
+                answer: 'I couldn\'t read that upload. Try another photo.',
+                engine: 'upload',
+            );
+        }
+
+        $featureExtraction = $this->featureExtractor->extractDetailedFromBinary($binary);
+        $fallbackFeatures = $featureExtraction['ok'] ? ($featureExtraction['features'] ?? null) : null;
+
+        if (! is_array($fallbackFeatures)) {
+            $this->logFailure((string) ($featureExtraction['error'] ?? 'processing_error'), $image, [
+                'criteria' => $criteria,
+                'message' => $featureExtraction['message'] ?? null,
+            ]);
+
+            return $this->failedVisualResponse(
+                reason: (string) ($featureExtraction['error'] ?? 'processing_error'),
+                answer: 'I couldn\'t scan that image. Try another photo.',
+                engine: 'processing',
+            );
+        }
 
         try {
             $embeddingPayload = $this->embeddingService->embedUpload($image);
@@ -48,14 +110,7 @@ class VisualProductSearchService
 
         $indexEntries = $this->indexService->indexedEntries();
         $indexedEmbeddingEntries = $indexEntries->filter(fn (VisualSearchIndexEntry $entry): bool => is_array($entry->embedding_vector) && $entry->embedding_vector !== []);
-
-        $criteria = $this->productDiscovery->normalizeCriteria([
-            'brand_style' => $hints['brand_style'] ?? null,
-            'color' => $hints['color'] ?? null,
-            'category' => $hints['category'] ?? null,
-            'use_case' => $hints['use_case'] ?? null,
-            'filename' => pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME),
-        ]);
+        $visualSignals = $this->buildVisualSignals($fallbackFeatures, $embeddingPayload);
 
         $context = [
             'upload_filename' => $image->getClientOriginalName(),
@@ -65,13 +120,19 @@ class VisualProductSearchService
             'upload_shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
             'upload_blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
             'preprocessing' => is_array($embeddingPayload['metadata'] ?? null) ? $embeddingPayload['metadata'] : null,
+            'visual_signals' => $visualSignals,
             'similarity_reached' => false,
         ];
 
         if ($indexEntries->isEmpty()) {
             $this->debugLog('no_index', $context);
 
-            return $this->safeUnavailableResponse($criteria);
+            return $this->failedVisualResponse(
+                reason: 'index_unavailable',
+                answer: 'I couldn\'t scan that image right now. Try again shortly.',
+                engine: 'catalog_unavailable',
+                signals: $visualSignals,
+            );
         }
 
         $engine = 'fallback';
@@ -79,47 +140,62 @@ class VisualProductSearchService
 
         if ($embeddingGenerated && $indexedEmbeddingEntries->isNotEmpty()) {
             $engine = 'embedding';
-            $scoredProducts = $this->rankProductsByEmbedding($embeddingPayload, $indexedEmbeddingEntries, $criteria);
+            $scoredProducts = $this->rankProductsByEmbedding($embeddingPayload, $indexedEmbeddingEntries, $criteria, $visualSignals);
             $context['similarity_reached'] = true;
         }
 
         if ($scoredProducts->isEmpty() && is_array($fallbackFeatures)) {
-            $scoredProducts = $this->rankProductsByFallback($fallbackFeatures, $indexEntries, $criteria);
+            $scoredProducts = $this->rankProductsByFallback($fallbackFeatures, $indexEntries, $criteria, $visualSignals);
             $engine = $engine === 'embedding' ? $engine : 'fallback';
         }
 
         if ($scoredProducts->isEmpty()) {
             $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, null);
-            $fallbackResponse = $this->fallbackRecommendationResponse(
-                candidates: $this->neutralCandidates($indexEntries),
-                criteria: $criteria,
-                reason: $reason,
-                engine: $engine,
-            );
-
             $this->debugLog('no_match', $context + [
                 'reason' => $reason,
-                'top_products' => $this->debugCandidates(collect($fallbackResponse['products'])),
+                'top_products' => [],
             ]);
 
-            return $fallbackResponse;
+            return $this->failedVisualResponse(
+                reason: $reason,
+                answer: $this->failedAnswerFor($reason),
+                engine: $engine,
+                signals: $visualSignals,
+            );
         }
 
         $topCandidate = $scoredProducts->first();
         $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate);
         $topProducts = $this->debugCandidates($scoredProducts);
+        $searchConfidence = $this->searchConfidenceForCandidate($topCandidate, $engine);
 
-        if ($this->shouldFallbackAsRecommendation($embeddingPayload, $fallbackFeatures, $topCandidate)) {
-            $fallbackResponse = $this->fallbackRecommendationResponse(
+        if ($this->shouldFailVisualSearch($reason, $topCandidate)) {
+            $this->debugLog('failed_visual_search', $context + [
+                'reason' => $reason,
+                'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
+                'top_products' => $topProducts,
+            ]);
+
+            return $this->failedVisualResponse(
+                reason: $reason,
+                answer: $this->failedAnswerFor($reason),
+                engine: $engine,
+                signals: $visualSignals,
+            );
+        }
+
+        if ($searchConfidence === 'low_confidence') {
+            $fallbackResponse = $this->lowConfidenceResponse(
                 candidates: $scoredProducts,
                 criteria: $criteria,
-                reason: $reason,
+                topCandidate: $topCandidate,
                 engine: $engine,
+                signals: $visualSignals,
             );
 
-            $this->debugLog('fallback_recommendation', $context + [
-                'reason' => $reason,
-                'top_similarity' => round((float) ($topCandidate['visual_score'] ?? 0.0), 6),
+            $this->debugLog('low_confidence', $context + [
+                'reason' => 'approximate_match',
+                'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
                 'top_products' => $topProducts,
             ]);
 
@@ -128,13 +204,13 @@ class VisualProductSearchService
 
         $products = $this->presentableCandidates($scoredProducts)
             ->take(4)
-            ->map(function (array $candidate): array {
+            ->map(function (array $candidate) use ($engine): array {
                 $product = $this->productDiscovery->formatProduct($candidate['product']);
                 $product['match'] = [
                     'confidence' => $candidate['confidence'],
-                    'label' => $this->confidenceLabel($candidate['confidence']),
-                    'score' => round($candidate['visual_score'], 4),
-                    'score_percent' => (int) round($candidate['visual_score'] * 100),
+                    'label' => $this->confidenceLabel($candidate['confidence'], $engine),
+                    'score' => round((float) ($candidate['confidence_score'] ?? $candidate['visual_score']), 4),
+                    'score_percent' => (int) round(((float) ($candidate['confidence_score'] ?? $candidate['visual_score'])) * 100),
                 ];
 
                 return $product;
@@ -148,14 +224,24 @@ class VisualProductSearchService
         ]);
 
         return [
-            'answer' => $this->answerFor($topCandidate['confidence'], $topCandidate['product']),
+            'status' => 'success',
+            'search_confidence' => $searchConfidence,
+            'answer' => $this->successfulMatchAnswer($searchConfidence, $engine),
             'match' => [
                 'confidence' => $topCandidate['confidence'],
-                'label' => $this->confidenceLabel($topCandidate['confidence']),
-                'score' => round((float) $topCandidate['visual_score'], 4),
-                'score_percent' => (int) round($topCandidate['visual_score'] * 100),
+                'label' => $this->confidenceLabel($topCandidate['confidence'], $engine),
+                'score' => round((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score']), 4),
+                'score_percent' => (int) round(((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'])) * 100),
                 'engine' => $engine,
                 'reason' => $topCandidate['confidence'],
+                'search_confidence' => $searchConfidence,
+            ],
+            'visual_search' => [
+                'status' => 'success',
+                'confidence' => $searchConfidence,
+                'engine' => $engine,
+                'reason' => $topCandidate['confidence'],
+                'signals' => $visualSignals,
             ],
             'products' => $products,
             'actions' => [
@@ -165,11 +251,13 @@ class VisualProductSearchService
         ];
     }
 
-    private function rankProductsByEmbedding(array $uploadEmbedding, Collection $indexEntries, array $criteria): Collection
+    private function rankProductsByEmbedding(array $uploadEmbedding, Collection $indexEntries, array $criteria, array $visualSignals): Collection
     {
         return $indexEntries
-            ->map(function (VisualSearchIndexEntry $entry) use ($uploadEmbedding, $criteria): array {
+            ->map(function (VisualSearchIndexEntry $entry) use ($uploadEmbedding, $criteria, $visualSignals): array {
                 $visualScore = $this->embeddingSimilarity($uploadEmbedding, $entry);
+                $signalAdjustment = $this->visualSignalAdjustment($visualSignals, $entry->product, $entry);
+                $confidenceScore = min(1.0, max(0.0, $visualScore + $signalAdjustment));
                 $hintBoost = $visualScore >= $this->minCandidateThreshold()
                     ? $this->hintBoost($entry->product, $criteria)
                     : 0.0;
@@ -179,13 +267,15 @@ class VisualProductSearchService
                 $merchandisingBoost = $visualScore >= $this->minCandidateThreshold()
                     ? $this->merchandisingBoost($entry->product)
                     : 0.0;
-                $finalScore = min(1.0, $visualScore + $hintBoost + $availabilityBoost + $merchandisingBoost);
+                $finalScore = min(1.0, max(0.0, $confidenceScore + $hintBoost + $availabilityBoost + $merchandisingBoost));
 
                 return [
                     'product' => $entry->product,
                     'entry' => $entry,
                     'visual_score' => round($visualScore, 6),
+                    'confidence_score' => round($confidenceScore, 6),
                     'score' => round($finalScore, 6),
+                    'signal_adjustment' => round($signalAdjustment, 6),
                     'hint_boost' => round($hintBoost, 6),
                     'availability_boost' => round($availabilityBoost, 6),
                     'merchandising_boost' => round($merchandisingBoost, 6),
@@ -197,11 +287,13 @@ class VisualProductSearchService
             ->pipe(fn (Collection $candidates): Collection => $this->finalizeRankedCandidates($candidates));
     }
 
-    private function rankProductsByFallback(array $uploadFeatures, Collection $indexEntries, array $criteria): Collection
+    private function rankProductsByFallback(array $uploadFeatures, Collection $indexEntries, array $criteria, array $visualSignals): Collection
     {
         return $indexEntries
-            ->map(function (VisualSearchIndexEntry $entry) use ($uploadFeatures, $criteria): array {
+            ->map(function (VisualSearchIndexEntry $entry) use ($uploadFeatures, $criteria, $visualSignals): array {
                 $visualScore = $this->fallbackSimilarity($uploadFeatures, $entry);
+                $signalAdjustment = $this->visualSignalAdjustment($visualSignals, $entry->product, $entry);
+                $confidenceScore = min(1.0, max(0.0, $visualScore + $signalAdjustment));
                 $hintBoost = $visualScore >= $this->minCandidateThreshold()
                     ? $this->hintBoost($entry->product, $criteria)
                     : 0.0;
@@ -211,13 +303,15 @@ class VisualProductSearchService
                 $merchandisingBoost = $visualScore >= $this->minCandidateThreshold()
                     ? $this->merchandisingBoost($entry->product)
                     : 0.0;
-                $finalScore = min(1.0, $visualScore + $hintBoost + $availabilityBoost + $merchandisingBoost);
+                $finalScore = min(1.0, max(0.0, $confidenceScore + $hintBoost + $availabilityBoost + $merchandisingBoost));
 
                 return [
                     'product' => $entry->product,
                     'entry' => $entry,
                     'visual_score' => round($visualScore, 6),
+                    'confidence_score' => round($confidenceScore, 6),
                     'score' => round($finalScore, 6),
+                    'signal_adjustment' => round($signalAdjustment, 6),
                     'hint_boost' => round($hintBoost, 6),
                     'availability_boost' => round($availabilityBoost, 6),
                     'merchandising_boost' => round($merchandisingBoost, 6),
@@ -246,8 +340,9 @@ class VisualProductSearchService
                 $uniquenessBoost = min(0.02, $imageUniquenessScore * 0.02);
                 $rankScore = min(1.0, max(0.0, $candidate['score'] + $uniquenessBoost - $duplicatePenalty));
                 $clusterSelectScore = round(
-                    ($candidate['visual_score'] * 1000)
+                    (($candidate['confidence_score'] ?? $candidate['visual_score']) * 1000)
                     + (($candidate['hint_boost'] ?? 0.0) * 100)
+                    + (($candidate['signal_adjustment'] ?? 0.0) * 80)
                     + (($candidate['entry_role_boost'] ?? 0.0) * 10)
                     + (($candidate['availability_boost'] ?? 0.0) * 5)
                     + (($candidate['merchandising_boost'] ?? 0.0) * 3)
@@ -267,7 +362,7 @@ class VisualProductSearchService
             ->groupBy(fn (array $candidate): int => $candidate['product']->id)
             ->map(function (Collection $group): array {
                 $best = $group->sortByDesc('score')->first();
-                $best['confidence'] = $this->confidenceForScore($best['visual_score']);
+                $best['confidence'] = $this->confidenceForScore((float) ($best['confidence_score'] ?? $best['visual_score']));
 
                 return $best;
             })
@@ -446,6 +541,238 @@ class VisualProductSearchService
         return 1 - min($distance / 3, 1.0);
     }
 
+    private function buildVisualSignals(array $features, ?array $embeddingPayload): array
+    {
+        $dominantHex = (string) ($features['dominant_colors'][0] ?? '');
+        [$red, $green, $blue] = $this->hexToRgb($dominantHex !== '' ? $dominantHex : $this->rgbToHex(
+            (float) ($features['mean_red'] ?? 0.0),
+            (float) ($features['mean_green'] ?? 0.0),
+            (float) ($features['mean_blue'] ?? 0.0),
+        ));
+        [$hue, $saturation, $lightness] = $this->rgbToHsl($red, $green, $blue);
+        $brightness = round(((float) ($features['mean_red'] ?? 0.0) + (float) ($features['mean_green'] ?? 0.0) + (float) ($features['mean_blue'] ?? 0.0)) / 3, 6);
+
+        return [
+            'dominant_colors' => $features['dominant_colors'] ?? [],
+            'color_family' => $this->inferVisualColorFamily($hue, $saturation, $lightness),
+            'light_profile' => $lightness >= 0.78 ? 'light' : ($lightness <= 0.28 ? 'dark' : 'balanced'),
+            'brightness' => $brightness,
+            'foreground_ratio' => round((float) ($features['foreground_ratio'] ?? 0.0), 6),
+            'edge_density' => round((float) ($features['edge_density'] ?? 0.0), 6),
+            'subject' => $this->resemblesShoe($features) ? 'shoe' : 'uncertain',
+            'shoe_probability' => round((float) ($embeddingPayload['shoe_probability'] ?? 0.0), 6),
+            'blur_score' => round((float) data_get($embeddingPayload, 'metadata.blur_score', 0.0), 6),
+        ];
+    }
+
+    private function visualSignalAdjustment(array $signals, Product $product, VisualSearchIndexEntry $entry): float
+    {
+        if ($signals === []) {
+            return 0.0;
+        }
+
+        $adjustment = 0.0;
+        $signalColor = $signals['color_family'] ?? null;
+        $productColors = $this->productColorFamilies($product);
+        $entryTone = $this->entryTone($entry);
+        $lightProfile = $signals['light_profile'] ?? null;
+
+        if (is_string($signalColor) && $signalColor !== '' && $productColors !== []) {
+            if (in_array($signalColor, $productColors, true)) {
+                $adjustment += 0.06;
+            } elseif ($this->isCompatibleNeutralColorPair($signalColor, $productColors)) {
+                $adjustment += 0.025;
+            } else {
+                $adjustment -= $this->mismatchPenaltyForColorFamily($signalColor, $productColors);
+            }
+        }
+
+        if ($lightProfile === 'light') {
+            if (array_intersect($productColors, ['black', 'graphite', 'gold', 'volt']) !== []) {
+                $adjustment -= 0.05;
+            }
+
+            if ($entryTone === 'dark') {
+                $adjustment -= 0.035;
+            }
+        }
+
+        if ($lightProfile === 'dark') {
+            if (array_intersect($productColors, ['white', 'ivory']) !== []) {
+                $adjustment -= 0.05;
+            }
+
+            if ($entryTone === 'light') {
+                $adjustment -= 0.035;
+            }
+        }
+
+        if ($lightProfile === 'balanced' && $entryTone === 'balanced') {
+            $adjustment += 0.012;
+        }
+
+        return round(max(-0.18, min(0.08, $adjustment)), 6);
+    }
+
+    private function productColorFamilies(Product $product): array
+    {
+        $values = collect();
+
+        foreach ($product->variants as $variant) {
+            $values->push((string) data_get($variant->option_values, 'color'));
+        }
+
+        $values->push($product->name, $product->short_description, $product->description);
+
+        return $values
+            ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
+            ->map(fn (string $value): string => Str::lower($value))
+            ->flatMap(function (string $value): array {
+                $matches = [];
+
+                foreach (self::COLOR_FAMILY_KEYWORDS as $family => $keywords) {
+                    foreach ($keywords as $keyword) {
+                        if (str_contains($value, $keyword)) {
+                            $matches[] = $family;
+                            break;
+                        }
+                    }
+                }
+
+                return $matches;
+            })
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function entryTone(VisualSearchIndexEntry $entry): string
+    {
+        $brightness = (($entry->mean_red ?? 0.0) + ($entry->mean_green ?? 0.0) + ($entry->mean_blue ?? 0.0)) / 3;
+
+        return match (true) {
+            $brightness >= 0.78 => 'light',
+            $brightness <= 0.28 => 'dark',
+            default => 'balanced',
+        };
+    }
+
+    private function mismatchPenaltyForColorFamily(string $signalColor, array $productColors): float
+    {
+        if (in_array($signalColor, ['white', 'ivory'], true) && array_intersect($productColors, ['black', 'graphite', 'gold', 'volt']) !== []) {
+            return 0.12;
+        }
+
+        if (in_array($signalColor, ['black', 'graphite'], true) && array_intersect($productColors, ['white', 'ivory', 'gold']) !== []) {
+            return 0.1;
+        }
+
+        if ($signalColor === 'blue' && array_intersect($productColors, ['gold', 'volt']) !== []) {
+            return 0.09;
+        }
+
+        return 0.065;
+    }
+
+    private function isCompatibleNeutralColorPair(string $signalColor, array $productColors): bool
+    {
+        $neutralPairs = [
+            'white' => ['ivory'],
+            'ivory' => ['white'],
+            'black' => ['graphite'],
+            'graphite' => ['black'],
+        ];
+
+        return array_intersect($neutralPairs[$signalColor] ?? [], $productColors) !== [];
+    }
+
+    private function inferVisualColorFamily(float $hue, float $saturation, float $lightness): ?string
+    {
+        if ($lightness >= 0.86 && $saturation <= 0.12) {
+            return 'white';
+        }
+
+        if ($lightness >= 0.72 && $saturation <= 0.2) {
+            return 'ivory';
+        }
+
+        if ($lightness <= 0.22) {
+            return 'black';
+        }
+
+        if ($lightness <= 0.42 && $saturation <= 0.16) {
+            return 'graphite';
+        }
+
+        if ($hue >= 185 && $hue <= 250 && $saturation >= 0.2) {
+            return 'blue';
+        }
+
+        if ($hue >= 34 && $hue <= 58 && $saturation >= 0.28) {
+            return 'gold';
+        }
+
+        if ($hue >= 62 && $hue <= 105 && $saturation >= 0.35) {
+            return 'volt';
+        }
+
+        return null;
+    }
+
+    private function rgbToHex(float $red, float $green, float $blue): string
+    {
+        return sprintf(
+            '#%02x%02x%02x',
+            (int) round(max(0, min(255, $red * 255))),
+            (int) round(max(0, min(255, $green * 255))),
+            (int) round(max(0, min(255, $blue * 255))),
+        );
+    }
+
+    private function hexToRgb(string $hex): array
+    {
+        $normalized = ltrim($hex, '#');
+
+        if (strlen($normalized) !== 6) {
+            return [0, 0, 0];
+        }
+
+        return [
+            hexdec(substr($normalized, 0, 2)),
+            hexdec(substr($normalized, 2, 2)),
+            hexdec(substr($normalized, 4, 2)),
+        ];
+    }
+
+    private function rgbToHsl(int $red, int $green, int $blue): array
+    {
+        $red /= 255;
+        $green /= 255;
+        $blue /= 255;
+
+        $max = max($red, $green, $blue);
+        $min = min($red, $green, $blue);
+        $delta = $max - $min;
+        $lightness = ($max + $min) / 2;
+        $hue = 0.0;
+        $saturation = 0.0;
+
+        if ($delta > 0.0) {
+            $saturation = $delta / (1 - abs((2 * $lightness) - 1));
+            $hue = match ($max) {
+                $red => 60 * fmod((($green - $blue) / $delta), 6),
+                $green => 60 * ((($blue - $red) / $delta) + 2),
+                default => 60 * ((($red - $green) / $delta) + 4),
+            };
+        }
+
+        if ($hue < 0) {
+            $hue += 360;
+        }
+
+        return [$hue, $saturation, $lightness];
+    }
+
     private function hintBoost(Product $product, array $criteria): float
     {
         $boost = 0.0;
@@ -535,46 +862,48 @@ class VisualProductSearchService
         return match (true) {
             $score >= $this->strongMatchThreshold() => 'strong_match',
             $score >= $this->likelyMatchThreshold() => 'likely_match',
-            $score >= $this->minCandidateThreshold() => 'approximate_match',
+            $score >= $this->similarMatchThreshold() => 'approximate_match',
             default => 'no_match',
         };
     }
 
-    private function confidenceLabel(string $confidence): string
+    private function confidenceLabel(string $confidence, string $engine = 'embedding'): string
     {
+        if ($engine === 'fallback') {
+            return match ($confidence) {
+                'strong_match' => 'Strong image-cue match',
+                'likely_match' => 'Likely image-cue match',
+                'approximate_match' => 'Approximate image-cue match',
+                default => 'No strong image-cue match',
+            };
+        }
+
         return match ($confidence) {
             'strong_match' => 'Strong visual match',
             'likely_match' => 'Likely visual match',
-            'approximate_match' => 'Closest catalog styles',
-            'fallback_recommendation' => 'Fallback recommendation',
+            'approximate_match' => 'Similar style',
             default => 'No strong match',
         };
     }
 
-    private function answerFor(string $confidence, Product $product): string
-    {
-        return match ($confidence) {
-            'strong_match' => "The closest match I found is {$product->name}. You can review the active catalog options below if you want to compare stock, price, or size.",
-            'likely_match' => "{$product->name} looks like the nearest match from the current catalog. I also included the closest active alternatives in case you want a second option.",
-            'approximate_match' => 'I did not find a close exact match, but these are the nearest active styles I would recommend from the catalog.',
-            default => 'No strong visual match found. Please upload a clearer shoe photo.',
-        };
-    }
-
-    private function fallbackRecommendationResponse(Collection $candidates, array $criteria, string $reason, string $engine): array
+    private function lowConfidenceResponse(
+        Collection $candidates,
+        array $criteria,
+        array $topCandidate,
+        string $engine,
+        array $signals,
+    ): array
     {
         $brandStyle = $this->inferBrandStyle($criteria);
-        $strategy = $this->fallbackStrategy($criteria, $brandStyle);
         $recommendations = $this->prioritizeFallbackCandidates($candidates, $criteria, $brandStyle)
             ->take(4)
-            ->map(function (array $candidate) use ($strategy): array {
+            ->map(function (array $candidate) use ($engine): array {
                 $product = $this->productDiscovery->formatProduct($candidate['product']);
                 $product['match'] = [
-                    'confidence' => 'fallback_recommendation',
-                    'label' => $this->confidenceLabel('fallback_recommendation'),
-                    'score' => round((float) ($candidate['visual_score'] ?? 0.0), 4),
-                    'score_percent' => (int) round(((float) ($candidate['visual_score'] ?? 0.0)) * 100),
-                    'strategy' => $strategy,
+                    'confidence' => 'approximate_match',
+                    'label' => $this->confidenceLabel('approximate_match', $engine),
+                    'score' => round((float) ($candidate['confidence_score'] ?? $candidate['visual_score'] ?? 0.0), 4),
+                    'score_percent' => (int) round(((float) ($candidate['confidence_score'] ?? $candidate['visual_score'] ?? 0.0)) * 100),
                 ];
 
                 return $product;
@@ -583,47 +912,86 @@ class VisualProductSearchService
             ->all();
 
         if ($recommendations === []) {
-            return $this->noMatchResponse($reason);
+            return $this->failedVisualResponse(
+                reason: 'low_similarity',
+                answer: $this->failedAnswerFor('low_similarity'),
+                engine: $engine,
+                signals: $signals,
+            );
         }
 
         $topScore = (float) data_get($recommendations, '0.match.score', 0.0);
 
         return [
-            'answer' => $this->fallbackAnswerFor($reason, $strategy, $brandStyle, $criteria),
+            'status' => 'success',
+            'search_confidence' => 'low_confidence',
+            'answer' => $this->lowConfidenceAnswer($engine),
             'match' => [
-                'confidence' => 'fallback_recommendation',
-                'label' => $this->confidenceLabel('fallback_recommendation'),
+                'confidence' => 'approximate_match',
+                'label' => $this->confidenceLabel('approximate_match', $engine),
                 'score' => round($topScore, 4),
                 'score_percent' => (int) round($topScore * 100),
                 'engine' => $engine,
-                'reason' => $reason,
-                'strategy' => $strategy,
-                'brand_style' => $brandStyle ?: null,
+                'reason' => 'approximate_match',
+                'search_confidence' => 'low_confidence',
+            ],
+            'visual_search' => [
+                'status' => 'success',
+                'confidence' => 'low_confidence',
+                'engine' => $engine,
+                'reason' => 'approximate_match',
+                'signals' => $signals,
             ],
             'products' => $recommendations,
             'actions' => $this->matchActions(),
         ];
     }
 
-    private function fallbackAnswerFor(string $reason, string $strategy, string $brandStyle, array $criteria): string
+    private function failedVisualResponse(string $reason, string $answer, string $engine, array $signals = []): array
     {
-        if ($strategy === 'same_brand' && $brandStyle !== '') {
-            return "I could not confirm the exact pair, but these are the closest active {$brandStyle} styles I found in the catalog.";
+        return [
+            'status' => 'failed',
+            'search_confidence' => 'failed',
+            'answer' => $answer,
+            'match' => [
+                'confidence' => 'no_match',
+                'label' => $this->confidenceLabel('no_match', $engine === 'fallback' ? 'fallback' : 'embedding'),
+                'score' => 0.0,
+                'score_percent' => 0,
+                'engine' => $engine,
+                'reason' => $reason,
+                'search_confidence' => 'failed',
+            ],
+            'visual_search' => [
+                'status' => 'failed',
+                'confidence' => 'failed',
+                'engine' => $engine,
+                'reason' => $reason,
+                'signals' => $signals,
+            ],
+            'products' => [],
+            'actions' => $this->matchActions(),
+        ];
+    }
+
+    private function successfulMatchAnswer(string $searchConfidence, string $engine): string
+    {
+        if ($engine === 'fallback') {
+            return $this->lowConfidenceAnswer($engine);
         }
 
-        if ($strategy === 'category_based') {
-            $category = $criteria['category'] ?: $criteria['use_case'];
-
-            return $reason === 'non_shoe'
-                ? "I could not confidently confirm a shoe in the image, but these active {$category} options are the closest catalog recommendations."
-                : "I could not find a confident exact match, so I picked the nearest active {$category} styles from the catalog.";
-        }
-
-        return match ($reason) {
-            'non_shoe' => 'I could not confidently confirm a shoe in the image, but these are the closest active shoe recommendations I can offer from the catalog.',
-            'blurred_upload' => 'The photo looks a little soft, so I am guiding you to the closest active shoe recommendations in the catalog.',
-            default => 'I could not find a confident exact match, but these are the closest active shoes I would recommend from the catalog.',
+        return match ($searchConfidence) {
+            'high_confidence' => 'Closest visual matches',
+            'medium_confidence' => 'Similar styles',
+            default => $this->lowConfidenceAnswer($engine),
         };
+    }
+
+    private function lowConfidenceAnswer(string $engine): string
+    {
+        return $engine === 'fallback'
+            ? 'No exact match found. Try these nearby catalog options.'
+            : 'No exact match found. Try these nearby catalog options.';
     }
 
     private function inferBrandStyle(array $criteria): string
@@ -644,19 +1012,6 @@ class VisualProductSearchService
             ->reject(fn (string $keyword): bool => in_array($keyword, $ignored, true))
             ->take(3)
             ->implode(' ');
-    }
-
-    private function fallbackStrategy(array $criteria, string $brandStyle): string
-    {
-        if ($brandStyle !== '') {
-            return 'same_brand';
-        }
-
-        if (($criteria['category'] ?? null) || ($criteria['use_case'] ?? null)) {
-            return 'category_based';
-        }
-
-        return 'visual_similarity';
     }
 
     private function prioritizeFallbackCandidates(Collection $candidates, array $criteria, string $brandStyle): Collection
@@ -711,7 +1066,7 @@ class VisualProductSearchService
                     'product' => $entry->product,
                     'visual_score' => 0.0,
                     'score' => round($this->availabilityBoost($entry->product) + $this->merchandisingBoost($entry->product), 6),
-                    'confidence' => 'fallback_recommendation',
+                    'confidence' => 'no_match',
                 ];
             })
             ->filter(fn (array $candidate): bool => ($candidate['product'] ?? null) instanceof Product)
@@ -722,53 +1077,49 @@ class VisualProductSearchService
 
     private function noMatchResponse(string $reason): array
     {
-        $answer = match ($reason) {
-            'index_unavailable' => 'I could not compare this photo against the catalog right now. Please refresh and try again shortly.',
-            'blurred_upload' => 'This photo looks too soft to compare confidently. Try a clearer shoe photo with the full pair visible, or refine by color or use case.',
-            'non_shoe' => 'I could not clearly detect a shoe in this image. Try a side-view shoe photo or tell me the style, color, or use case you want.',
-            'low_similarity', 'no_visual_candidate', 'no_match' => 'I could not find a close exact match. Try a clearer photo, or refine by color, category, or intended use.',
-            default => 'I could not get a confident match from that photo. Try another shoe image or refine the search with a few shopping details.',
-        };
-
-        return [
-            'answer' => $answer,
-            'match' => [
-                'confidence' => 'no_match',
-                'label' => $this->confidenceLabel('no_match'),
-                'score' => 0.0,
-                'score_percent' => 0,
-                'reason' => $reason,
-            ],
-            'products' => [],
-            'actions' => $this->matchActions(),
-        ];
+        return $this->failedVisualResponse(
+            reason: $reason,
+            answer: $this->failedAnswerFor($reason),
+            engine: 'fallback',
+        );
     }
 
-    private function safeUnavailableResponse(array $criteria): array
+    private function failedAnswerFor(string $reason): string
     {
-        $matchSet = $this->productDiscovery->findMatches($criteria, 4);
-        $products = $matchSet['products']
-            ->map(fn (Product $product): array => $this->productDiscovery->formatProduct($product))
-            ->values()
-            ->all();
+        return match ($reason) {
+            'blurred_upload' => 'I couldn\'t scan that image. Try a clearer photo.',
+            'non_shoe' => 'I couldn\'t scan that image. Try another shoe photo.',
+            'gd_unavailable', 'index_unavailable', 'processing_error' => 'I couldn\'t scan that image right now. Try again shortly.',
+            'upload_invalid', 'upload_read_failed', 'decode_failed', 'empty_image', 'image_too_small' => 'I couldn\'t scan that image. Try another photo.',
+            default => 'I couldn\'t scan that image. Try another photo.',
+        };
+    }
 
-        $answer = $products === []
-            ? 'I could not compare this photo against the catalog right now. Please refresh and try again shortly.'
-            : 'I could not compare the photo directly right now, but I picked active catalog options that still fit the style cues and filters you shared.';
+    private function shouldFailVisualSearch(string $reason, array $topCandidate): bool
+    {
+        if (in_array($reason, ['non_shoe', 'blurred_upload'], true)) {
+            return true;
+        }
 
-        return [
-            'answer' => $answer,
-            'match' => [
-                'confidence' => 'no_match',
-                'label' => $this->confidenceLabel('no_match'),
-                'score' => 0.0,
-                'score_percent' => 0,
-                'reason' => 'index_unavailable',
-                'engine' => 'catalog_guided',
-            ],
-            'products' => $products,
-            'actions' => $this->matchActions(),
-        ];
+        return ((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'] ?? 0.0)) < $this->similarMatchThreshold();
+    }
+
+    private function isLowConfidenceCandidate(array $topCandidate): bool
+    {
+        return ($topCandidate['confidence'] ?? null) === 'approximate_match';
+    }
+
+    private function searchConfidenceForCandidate(array $topCandidate, string $engine): string
+    {
+        if ($engine === 'fallback') {
+            return 'low_confidence';
+        }
+
+        return match ($topCandidate['confidence'] ?? 'no_match') {
+            'strong_match' => 'high_confidence',
+            'likely_match' => 'medium_confidence',
+            default => 'low_confidence',
+        };
     }
 
     private function noMatchReason(?array $embeddingPayload, ?array $fallbackFeatures, ?array $topCandidate): string
@@ -791,7 +1142,7 @@ class VisualProductSearchService
             return 'non_shoe';
         }
 
-        if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold()) {
+        if (($topCandidate['confidence_score'] ?? $topCandidate['visual_score'] ?? 0.0) < $this->similarMatchThreshold()) {
             if (is_array($embeddingPayload) && (($embeddingPayload['metadata']['blur_score'] ?? 1) < $this->blurFloor())) {
                 return 'blurred_upload';
             }
@@ -845,7 +1196,7 @@ class VisualProductSearchService
 
     private function shouldFallbackAsRecommendation(?array $embeddingPayload, ?array $fallbackFeatures, array $topCandidate): bool
     {
-        if (($topCandidate['visual_score'] ?? 0.0) < $this->minCandidateThreshold()) {
+        if (($topCandidate['confidence_score'] ?? $topCandidate['visual_score'] ?? 0.0) < $this->similarMatchThreshold()) {
             return true;
         }
 
@@ -859,7 +1210,7 @@ class VisualProductSearchService
         }
 
         $shoeProbability = (float) ($embeddingPayload['shoe_probability'] ?? 0.0);
-        $visualScore = (float) ($topCandidate['visual_score'] ?? 0.0);
+        $visualScore = (float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'] ?? 0.0);
 
         if ($shoeProbability >= $this->shoeProbabilityFloor()) {
             return false;
@@ -876,7 +1227,7 @@ class VisualProductSearchService
     private function presentableCandidates(Collection $candidates): Collection
     {
         return $candidates
-            ->filter(fn (array $candidate): bool => ($candidate['visual_score'] ?? 0.0) >= $this->minCandidateThreshold())
+            ->filter(fn (array $candidate): bool => ((float) ($candidate['confidence_score'] ?? $candidate['visual_score'] ?? 0.0)) >= $this->similarMatchThreshold())
             ->values();
     }
 
@@ -891,18 +1242,38 @@ class VisualProductSearchService
                     return [
                         'product_id' => null,
                         'similarity' => round((float) ($candidate['match']['score'] ?? $candidate['visual_score'] ?? 0.0), 4),
-                        'confidence' => $candidate['match']['confidence'] ?? ($candidate['confidence'] ?? 'fallback_recommendation'),
+                        'confidence' => $candidate['match']['confidence'] ?? ($candidate['confidence'] ?? 'no_match'),
                     ];
                 }
 
                 return [
                     'product_id' => $product->id,
-                    'similarity' => round((float) ($candidate['visual_score'] ?? $candidate['match']['score'] ?? 0.0), 4),
-                    'confidence' => $candidate['confidence'] ?? $candidate['match']['confidence'] ?? 'fallback_recommendation',
+                    'similarity' => round((float) ($candidate['confidence_score'] ?? $candidate['visual_score'] ?? $candidate['match']['score'] ?? 0.0), 4),
+                    'confidence' => $candidate['confidence'] ?? $candidate['match']['confidence'] ?? 'no_match',
                 ];
             })
             ->values()
             ->all();
+    }
+
+    public function unexpectedFailureResponse(): array
+    {
+        return $this->failedVisualResponse(
+            reason: 'processing_error',
+            answer: 'I couldn\'t scan that image right now. Try again shortly.',
+            engine: 'error',
+        );
+    }
+
+    private function logFailure(string $reason, UploadedFile $image, array $context = []): void
+    {
+        Log::warning('visual-search.failure', $context + [
+            'reason' => $reason,
+            'upload_filename' => $image->getClientOriginalName(),
+            'detected_mime' => $image->getMimeType(),
+            'client_mime' => $image->getClientMimeType(),
+            'size_bytes' => $image->getSize(),
+        ]);
     }
 
     private function debugLog(string $event, array $context): void
