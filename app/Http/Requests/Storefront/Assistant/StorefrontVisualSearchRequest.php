@@ -8,12 +8,15 @@ use Illuminate\Support\Str;
 
 class StorefrontVisualSearchRequest extends FormRequest
 {
-    private const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+    private const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
     private const ALLOWED_IMAGE_MIME_TYPES = [
         'image/jpeg',
         'image/jpg',
         'image/png',
         'image/webp',
+    ];
+    private const UNSUPPORTED_HEIF_EXTENSIONS = ['heic', 'heif'];
+    private const UNSUPPORTED_HEIF_MIME_TYPES = [
         'image/heic',
         'image/heif',
         'image/heic-sequence',
@@ -33,8 +36,20 @@ class StorefrontVisualSearchRequest extends FormRequest
                 'file',
                 'max:10240',
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (! $value instanceof UploadedFile || ! $this->isSupportedImage($value)) {
-                        $fail('Please upload a JPG, PNG, WEBP, or HEIC image.');
+                    if (! $value instanceof UploadedFile) {
+                        $fail('Please upload a JPG, PNG, or WEBP image.');
+
+                        return;
+                    }
+
+                    if ($this->isUnsupportedHeifImage($value)) {
+                        $fail('HEIC and HEIF uploads are not supported on this server yet. Please convert the image to JPG, PNG, or WEBP.');
+
+                        return;
+                    }
+
+                    if (! $this->isSupportedImage($value)) {
+                        $fail('Please upload a JPG, PNG, or WEBP image.');
                     }
                 },
             ],
@@ -63,6 +78,24 @@ class StorefrontVisualSearchRequest extends FormRequest
         }
 
         return true;
+    }
+
+    private function isUnsupportedHeifImage(UploadedFile $image): bool
+    {
+        $values = array_filter([
+            Str::lower((string) $image->getClientOriginalExtension()),
+            Str::lower((string) $image->getMimeType()),
+            Str::lower((string) $image->getClientMimeType()),
+            $this->contentMimeType($image),
+        ]);
+
+        foreach ($values as $value) {
+            if (in_array($value, self::UNSUPPORTED_HEIF_EXTENSIONS, true) || in_array($value, self::UNSUPPORTED_HEIF_MIME_TYPES, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function contentMimeType(UploadedFile $image): ?string
@@ -107,10 +140,7 @@ class StorefrontVisualSearchRequest extends FormRequest
 
     private function shouldProbeDimensions(string $contentMime, string $extension): bool
     {
-        if (in_array($extension, ['heic', 'heif'], true)) {
-            return false;
-        }
-
-        return ! in_array($contentMime, ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'], true);
+        return ! in_array($contentMime, self::UNSUPPORTED_HEIF_MIME_TYPES, true)
+            && ! in_array($extension, self::UNSUPPORTED_HEIF_EXTENSIONS, true);
     }
 }

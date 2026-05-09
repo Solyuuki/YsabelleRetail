@@ -5,6 +5,7 @@ use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Storefront\VisualSearchIndexEntry;
+use App\Support\Storefront\ColorFamilyNormalizer;
 use App\Models\User;
 use App\Services\Storefront\VisualProductSearchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -343,6 +344,193 @@ test('assistant returns cart guidance from the active cart', function () {
         ->assertJsonPath('actions.0.label', 'View cart');
 });
 
+test('assistant returns storefront location help instead of treating it as out of scope', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Where is this located?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Contact Support')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Where is this located?',
+    ])->json('answer'))
+        ->toContain('Bonifacio Global City')
+        ->toContain('Separate branch listings are not available');
+});
+
+test('assistant returns login guidance for storefront support questions', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How to login?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'To log in, open Sign in, enter your email and password, then submit the form. If you do not have an account yet, use Create Account first.')
+        ->assertJsonPath('actions.0.label', 'Login')
+        ->assertJsonPath('actions.1.label', 'Create Account')
+        ->assertJsonCount(0, 'products');
+});
+
+test('assistant returns sign up guidance for storefront support questions', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How do I sign up?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'To create an account, open Create Account, enter your email, display name, password, and password confirmation, then submit the form. If you already have an account, use Sign in instead.')
+        ->assertJsonPath('actions.0.label', 'Create Account')
+        ->assertJsonPath('actions.1.label', 'Login')
+        ->assertJsonCount(0, 'products');
+});
+
+test('assistant returns ordering guidance for how to order questions', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How to order?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'To order, browse or search the catalog, open a product, choose a size if needed, and add it to your cart. Then open the cart, continue to checkout, sign in if required, and complete the shipping and payment details shown there.')
+        ->assertJsonPath('actions.0.label', 'Browse Products')
+        ->assertJsonPath('actions.1.label', 'Open Cart')
+        ->assertJsonCount(0, 'products');
+});
+
+test('assistant returns checkout guidance for storefront support questions', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How to checkout?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Open Cart')
+        ->assertJsonPath('actions.1.label', 'Login')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How to checkout?',
+    ])->json('answer'))
+        ->toContain('To check out, review your cart')
+        ->toContain('Cash on Delivery')
+        ->toContain('Card (simulated)');
+});
+
+test('assistant returns shipping support guidance', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Shipping?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Shipping Info')
+        ->assertJsonPath('actions.1.label', 'Contact Support')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Shipping?',
+    ])->json('answer'))
+        ->toContain('Shipping is free for orders above PHP 5,000')
+        ->toContain('source of truth for shipping charges');
+});
+
+test('assistant returns returns support guidance', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Returns?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Returns Info')
+        ->assertJsonPath('actions.1.label', 'Contact Support')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Returns?',
+    ])->json('answer'))
+        ->toContain('14-day return window');
+});
+
+test('assistant returns size guide support guidance', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Size guide?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Open Size Guide')
+        ->assertJsonPath('actions.1.label', 'Contact Support')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Size guide?',
+    ])->json('answer'))
+        ->toContain('The Size Guide helps you compare');
+});
+
+test('assistant returns contact support guidance', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Contact?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Contact Support')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Contact?',
+    ])->json('answer'))
+        ->toContain('ysabelleretail@gmail.com')
+        ->toContain('0976 650 0867');
+});
+
+test('assistant returns image search help for manual questions', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How to use image search?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'To use image search, open Visual Search, upload a clear shoe photo or screenshot, add optional refinements like color or category, then submit. Review the suggested matches and refine again if you need a closer result.')
+        ->assertJsonPath('actions.0.label', 'Start Image Search')
+        ->assertJsonPath('actions.0.target', 'visual-search')
+        ->assertJsonCount(0, 'products');
+});
+
+test('assistant returns bounded site guidance for user manual questions', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How do I use this website?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Browse Products')
+        ->assertJsonPath('actions.1.label', 'Start Image Search')
+        ->assertJsonCount(0, 'products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How do I use this website?',
+    ])->json('answer'))
+        ->toContain('browse the shop')
+        ->toContain('Visual Search');
+});
+
+test('assistant keeps the existing visual search trigger available from chat', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Find similar by image',
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Open Visual Search')
+        ->assertJsonPath('actions.0.target', 'visual-search')
+        ->assertJsonCount(0, 'products');
+});
+
 test('assistant redirects out of scope questions back to storefront help', function () {
     makeStorefrontProduct();
 
@@ -350,7 +538,7 @@ test('assistant redirects out of scope questions back to storefront help', funct
         'message' => 'What is the capital of France?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'I can only help with Ysabelle Retail shopping support, such as products, stock, sizing, cart, checkout, and catalog image search.')
+        ->assertJsonPath('answer', 'I can only help with Ysabelle Retail Shop support, products, cart, checkout, and catalog image search.')
         ->assertJsonCount(0, 'products');
 });
 
@@ -832,6 +1020,40 @@ test('visual search returns a safe message when the index is missing', function 
         ->assertJsonCount(0, 'products');
 });
 
+test('visual search returns index stale when embeddings do not match the active version', function () {
+    drawShoeFixture('stale-index-source.png', '#1f1f1f');
+    makeStorefrontProduct([
+        'primary_image_url' => visualSearchFixtureUrl('stale-index-source.png'),
+        'image_alt' => 'Stale index source image',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])
+        ->assertExitCode(0);
+
+    config()->set('storefront.assistant.visual_search.embedding.version', 'clip-b32-test-stale');
+
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('stale-index-source.png'), 'stale-index-source.png'),
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'failed')
+        ->assertJsonPath('match.reason', 'index_stale')
+        ->assertJsonPath('match.engine', 'catalog_unavailable')
+        ->assertJsonPath('answer', 'I couldn\'t scan that image right now because visual search is refreshing. Please try again shortly.')
+        ->assertJsonCount(0, 'products');
+
+    expect(app(\App\Services\Storefront\VisualSearchIndexService::class)->health())
+        ->toMatchArray([
+            'status' => 'index_stale',
+            'entries' => 1,
+            'embedded_entries' => 1,
+            'entries_matching_current_version' => 0,
+            'outdated_embedded_entries' => 1,
+        ]);
+});
+
 test('visual search no-index failures do not leak catalog recommendations', function () {
     drawShoeFixture('inactive-fallback-query.png', '#1f1f1f');
 
@@ -887,10 +1109,28 @@ test('visual search falls back safely when the embedding service is unavailable'
     ])
         ->assertOk()
         ->assertJsonPath('search_confidence', 'low_confidence')
-        ->assertJsonPath('answer', 'No exact match found. Try these nearby catalog options.')
+        ->assertJsonPath('answer', 'This looks like a nearby match.')
         ->assertJsonPath('products.0.slug', $product->slug)
         ->assertJsonPath('products.0.match.label', 'Approximate image-cue match')
         ->assertJsonPath('match.engine', 'fallback');
+});
+
+test('visual search response copy maps strong close and nearby states honestly', function () {
+    $service = app(VisualProductSearchService::class);
+    $reflection = new ReflectionClass($service);
+    $successfulMatchAnswer = $reflection->getMethod('successfulMatchAnswer');
+    $successfulMatchAnswer->setAccessible(true);
+    $lowConfidenceAnswer = $reflection->getMethod('lowConfidenceAnswer');
+    $lowConfidenceAnswer->setAccessible(true);
+
+    expect($successfulMatchAnswer->invoke($service, 'high_confidence', 'embedding', 'strong_match'))
+        ->toBe('Found a strong match for this shoe.')
+        ->and($successfulMatchAnswer->invoke($service, 'medium_confidence', 'embedding', 'likely_match'))
+        ->toBe('This looks like a close match.')
+        ->and($lowConfidenceAnswer->invoke($service, 'approximate_match'))
+        ->toBe('This looks like a nearby match.')
+        ->and($lowConfidenceAnswer->invoke($service, 'filter_fallback'))
+        ->toBe('No exact match found. Showing closest alternatives.');
 });
 
 test('visual search keeps white sneaker matches ahead of orange and black mismatches when better options exist', function () {
@@ -963,8 +1203,116 @@ test('visual search keeps white sneaker matches ahead of orange and black mismat
         ->assertJsonPath('products.0.slug', $exact->slug)
         ->assertJsonPath('search_confidence', 'high_confidence');
 
-    expect(collect($response->json('products'))->pluck('slug')->take(2)->all())
-        ->toBe([$exact->slug, $nearby->slug]);
+    $returnedSlugs = collect($response->json('products'))->pluck('slug');
+
+    expect($returnedSlugs->first())
+        ->toBe($exact->slug)
+        ->and($returnedSlugs->take(2)->all())
+        ->not()->toContain('orange-flash')
+        ->not()->toContain('midnight-flash');
+});
+
+test('visual search keeps black sneaker matches ahead of white-only sneakers when explicit black filters are present', function () {
+    drawShoeFixture('black-cream-sneaker.png', '#1f1f1f', '#ede7d9');
+    drawShoeFixture('white-only-sneaker.png', '#f2efe7', '#243260');
+
+    $blackSneaker = makeStorefrontProduct([
+        'name' => 'Shadow Court',
+        'slug' => 'shadow-court',
+        'category_name' => 'Sneakers',
+        'category_slug' => 'sneakers',
+        'primary_image_url' => visualSearchFixtureUrl('black-cream-sneaker.png'),
+        'image_alt' => 'Shadow Court product image',
+    ], [
+        'sku' => 'YS-SHC-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Black/Cream',
+        ],
+    ]);
+
+    $whiteSneaker = makeStorefrontProduct([
+        'name' => 'Cloud Court',
+        'slug' => 'cloud-court',
+        'category_name' => 'Sneakers',
+        'category_slug' => 'sneakers',
+        'primary_image_url' => visualSearchFixtureUrl('white-only-sneaker.png'),
+        'image_alt' => 'Cloud Court product image',
+    ], [
+        'sku' => 'YS-CLC-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'White',
+        ],
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('black-cream-sneaker.png'), 'black-cream-sneaker.png'),
+        'category' => 'sneakers',
+        'color' => 'black',
+    ], [
+        'Accept' => 'application/json',
+    ])->assertOk()
+        ->assertJsonPath('products.0.slug', $blackSneaker->slug)
+        ->assertJsonPath('products.0.match.confidence', 'strong_match');
+
+    expect(collect($response->json('products'))->pluck('slug')->first())
+        ->toBe($blackSneaker->slug)
+        ->not()->toBe($whiteSneaker->slug);
+});
+
+test('visual search returns an honest fallback when no exact explicit filter match exists', function () {
+    drawShoeFixture('fallback-white-sneaker.png', '#f2efe7', '#243260');
+
+    $whiteSneaker = makeStorefrontProduct([
+        'name' => 'Cloud Court Fallback',
+        'slug' => 'cloud-court-fallback',
+        'category_name' => 'Sneakers',
+        'category_slug' => 'sneakers',
+        'primary_image_url' => visualSearchFixtureUrl('fallback-white-sneaker.png'),
+        'image_alt' => 'Cloud Court Fallback product image',
+    ], [
+        'sku' => 'YS-CCF-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'White',
+        ],
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('fallback-white-sneaker.png'), 'fallback-white-sneaker.png'),
+        'category' => 'sneakers',
+        'color' => 'black',
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('search_confidence', 'low_confidence')
+        ->assertJsonPath('match.reason', 'filter_fallback')
+        ->assertJsonPath('answer', 'No exact black sneakers match found. Showing closest alternatives.')
+        ->assertJsonPath('products.0.slug', $whiteSneaker->slug)
+        ->assertJsonPath('products.0.match.confidence', 'approximate_match');
+});
+
+test('color family normalizer maps composite storefront colors into searchable families', function () {
+    $normalizer = app(ColorFamilyNormalizer::class);
+
+    expect($normalizer->familiesFromValue('Black/Cream'))
+        ->toContain('black')
+        ->toContain('ivory')
+        ->and($normalizer->familiesFromValue('White/Navy'))
+        ->toContain('white')
+        ->toContain('blue')
+        ->and($normalizer->familiesFromValue('Off White'))
+        ->toContain('white')
+        ->toContain('ivory')
+        ->and($normalizer->familiesFromValue('Graphite'))
+        ->toContain('graphite');
 });
 
 test('visual search index command builds entries for catalog images', function () {

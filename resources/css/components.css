@@ -897,7 +897,8 @@
         display: grid;
         gap: 0.75rem;
         min-width: 0;
-        overflow: hidden;
+        min-height: 0;
+        overflow: visible;
     }
 
     .ys-chat-visual-form {
@@ -908,8 +909,10 @@
         @apply gap-3 rounded-[1.4rem] border border-ys-gold/14 bg-[#120f0b]/96 p-3.5 shadow-[0_24px_60px_rgba(0,0,0,0.4)];
         max-height: min(19rem, calc(100vh - 18rem));
         min-width: 0;
+        min-height: 0;
         max-width: 100%;
         overflow-y: auto;
+        overscroll-behavior: contain;
         scrollbar-width: thin;
         scrollbar-color: rgba(212, 166, 59, 0.22) transparent;
     }
@@ -1051,6 +1054,7 @@
 
     .ys-chat-refine-panel {
         @apply rounded-[1.1rem] border border-white/7 bg-white/[0.02] p-3.5;
+        min-height: 0;
     }
 
     .ys-chat-refine-grid {
@@ -1126,10 +1130,14 @@
 
     .ys-chat-messages {
         @apply min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5;
-        min-height: 18rem;
+        min-height: clamp(8rem, 30vh, 18rem);
         scroll-behavior: smooth;
         scrollbar-width: thin;
         scrollbar-color: rgba(212, 166, 59, 0.25) transparent;
+    }
+
+    .ys-chat-shell.is-tools-open .ys-chat-messages {
+        min-height: clamp(5.5rem, 20vh, 11rem);
     }
 
     .ys-chat-message-group {
@@ -1750,6 +1758,28 @@
             @apply h-13 w-13;
         }
 
+    }
+}
+
+@media (max-height: 820px) {
+    @layer components {
+        .ys-chat-panel {
+            height: min(40rem, calc(100vh - 2.5rem));
+            min-height: min(24rem, calc(100vh - 2.5rem));
+            max-height: min(40rem, calc(100vh - 2.5rem));
+        }
+
+        .ys-chat-tool-drawer {
+            max-height: min(13.5rem, calc(100vh - 13rem));
+        }
+
+        .ys-chat-messages {
+            min-height: clamp(6rem, 22vh, 10rem);
+        }
+
+        .ys-chat-shell.is-tools-open .ys-chat-messages {
+            min-height: clamp(4rem, 14vh, 7rem);
+        }
     }
 }
 

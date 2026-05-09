@@ -1,6 +1,6 @@
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
-const ACCEPTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ACCEPTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const DEFAULT_TYPING_LABEL = 'Assistant is checking the catalog...';
 const VISUAL_TYPING_LABEL = 'Matching your image against the catalog...';
 
@@ -64,6 +64,7 @@ export const initChatWidget = () => {
     let lastVisualSentSelectionId = 0;
     let pendingAssistantRetry = null;
     let csrfRefreshPromise = null;
+    let visualThreadState = null;
 
     const setOpen = (isOpen) => {
         if (!panel) {
@@ -469,13 +470,9 @@ export const initChatWidget = () => {
             return;
         }
 
-        const variant = payload.variant ?? 'default';
-        const wrapper = createMessageGroup(role, variant);
-        appendTextBubble(wrapper, role, payload.answer, variant);
-
-        appendResponseDetails(wrapper, role, payload);
+        const wrapper = createMessageGroup(role, payload.variant ?? 'default');
         messages.appendChild(wrapper);
-        scrollMessagesToEnd();
+        renderResponsePayload(wrapper, role, payload);
     };
 
     const appendResponseDetails = (wrapper, role, payload) => {
@@ -497,6 +494,64 @@ export const initChatWidget = () => {
         }
     };
 
+    const payloadHasRenderableDetails = (role, payload) => role === 'assistant'
+        && ((Array.isArray(payload.products) && payload.products.length > 0) || (Array.isArray(payload.actions) && payload.actions.length > 0));
+
+    const normalizedPayloadAnswer = (payload) => normalizeText(payload?.answer ?? '');
+
+    const payloadHasRenderableAnswer = (payload) => normalizedPayloadAnswer(payload).trim() !== '';
+
+    const clearResponseDetails = (wrapper) => {
+        wrapper?.querySelectorAll('.ys-chat-product-grid, .ys-chat-actions').forEach((node) => node.remove());
+    };
+
+    const renderResponsePayload = (wrapper, role, payload) => {
+        if (!wrapper) {
+            return;
+        }
+
+        const variant = payload.variant ?? 'default';
+        wrapper.className = `ys-chat-message-group ${role === 'assistant' ? 'is-assistant' : 'is-user'}`;
+
+        if (variant === 'system') {
+            wrapper.classList.add('is-system');
+        }
+
+        const hasAnswer = payloadHasRenderableAnswer(payload);
+        let bubble = wrapper.querySelector('.ys-chat-bubble');
+
+        if (hasAnswer) {
+            if (!bubble) {
+                bubble = document.createElement('div');
+                wrapper.appendChild(bubble);
+            }
+
+            bubble.className = `ys-chat-bubble ${role === 'assistant' ? 'is-assistant' : 'is-user'}`;
+
+            if (variant === 'system') {
+                bubble.classList.add('is-system');
+            }
+
+            bubble.textContent = normalizedPayloadAnswer(payload);
+        } else if (bubble) {
+            bubble.remove();
+        }
+
+        clearResponseDetails(wrapper);
+        appendResponseDetails(wrapper, role, payload);
+
+        if (!hasAnswer && !payloadHasRenderableDetails(role, payload)) {
+            if (visualThreadState?.wrapper === wrapper) {
+                visualThreadState = null;
+            }
+
+            wrapper.remove();
+            return;
+        }
+
+        scrollMessagesToEnd();
+    };
+
     const createStreamingAssistantResponse = () => {
         if (!messages) {
             return null;
@@ -506,8 +561,8 @@ export const initChatWidget = () => {
         const bubble = document.createElement('div');
         bubble.className = 'ys-chat-bubble is-assistant';
         wrapper.appendChild(bubble);
+        wrapper.hidden = true;
         messages.appendChild(wrapper);
-        scrollMessagesToEnd();
 
         return { wrapper, bubble };
     };
@@ -517,10 +572,81 @@ export const initChatWidget = () => {
             return;
         }
 
-        bubble.textContent = normalizeText(payload.answer ?? bubble.textContent ?? '');
-        appendResponseDetails(wrapper, 'assistant', payload);
-        scrollMessagesToEnd();
+        wrapper.hidden = false;
+        renderResponsePayload(wrapper, 'assistant', payload);
     };
+
+    const activeVisualThread = () => {
+        if (!visualThreadState?.wrapper || !visualThreadState.wrapper.isConnected) {
+            return null;
+        }
+
+        return visualThreadState.selectionId === visualSelectionId ? visualThreadState : null;
+    };
+
+    const ensureVisualThread = () => {
+        const current = activeVisualThread();
+
+        if (current) {
+            return current;
+        }
+
+        if (!messages) {
+            return null;
+        }
+
+        const wrapper = createMessageGroup('assistant', 'system');
+        messages.appendChild(wrapper);
+        visualThreadState = {
+            selectionId: visualSelectionId,
+            wrapper,
+        };
+
+        return visualThreadState;
+    };
+
+    const renderVisualThreadPayload = (payload) => {
+        const thread = ensureVisualThread();
+
+        if (!thread) {
+            return;
+        }
+
+        renderResponsePayload(thread.wrapper, 'assistant', payload);
+    };
+
+    const visualResponseCopy = (payload) => {
+        const normalizedAnswer = normalizedPayloadAnswer(payload);
+        const fallbackReason = String(payload?.match?.reason ?? payload?.visual_search?.reason ?? '').trim();
+        const matchConfidence = String(payload?.match?.confidence ?? '').trim();
+
+        if (payload?.status === 'failed' || payload?.search_confidence === 'failed') {
+            return normalizedAnswer;
+        }
+
+        if (fallbackReason === 'filter_fallback') {
+            return normalizedAnswer || 'No exact match found. Showing closest alternatives.';
+        }
+
+        if (matchConfidence === 'strong_match' || payload?.search_confidence === 'high_confidence') {
+            return 'Found a strong match for this shoe.';
+        }
+
+        if (matchConfidence === 'likely_match' || payload?.search_confidence === 'medium_confidence') {
+            return 'This looks like a close match.';
+        }
+
+        if (payload?.search_confidence === 'low_confidence' || matchConfidence === 'approximate_match') {
+            return normalizedAnswer || 'This looks like a nearby match.';
+        }
+
+        return normalizedAnswer;
+    };
+
+    const normalizeVisualPayload = (payload) => ({
+        ...(payload ?? {}),
+        answer: visualResponseCopy(payload ?? {}),
+    });
 
     const visualStateConfig = (state, fallbackMessage = '') => {
         switch (state) {
@@ -604,23 +730,25 @@ export const initChatWidget = () => {
     };
 
     const applyVisualPayloadState = (payload) => {
-        if (payload?.status === 'success' && payload?.search_confidence === 'high_confidence') {
-            applyVisualUiState('success', payload.answer);
+        const visualPayload = normalizeVisualPayload(payload);
+
+        if (visualPayload?.status === 'success' && visualPayload?.search_confidence === 'high_confidence') {
+            applyVisualUiState('success', visualPayload.answer);
             return;
         }
 
-        if (payload?.status === 'success' && payload?.search_confidence === 'medium_confidence') {
-            applyVisualUiState('medium-confidence', payload.answer);
+        if (visualPayload?.status === 'success' && visualPayload?.search_confidence === 'medium_confidence') {
+            applyVisualUiState('medium-confidence', visualPayload.answer);
             return;
         }
 
-        if (payload?.status === 'success' && payload?.search_confidence === 'low_confidence') {
-            applyVisualUiState('low-confidence', payload.answer);
+        if (visualPayload?.status === 'success' && visualPayload?.search_confidence === 'low_confidence') {
+            applyVisualUiState('low-confidence', visualPayload.answer);
             return;
         }
 
-        if (payload?.status === 'failed' || payload?.search_confidence === 'failed') {
-            applyVisualUiState('failed', payload.answer);
+        if (visualPayload?.status === 'failed' || visualPayload?.search_confidence === 'failed') {
+            applyVisualUiState('failed', visualPayload.answer);
             return;
         }
 
@@ -744,6 +872,39 @@ export const initChatWidget = () => {
         root.classList.toggle('is-tools-open', isOpen);
     };
 
+    const resetRefineFields = () => {
+        refineFields.forEach((field) => {
+            if (field instanceof HTMLSelectElement) {
+                field.selectedIndex = 0;
+
+                return;
+            }
+
+            field.value = '';
+        });
+    };
+
+    const resetVisualComposerState = ({ clearFilters = false, closeTools = false } = {}) => {
+        if (activeComposerRequest === 'visual' && activeVisualThread()) {
+            renderVisualThreadPayload({
+                answer: 'Image search canceled.',
+                variant: 'system',
+            });
+        }
+
+        resetPreview();
+
+        if (clearFilters) {
+            resetRefineFields();
+        }
+
+        if (closeTools) {
+            setToolDrawerOpen(false);
+        }
+
+        syncRefineSummary();
+    };
+
     const toggleToolDrawer = (nextState = null) => {
         const shouldOpen = typeof nextState === 'boolean'
             ? nextState
@@ -837,7 +998,7 @@ export const initChatWidget = () => {
         const isImageMime = !file.type || file.type.startsWith('image/');
 
         if (!isImageMime && !ACCEPTED_IMAGE_TYPES.includes(file.type) && !ACCEPTED_IMAGE_EXTENSIONS.includes(extension)) {
-            return 'Please upload a JPG, PNG, WEBP, or HEIC image.';
+            return 'Please upload a JPG, PNG, or WEBP image.';
         }
 
         if (file.size > MAX_IMAGE_BYTES) {
@@ -899,6 +1060,11 @@ export const initChatWidget = () => {
 
                 if (parsed.event === 'chunk') {
                     accumulated += String(parsed.data?.text ?? '');
+
+                    if (accumulated.trim() !== '') {
+                        wrapper.hidden = false;
+                    }
+
                     bubble.textContent = normalizeText(accumulated);
                     scrollMessagesToEnd();
                     toggleTyping(false);
@@ -1037,26 +1203,26 @@ export const initChatWidget = () => {
         formData.append('image', file, file.name);
         setActiveComposerRequest('visual');
         applyVisualUiState('processing');
-        toggleTyping(true, VISUAL_TYPING_LABEL);
+        toggleTyping(false);
 
         if (!isRetry && lastVisualSentSelectionId !== visualSelectionId) {
             appendVisualAttachmentBubble(file);
             lastVisualSentSelectionId = visualSelectionId;
         }
 
-        appendResponse('assistant', {
+        renderVisualThreadPayload({
             answer: isRetry ? 'Retrying that image search...' : 'Searching your image...',
             variant: 'system',
         });
 
         try {
             const startedAt = Date.now();
-            const payload = await assistantFetch(visualSearchEndpoint, {
+            const payload = normalizeVisualPayload(await assistantFetch(visualSearchEndpoint, {
                 method: 'POST',
                 body: formData,
                 signal: controller.signal,
                 fallbackMessage: 'Visual Search could not process that image.',
-            });
+            }));
 
             if (requestId !== visualRequestId) {
                 return;
@@ -1071,9 +1237,9 @@ export const initChatWidget = () => {
             clearPendingAssistantRetry();
 
             if (payload?.status === 'success') {
-                appendResponse('assistant', payload ?? {});
+                renderVisualThreadPayload(payload ?? {});
             } else if (payload?.status === 'failed') {
-                appendResponse('assistant', {
+                renderVisualThreadPayload({
                     answer: payload.answer,
                     variant: 'system',
                     actions: [
@@ -1096,14 +1262,14 @@ export const initChatWidget = () => {
                     await submitVisualSearch({ isRetry: true });
                 });
                 applyVisualUiState('failed', error.message);
-                appendResponse('assistant', buildSessionExpiredPayload({ canRetry: error.canRetry }));
+                renderVisualThreadPayload(buildSessionExpiredPayload({ canRetry: error.canRetry }));
                 return;
             }
 
             clearPendingAssistantRetry();
             const answer = error instanceof Error ? error.message : 'Visual Search is temporarily unavailable. Please try again.';
             applyVisualUiState('failed', answer);
-            appendResponse('assistant', {
+            renderVisualThreadPayload({
                 answer,
                 variant: 'system',
                 actions: [
@@ -1173,6 +1339,10 @@ export const initChatWidget = () => {
             }
             appendResponse('assistant', { answer: integrityError, variant: 'system' });
             return;
+        }
+
+        if (hadSelectedFile) {
+            resetRefineFields();
         }
 
         selectedVisualFile = file;
@@ -1256,12 +1426,12 @@ export const initChatWidget = () => {
 
     closeButton?.addEventListener('click', () => {
         setOpen(false);
-        setToolDrawerOpen(false);
+        resetVisualComposerState({ clearFilters: true, closeTools: true });
     });
 
     minimizeButton?.addEventListener('click', () => {
         setOpen(false);
-        setToolDrawerOpen(false);
+        resetVisualComposerState({ clearFilters: true, closeTools: true });
     });
 
     promptButtons.forEach((button) => {
@@ -1333,7 +1503,7 @@ export const initChatWidget = () => {
     });
 
     visualClear?.addEventListener('click', () => {
-        resetPreview();
+        resetVisualComposerState({ clearFilters: true });
     });
 
     visualRerun?.addEventListener('click', () => {

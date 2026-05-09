@@ -4,6 +4,7 @@ namespace App\Services\Storefront;
 
 use App\Models\Catalog\Product;
 use App\Models\Storefront\VisualSearchIndexEntry;
+use App\Support\Storefront\ColorFamilyNormalizer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -34,6 +35,7 @@ class VisualProductSearchService
         private readonly VisualSearchImageSource $imageSource,
         private readonly VisualSearchIndexService $indexService,
         private readonly VisualSearchEmbeddingService $embeddingService,
+        private readonly ColorFamilyNormalizer $colorFamilyNormalizer,
     ) {}
 
     public function search(UploadedFile $image, array $hints = []): array
@@ -159,15 +161,19 @@ class VisualProductSearchService
             ];
 
             if ($indexEntries->isEmpty()) {
-                $this->logFailure('index_unavailable', $image, [
+                $indexAvailability = $this->indexService->availabilityStatus();
+                $indexReason = (string) ($indexAvailability['status'] ?? 'index_unavailable');
+                $this->logFailure($indexReason, $image, [
                     'criteria' => $criteria,
                     'upload' => $uploadContext,
+                    'index_status' => $indexReason,
+                    'rebuild_guidance' => $indexAvailability['rebuild_guidance'] ?? null,
                 ] + $context);
                 $this->debugLog('no_index', $context);
 
                 return $this->failedVisualResponse(
-                    reason: 'index_unavailable',
-                    answer: 'I couldn\'t scan that image right now. Try again shortly.',
+                    reason: $indexReason,
+                    answer: $this->failedAnswerFor($indexReason),
                     engine: 'catalog_unavailable',
                     signals: $visualSignals,
                 );
@@ -207,6 +213,12 @@ class VisualProductSearchService
                 );
             }
 
+            $filterResolution = $this->applyExplicitFilterGuard($scoredProducts, $criteria);
+            $scoredProducts = $filterResolution['candidates'];
+            $usedExplicitFilterFallback = $filterResolution['used_fallback'];
+            $explicitFilterFallbackAnswer = $filterResolution['fallback_answer'];
+            $explicitFilterFallbackReason = $filterResolution['fallback_reason'];
+
             $topCandidate = $scoredProducts->first();
             $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate, $criteria, $uploadContext);
             $topProducts = $this->debugCandidates($scoredProducts);
@@ -233,17 +245,19 @@ class VisualProductSearchService
                 );
             }
 
-            if ($searchConfidence === 'low_confidence') {
+            if ($searchConfidence === 'low_confidence' || $usedExplicitFilterFallback) {
                 $fallbackResponse = $this->lowConfidenceResponse(
                     candidates: $scoredProducts,
                     criteria: $criteria,
                     topCandidate: $topCandidate,
                     engine: $engine,
                     signals: $visualSignals,
+                    answerOverride: $usedExplicitFilterFallback ? $explicitFilterFallbackAnswer : null,
+                    reason: $usedExplicitFilterFallback ? $explicitFilterFallbackReason : 'approximate_match',
                 );
 
                 $this->debugLog('low_confidence', $context + [
-                    'reason' => 'approximate_match',
+                    'reason' => $usedExplicitFilterFallback ? $explicitFilterFallbackReason : 'approximate_match',
                     'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
                     'top_products' => $topProducts,
                 ]);
@@ -275,7 +289,7 @@ class VisualProductSearchService
             return [
                 'status' => 'success',
                 'search_confidence' => $searchConfidence,
-                'answer' => $this->successfulMatchAnswer($searchConfidence, $engine),
+                'answer' => $this->successfulMatchAnswer($searchConfidence, $engine, (string) ($topCandidate['confidence'] ?? 'no_match')),
                 'match' => [
                     'confidence' => $topCandidate['confidence'],
                     'label' => $this->confidenceLabel($topCandidate['confidence'], $engine),
@@ -684,34 +698,12 @@ class VisualProductSearchService
 
     private function productColorFamilies(Product $product): array
     {
-        $values = collect();
+        $values = collect($product->variants)
+            ->map(fn ($variant): string => (string) data_get($variant->option_values, 'color'))
+            ->push($product->name)
+            ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '');
 
-        foreach ($product->variants as $variant) {
-            $values->push((string) data_get($variant->option_values, 'color'));
-        }
-
-        $values->push($product->name, $product->short_description, $product->description);
-
-        return $values
-            ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
-            ->map(fn (string $value): string => Str::lower($value))
-            ->flatMap(function (string $value): array {
-                $matches = [];
-
-                foreach (self::COLOR_FAMILY_KEYWORDS as $family => $keywords) {
-                    foreach ($keywords as $keyword) {
-                        if (str_contains($value, $keyword)) {
-                            $matches[] = $family;
-                            break;
-                        }
-                    }
-                }
-
-                return $matches;
-            })
-            ->unique()
-            ->values()
-            ->all();
+        return $this->colorFamilyNormalizer->familiesForValues($values->all());
     }
 
     private function entryTone(VisualSearchIndexEntry $entry): string
@@ -893,9 +885,13 @@ class VisualProductSearchService
 
     private function productHasColor(Product $product, string $color): bool
     {
-        return $product->variants->contains(function ($variant) use ($color): bool {
-            return Str::lower((string) data_get($variant->option_values, 'color')) === Str::lower($color);
-        });
+        $expectedFamilies = $this->colorFamilyNormalizer->familiesFromValue($color);
+
+        if ($expectedFamilies === []) {
+            $expectedFamilies = [Str::lower(trim($color))];
+        }
+
+        return array_intersect($expectedFamilies, $this->productColorFamilies($product)) !== [];
     }
 
     private function productMatchesUseCase(Product $product, string $useCase): bool
@@ -960,6 +956,8 @@ class VisualProductSearchService
         array $topCandidate,
         string $engine,
         array $signals,
+        ?string $answerOverride = null,
+        string $reason = 'approximate_match',
     ): array
     {
         $brandStyle = $this->inferBrandStyle($criteria);
@@ -993,21 +991,21 @@ class VisualProductSearchService
         return [
             'status' => 'success',
             'search_confidence' => 'low_confidence',
-            'answer' => $this->lowConfidenceAnswer($engine),
+            'answer' => $answerOverride ?? $this->lowConfidenceAnswer($reason),
             'match' => [
                 'confidence' => 'approximate_match',
                 'label' => $this->confidenceLabel('approximate_match', $engine),
                 'score' => round($topScore, 4),
                 'score_percent' => (int) round($topScore * 100),
                 'engine' => $engine,
-                'reason' => 'approximate_match',
+                'reason' => $reason,
                 'search_confidence' => 'low_confidence',
             ],
             'visual_search' => [
                 'status' => 'success',
                 'confidence' => 'low_confidence',
                 'engine' => $engine,
-                'reason' => 'approximate_match',
+                'reason' => $reason,
                 'signals' => $signals,
             ],
             'products' => $recommendations,
@@ -1042,24 +1040,29 @@ class VisualProductSearchService
         ];
     }
 
-    private function successfulMatchAnswer(string $searchConfidence, string $engine): string
+    private function successfulMatchAnswer(string $searchConfidence, string $engine, string $topConfidence): string
     {
         if ($engine === 'fallback') {
-            return $this->lowConfidenceAnswer($engine);
+            return $this->lowConfidenceAnswer('approximate_match');
         }
 
-        return match ($searchConfidence) {
-            'high_confidence' => 'Closest visual matches',
-            'medium_confidence' => 'Similar styles',
-            default => $this->lowConfidenceAnswer($engine),
+        return match ($topConfidence) {
+            'strong_match' => 'Found a strong match for this shoe.',
+            'likely_match' => 'This looks like a close match.',
+            default => match ($searchConfidence) {
+                'high_confidence' => 'Found a strong match for this shoe.',
+                'medium_confidence' => 'This looks like a close match.',
+                default => $this->lowConfidenceAnswer('approximate_match'),
+            },
         };
     }
 
-    private function lowConfidenceAnswer(string $engine): string
+    private function lowConfidenceAnswer(string $reason): string
     {
-        return $engine === 'fallback'
-            ? 'No exact match found. Try these nearby catalog options.'
-            : 'No exact match found. Try these nearby catalog options.';
+        return match ($reason) {
+            'filter_fallback' => 'No exact match found. Showing closest alternatives.',
+            default => 'This looks like a nearby match.',
+        };
     }
 
     private function inferBrandStyle(array $criteria): string
@@ -1158,6 +1161,7 @@ class VisualProductSearchService
             'blurred_upload' => 'I couldn\'t scan that image. Try a clearer photo.',
             'non_shoe' => 'I couldn\'t scan that image. Try another shoe photo.',
             'screenshot_needs_crop' => 'I can read the screenshot, but the shoe is too small/noisy. Try cropping closer.',
+            'index_stale' => 'I couldn\'t scan that image right now because visual search is refreshing. Please try again shortly.',
             'gd_unavailable', 'index_unavailable', 'processing_error' => 'I couldn\'t scan that image right now. Try again shortly.',
             'upload_invalid', 'upload_materialization_failed', 'upload_read_failed', 'decode_failed', 'empty_image', 'image_too_small' => 'I couldn\'t scan that image. Try another photo.',
             default => 'I couldn\'t scan that image. Try another photo.',
@@ -1416,6 +1420,125 @@ class VisualProductSearchService
             ['label' => 'Browse full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
             ['label' => 'Ask assistant', 'type' => 'message', 'message' => 'Help me choose a shoe for daily use'],
         ];
+    }
+
+    private function applyExplicitFilterGuard(Collection $candidates, array $criteria): array
+    {
+        $hasExplicitFilters = filled($criteria['color'])
+            || filled($criteria['category'])
+            || filled($criteria['use_case']);
+
+        if (! $hasExplicitFilters) {
+            return [
+                'candidates' => $candidates,
+                'used_fallback' => false,
+                'fallback_answer' => null,
+                'fallback_reason' => 'approximate_match',
+            ];
+        }
+
+        $scored = $candidates
+            ->map(function (array $candidate) use ($criteria): array {
+                $metrics = $this->explicitFilterMetrics($candidate['product'] ?? null, $criteria);
+
+                return $candidate + $metrics + [
+                    'explicit_filter_priority' => (($metrics['explicit_filter_match_count'] ?? 0) * 1000000)
+                        + ((float) ($candidate['score'] ?? 0.0) * 1000)
+                        + ((float) ($candidate['confidence_score'] ?? $candidate['visual_score'] ?? 0.0) * 100),
+                ];
+            })
+            ->values();
+
+        $exactMatches = $scored
+            ->filter(fn (array $candidate): bool => ($candidate['explicit_filter_total'] ?? 0) > 0 && ($candidate['explicit_filter_exact_match'] ?? false) === true)
+            ->sortByDesc('score')
+            ->values();
+
+        if ($exactMatches->isNotEmpty()) {
+            return [
+                'candidates' => $exactMatches,
+                'used_fallback' => false,
+                'fallback_answer' => null,
+                'fallback_reason' => 'approximate_match',
+            ];
+        }
+
+        return [
+            'candidates' => $scored->sortByDesc('explicit_filter_priority')->values(),
+            'used_fallback' => true,
+            'fallback_answer' => $this->explicitFilterFallbackAnswer($criteria),
+            'fallback_reason' => 'filter_fallback',
+        ];
+    }
+
+    private function explicitFilterMetrics(mixed $product, array $criteria): array
+    {
+        if (! $product instanceof Product) {
+            return [
+                'explicit_filter_total' => 0,
+                'explicit_filter_match_count' => 0,
+                'explicit_filter_exact_match' => false,
+            ];
+        }
+
+        $total = 0;
+        $matches = 0;
+
+        if (filled($criteria['color'])) {
+            $total++;
+            $matches += $this->productHasColor($product, (string) $criteria['color']) ? 1 : 0;
+        }
+
+        if (filled($criteria['category'])) {
+            $total++;
+            $matches += $product->category?->slug === $criteria['category'] ? 1 : 0;
+        }
+
+        if (filled($criteria['use_case'])) {
+            $total++;
+            $matches += $this->productMatchesUseCase($product, (string) $criteria['use_case']) ? 1 : 0;
+        }
+
+        return [
+            'explicit_filter_total' => $total,
+            'explicit_filter_match_count' => $matches,
+            'explicit_filter_exact_match' => $total > 0 && $matches === $total,
+        ];
+    }
+
+    private function explicitFilterFallbackAnswer(array $criteria): string
+    {
+        $descriptor = $this->explicitFilterDescriptor($criteria);
+
+        return $descriptor !== ''
+            ? 'No exact '.$descriptor.' match found. Showing closest alternatives.'
+            : 'No exact match found. Showing closest alternatives.';
+    }
+
+    private function explicitFilterDescriptor(array $criteria): string
+    {
+        $parts = [];
+
+        if (filled($criteria['color'])) {
+            $parts[] = Str::lower((string) $criteria['color']);
+        }
+
+        if (filled($criteria['category'])) {
+            $parts[] = $this->humanizeFilterValue((string) $criteria['category']);
+        } elseif (filled($criteria['use_case'])) {
+            $parts[] = $this->humanizeFilterValue((string) $criteria['use_case']).' shoes';
+        }
+
+        return trim(implode(' ', $parts));
+    }
+
+    private function humanizeFilterValue(string $value): string
+    {
+        return Str::of($value)
+            ->replace('-', ' ')
+            ->lower()
+            ->trim()
+            ->toString();
     }
 
     private function strongMatchThreshold(): float

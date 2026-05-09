@@ -14,6 +14,16 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
         'ecommerce_cart',
         'ecommerce_checkout',
         'ecommerce_support',
+        'support.shipping',
+        'support.returns',
+        'support.contact',
+        'support.size_guide',
+        'support.location',
+        'support.login',
+        'support.signup',
+        'guidance.site_use',
+        'guidance.image_search',
+        'guidance.ordering_flow',
         'visual_search',
         'ecommerce_product_search',
     ];
@@ -213,6 +223,10 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
             return $this->containsAssistantDomainLanguage($answer);
         }
 
+        if (str_starts_with($intent, 'support.') || str_starts_with($intent, 'guidance.')) {
+            return $this->containsAssistantDomainLanguage($answer);
+        }
+
         return $this->containsAssistantDomainLanguage($answer) || $answer === $fallback;
     }
 
@@ -220,13 +234,20 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
     {
         return $this->containsAny($answer, [
             'Ysabelle',
+            'account',
             'catalog',
             'cart',
             'checkout',
+            'contact',
+            'login',
             'product',
             'products',
+            'returns',
             'shoe',
             'shoes',
+            'shipping',
+            'sign in',
+            'size guide',
             'stock',
             'store',
             'support',

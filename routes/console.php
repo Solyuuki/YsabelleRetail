@@ -79,11 +79,14 @@ Artisan::command('visual-search:health', function (): void {
             ['Index table exists', $index['table_exists'] ? 'yes' : 'no'],
             ['Index entries', $index['entries']],
             ['Entries with embeddings', $index['embedded_entries']],
+            ['Entries matching current version', $index['entries_matching_current_version'] ?? 0],
             ['Fallback-only entries', $index['fallback_only_entries']],
             ['Indexed model', $index['current_model'] ?? 'n/a'],
             ['Indexed version', $index['current_embedding_version'] ?? 'n/a'],
             ['Outdated embedded entries', $index['outdated_embedded_entries'] ?? 0],
             ['Source-stale entries', $index['stale_source_entries'] ?? 0],
+            ['Index status', $index['status'] ?? 'n/a'],
+            ['Rebuild guidance', $index['rebuild_guidance'] ?? 'n/a'],
         ],
     );
 })->purpose('Check the local visual search embedding service and index coverage');
@@ -116,6 +119,8 @@ Artisan::command('catalog:images:audit', function (): int {
             ['Visual-search index entries', $audit['index']['entries']],
             ['Distinct indexed image URLs', $audit['index']['distinct_indexed_image_urls']],
             ['Entries with embeddings', $audit['index']['entries_with_embeddings']],
+            ['Entries matching current version', $audit['index']['entries_matching_current_version'] ?? 0],
+            ['Outdated embedded entries', $audit['index']['outdated_embedded_entries'] ?? 0],
             ['Fallback-only index entries', $audit['index']['fallback_only_entries']],
         ],
     );

@@ -1,6 +1,6 @@
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
-const ACCEPTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ACCEPTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const LOADING_LABEL = 'Finding similar styles...';
 const COMPLETE_LABEL = 'Search complete. You can choose another image anytime.';
 
@@ -44,6 +44,8 @@ export const initInlineVisualSearch = () => {
     };
 
     let visualModeActive = false;
+    let activeRequestController = null;
+    let requestId = 0;
 
     const setExpanded = (isOpen) => {
         root.classList.toggle('hidden', !isOpen);
@@ -101,6 +103,11 @@ export const initInlineVisualSearch = () => {
     };
 
     const resetPanel = () => {
+        if (activeRequestController) {
+            activeRequestController.abort();
+            activeRequestController = null;
+        }
+
         if (input) {
             input.value = '';
         }
@@ -144,7 +151,7 @@ export const initInlineVisualSearch = () => {
         const isImageMime = !file.type || file.type.startsWith('image/');
 
         if (!isImageMime && !ACCEPTED_IMAGE_TYPES.includes(file.type) && !ACCEPTED_IMAGE_EXTENSIONS.includes(extension)) {
-            return 'Please upload a JPG, PNG, WEBP, or HEIC image.';
+            return 'Please upload a JPG, PNG, or WEBP image.';
         }
 
         if (file.size > MAX_IMAGE_BYTES) {
@@ -288,6 +295,13 @@ export const initInlineVisualSearch = () => {
         dropzone?.classList.add('is-busy');
         clearInlineMessage();
 
+        if (activeRequestController) {
+            activeRequestController.abort();
+        }
+
+        const currentRequestId = ++requestId;
+        const controller = new AbortController();
+        activeRequestController = controller;
         const formData = new FormData(form);
 
         try {
@@ -297,6 +311,7 @@ export const initInlineVisualSearch = () => {
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                 },
+                signal: controller.signal,
                 body: formData,
             });
 
@@ -306,15 +321,30 @@ export const initInlineVisualSearch = () => {
                 throw new Error(payload.message ?? firstValidationError(payload) ?? 'Visual Search could not process that image.');
             }
 
+            if (currentRequestId !== requestId) {
+                return;
+            }
+
             applyVisualGrid(Array.isArray(payload.products) ? payload.products : []);
             showStatus(file.name, COMPLETE_LABEL);
         } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                return;
+            }
+
+            if (currentRequestId !== requestId) {
+                return;
+            }
+
             restoreOriginalGrid();
             const message = error instanceof Error ? error.message : 'Visual Search is temporarily unavailable. Please try again.';
             showStatus(file.name, message);
             showInlineMessage(message);
         } finally {
-            dropzone?.classList.remove('is-busy');
+            if (currentRequestId === requestId) {
+                activeRequestController = null;
+                dropzone?.classList.remove('is-busy');
+            }
         }
     };
 
@@ -335,6 +365,11 @@ export const initInlineVisualSearch = () => {
     });
 
     hideButton?.addEventListener('click', () => {
+        if (visualModeActive) {
+            restoreOriginalGrid();
+        }
+
+        resetPanel();
         setExpanded(false);
     });
 

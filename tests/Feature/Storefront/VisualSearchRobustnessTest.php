@@ -288,6 +288,47 @@ test('visual search keeps compressed shoe uploads searchable', function () {
         ->assertJsonPath('products.0.slug', $product->slug);
 });
 
+test('visual search accepts supported jpg jpeg png and webp uploads', function () {
+    if (! function_exists('imagewebp')) {
+        $this->markTestSkipped('WEBP encoding is not available in this environment.');
+    }
+
+    config()->set('storefront.assistant.visual_search.embedding.enabled', false);
+
+    drawRobustShoeFixture('supported-format-source.png', '#2d61d2');
+    createWebpFixture('supported-format-source.png', 'supported-format-query.webp');
+
+    $supportedUploads = [
+        uploadRobustFixture(public_path('images/products/running/aurum-runner.jpg'), 'supported-format.jpg'),
+        uploadRobustFixture(public_path('images/products/running/aurum-runner.jpg'), 'supported-format.jpeg'),
+        uploadRobustFixture(robustnessFixturePath('supported-format-source.png'), 'supported-format.png'),
+        uploadRobustFixture(robustnessFixturePath('supported-format-query.webp'), 'supported-format.webp'),
+    ];
+
+    foreach ($supportedUploads as $upload) {
+        robustAssistantPost($this, route('storefront.assistant.visual-search'), [
+            'image' => $upload,
+        ])
+            ->assertOk()
+            ->assertJsonMissingValidationErrors(['image']);
+    }
+});
+
+test('visual search rejects heic uploads with a clean validation error', function () {
+    drawRobustShoeFixture('unsupported-heic-source.png', '#2d61d2');
+
+    $response = robustAssistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadRobustFixture(robustnessFixturePath('unsupported-heic-source.png'), 'shoe-upload.heic', 'image/heic'),
+    ]);
+
+    $response
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['image']);
+
+    expect(data_get($response->json(), 'errors.image.0'))
+        ->toBe('HEIC and HEIF uploads are not supported on this server yet. Please convert the image to JPG, PNG, or WEBP.');
+});
+
 test('visual search debug logs include preprocessing and similarity context', function () {
     Log::spy();
     config()->set('storefront.assistant.visual_search.debug', true);

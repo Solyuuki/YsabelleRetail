@@ -17,6 +17,7 @@ class VisualSearchIndexService
         private readonly ProductMediaResolver $productMedia,
         private readonly VisualSearchImageSource $imageSource,
         private readonly VisualSearchEmbeddingService $embeddingService,
+        private readonly VisualSearchIndexHealthService $indexHealth,
     ) {}
 
     public function indexedEntries(): Collection
@@ -178,48 +179,20 @@ class VisualSearchIndexService
 
     public function health(): array
     {
-        if (! $this->indexTableExists()) {
-            return [
-                'table_exists' => false,
-                'gd_available' => $this->featureExtractor->available(),
-                'gd_message' => $this->featureExtractor->available()
-                    ? 'GD image support is available.'
-                    : 'GD image support is unavailable.',
-                'entries' => 0,
-                'embedded_entries' => 0,
-                'fallback_only_entries' => 0,
-            ];
-        }
+        return $this->indexHealth->summary();
+    }
 
-        $entries = VisualSearchIndexEntry::query()->count();
-        $embeddedEntries = VisualSearchIndexEntry::query()->whereNotNull('embedding_vector')->count();
-        $currentModel = $this->embeddingService->model();
-        $currentVersion = $this->embeddingService->embeddingVersion();
-        $outdatedEmbeddedEntries = VisualSearchIndexEntry::query()
-            ->whereNotNull('embedding_vector')
-            ->where(function ($query) use ($currentModel, $currentVersion): void {
-                $query
-                    ->where('embedding_model', '!=', $currentModel)
-                    ->orWhere('embedding_version', '!=', $currentVersion);
-            })
-            ->count();
-        $staleSourceEntries = VisualSearchIndexEntry::query()
-            ->whereColumn('source_updated_at', '>', 'indexed_at')
-            ->count();
+    public function availabilityStatus(): array
+    {
+        $health = $this->indexHealth->summary();
 
         return [
-            'table_exists' => true,
-            'gd_available' => $this->featureExtractor->available(),
-            'gd_message' => $this->featureExtractor->available()
-                ? 'GD image support is available.'
-                : 'GD image support is unavailable.',
-            'entries' => $entries,
-            'embedded_entries' => $embeddedEntries,
-            'fallback_only_entries' => max(0, $entries - $embeddedEntries),
-            'current_model' => $currentModel,
-            'current_embedding_version' => $currentVersion,
-            'outdated_embedded_entries' => $outdatedEmbeddedEntries,
-            'stale_source_entries' => $staleSourceEntries,
+            'status' => $health['status'] ?? 'index_unavailable',
+            'rebuild_guidance' => $health['rebuild_guidance'] ?? null,
+            'entries' => $health['entries'] ?? 0,
+            'embedded_entries' => $health['embedded_entries'] ?? 0,
+            'entries_matching_current_version' => $health['entries_matching_current_version'] ?? 0,
+            'outdated_embedded_entries' => $health['outdated_embedded_entries'] ?? 0,
         ];
     }
 
