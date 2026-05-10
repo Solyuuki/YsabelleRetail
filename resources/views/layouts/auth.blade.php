@@ -26,7 +26,7 @@
             href="https://fonts.bunny.net/css?family=cormorant-garamond:500,600,700|instrument-sans:400,500,600,700"
             rel="stylesheet"
         />
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/auth-manual.js'])
     </head>
     <body class="min-h-screen bg-[#040404] text-ys-ivory selection:bg-ys-gold/20 selection:text-ys-ivory">
         @include('partials.role-shortcuts-config')

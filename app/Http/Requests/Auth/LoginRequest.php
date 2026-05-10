@@ -9,6 +9,14 @@ use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'email' => Str::lower(trim($this->string('email')->toString())),
+            'remember' => $this->boolean('remember'),
+        ]);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -19,6 +27,7 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'remember' => ['nullable', 'boolean'],
         ];
     }
 

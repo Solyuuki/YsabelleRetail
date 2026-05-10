@@ -4,13 +4,12 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class RegisterRequest extends FormRequest
+class ResetPasswordRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
         $this->merge([
             'email' => mb_strtolower(trim($this->string('email')->toString())),
-            'name' => trim($this->string('name')->toString()),
         ]);
     }
 
@@ -22,8 +21,8 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'min:2', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
             'password' => [
                 'required',
                 'string',
@@ -41,5 +40,10 @@ class RegisterRequest extends FormRequest
             'password.min' => 'The password must be at least 8 characters and include at least one letter and one number.',
             'password.regex' => 'The password must be at least 8 characters and include at least one letter and one number.',
         ];
+    }
+
+    public function credentials(): array
+    {
+        return $this->only('email', 'password', 'password_confirmation', 'token');
     }
 }

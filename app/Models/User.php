@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Access\Role;
 use App\Models\Audit\AuditLog;
 use App\Models\Auth\SocialAccount;
@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -32,6 +32,7 @@ class User extends Authenticatable
         'email',
         'github_id',
         'password',
+        'has_local_password',
         'status',
     ];
 
@@ -54,6 +55,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'has_local_password' => 'boolean',
             'password' => 'hashed',
         ];
     }
@@ -118,5 +120,10 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === 'active';
+    }
+
+    public function hasLocalPassword(): bool
+    {
+        return $this->has_local_password;
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Models\Access\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -73,6 +74,39 @@ test('customer login redirects to the storefront account area by default', funct
         'email' => $customer->email,
         'password' => 'Password123x',
     ])->assertRedirect(route('storefront.account.index'));
+});
+
+test('manual login does not enable remember me unless explicitly requested', function () {
+    $customer = makeUserWithRole('customer', [
+        'email' => 'remember.off@example.com',
+        'password' => 'Password123x',
+    ]);
+
+    $this->post(route('login.store'), [
+        'email' => 'Remember.Off@Example.com',
+        'password' => 'Password123x',
+    ])
+        ->assertRedirect(route('storefront.account.index'))
+        ->assertCookieMissing(Auth::guard('web')->getRecallerName());
+
+    $this->assertAuthenticatedAs($customer);
+});
+
+test('manual login only enables remember me when explicitly requested', function () {
+    $customer = makeUserWithRole('customer', [
+        'email' => 'remember.on@example.com',
+        'password' => 'Password123x',
+    ]);
+
+    $this->post(route('login.store'), [
+        'email' => 'remember.on@example.com',
+        'password' => 'Password123x',
+        'remember' => '1',
+    ])
+        ->assertRedirect(route('storefront.account.index'))
+        ->assertCookie(Auth::guard('web')->getRecallerName());
+
+    $this->assertAuthenticatedAs($customer);
 });
 
 test('admin login redirects to the admin dashboard by default', function () {

@@ -16,6 +16,8 @@ test('login page renders the redesigned auth experience', function () {
     $this->get(route('login'))
         ->assertOk()
         ->assertSeeText('Welcome back')
+        ->assertSeeText('Forgot your password?')
+        ->assertSeeText('Remember me on this device')
         ->assertSeeText('Continue with Google')
         ->assertSeeText('Continue with Microsoft')
         ->assertSeeText('Continue with GitHub')
@@ -53,6 +55,21 @@ test('register page renders the redesigned auth experience', function () {
         ->assertSee('href="'.route('storefront.privacy').'"', escape: false)
         ->assertSeeText('Terms of Use')
         ->assertSeeText('Privacy Policy');
+});
+
+test('forgot password page renders the manual recovery form', function () {
+    $this->get(route('password.request'))
+        ->assertOk()
+        ->assertSeeText('Reset your password')
+        ->assertSeeText('Send reset instructions')
+        ->assertSeeText('Back to sign in');
+});
+
+test('reset password page renders the manual recovery confirmation form', function () {
+    $this->get(route('password.reset', ['token' => 'example-token', 'email' => 'reset@example.com']))
+        ->assertOk()
+        ->assertSeeText('Choose a new password')
+        ->assertSeeText('Reset password');
 });
 
 test('configured providers render a real oauth redirect link', function () {

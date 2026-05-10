@@ -16,6 +16,7 @@ class CustomerAccountService
                 'name' => trim($name),
                 'email' => Str::lower(trim($email)),
                 'password' => $password,
+                'has_local_password' => true,
                 'status' => 'active',
             ]);
 
@@ -34,11 +35,23 @@ class CustomerAccountService
         string $email,
         bool $markEmailVerified = false,
     ): User {
-        $user = $this->register(
-            name: $name,
-            email: $email,
-            password: Str::random(40),
-        );
+        $user = DB::transaction(function () use ($name, $email): User {
+            $user = User::query()->create([
+                'name' => trim($name),
+                'email' => Str::lower(trim($email)),
+                'password' => Str::random(40),
+                'has_local_password' => false,
+                'status' => 'active',
+            ]);
+
+            $user->profile()->create([
+                'preferred_name' => $user->name,
+            ]);
+
+            $this->ensureCustomerRole($user);
+
+            return $user;
+        });
 
         if ($markEmailVerified) {
             $user->forceFill([

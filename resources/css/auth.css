@@ -68,8 +68,109 @@
         @apply block text-sm text-[#ffb6b6];
     }
 
+    .ys-auth-hint {
+        @apply block text-sm leading-6 text-ys-ivory/46;
+    }
+
+    .ys-auth-password-shell {
+        @apply relative block;
+    }
+
+    .ys-auth-input-password {
+        @apply pr-14;
+    }
+
+    .ys-auth-password-toggle {
+        @apply absolute inset-y-0 right-0 inline-flex w-14 items-center justify-center rounded-r-[1.1rem] text-ys-ivory/50 transition duration-200 hover:text-ys-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ys-gold/35 focus-visible:ring-inset;
+    }
+
+    .ys-auth-password-toggle-icon {
+        @apply pointer-events-none inline-flex h-5 w-5;
+    }
+
+    .ys-auth-password-toggle-icon svg {
+        @apply h-full w-full;
+    }
+
+    .ys-auth-sr-only {
+        @apply sr-only;
+    }
+
+    .ys-auth-strength {
+        @apply block space-y-2;
+    }
+
+    .ys-auth-strength-track {
+        @apply block h-2 overflow-hidden rounded-full bg-white/8;
+    }
+
+    .ys-auth-strength-bar {
+        @apply block h-full w-0 rounded-full transition-all duration-300;
+        background: linear-gradient(90deg, #8b3a3a 0%, #d7ad48 58%, #79b56d 100%);
+    }
+
+    .ys-auth-strength[data-strength='weak'] .ys-auth-strength-bar {
+        width: 25%;
+    }
+
+    .ys-auth-strength[data-strength='fair'] .ys-auth-strength-bar {
+        width: 50%;
+    }
+
+    .ys-auth-strength[data-strength='good'] .ys-auth-strength-bar {
+        width: 75%;
+    }
+
+    .ys-auth-strength[data-strength='strong'] .ys-auth-strength-bar {
+        width: 100%;
+    }
+
+    .ys-auth-strength-copy {
+        @apply block text-sm leading-6 text-ys-ivory/60;
+    }
+
+    .ys-auth-feedback {
+        @apply block text-sm leading-6 text-ys-ivory/46;
+    }
+
+    .ys-auth-feedback[data-match-state='match'] {
+        @apply text-[#b8ecb2];
+    }
+
+    .ys-auth-feedback[data-match-state='mismatch'] {
+        @apply text-[#ffb6b6];
+    }
+
+    .ys-auth-status {
+        @apply mt-6 rounded-[1.2rem] border border-ys-gold/25 bg-ys-gold/10 px-4 py-3 text-sm leading-6 text-ys-ivory/86;
+    }
+
     .ys-auth-submit {
         @apply inline-flex h-14 w-full items-center justify-center rounded-[1.1rem] border border-ys-gold/80 bg-gradient-to-r from-[#d7ad48] to-[#b78221] px-5 text-[0.96rem] font-semibold text-[#17110a] shadow-[0_14px_34px_rgba(212,166,59,0.28)] transition duration-300 hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ys-gold/18;
+    }
+
+    .ys-auth-secondary-submit {
+        @apply inline-flex h-12 w-full items-center justify-center rounded-[1rem] border border-white/10 bg-white/[0.03] px-5 text-[0.95rem] font-semibold text-ys-ivory transition duration-300 hover:border-ys-gold/30 hover:text-ys-gold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ys-gold/12;
+    }
+
+    .ys-auth-check {
+        @apply flex items-center gap-3 rounded-[1rem] border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-ys-ivory/74;
+    }
+
+    .ys-auth-check-input {
+        @apply h-4 w-4 rounded border-white/20 bg-black/40 text-ys-gold focus:ring-ys-gold/30;
+    }
+
+    .ys-auth-check-copy {
+        @apply leading-6;
+    }
+
+    .ys-auth-helper-copy {
+        @apply mt-4 text-right text-sm text-ys-ivory/46;
+    }
+
+    .ys-auth-form-compact {
+        @apply mt-3;
     }
 
     .ys-auth-switch-copy {
@@ -170,6 +271,7 @@
         }
 
         .ys-auth-submit,
+        .ys-auth-secondary-submit,
         .ys-auth-input {
             @apply h-13;
         }
@@ -183,10 +285,13 @@
 @media (prefers-reduced-motion: reduce) {
     @layer components {
         .ys-auth-submit,
+        .ys-auth-secondary-submit,
         .ys-auth-social-button,
         .ys-auth-input,
         .ys-auth-inline-link,
-        .ys-auth-legal-link {
+        .ys-auth-legal-link,
+        .ys-auth-password-toggle,
+        .ys-auth-strength-bar {
             transition: none;
         }
     }

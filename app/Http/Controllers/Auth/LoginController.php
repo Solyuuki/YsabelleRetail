@@ -33,9 +33,10 @@ class LoginController extends Controller
     ): \Illuminate\Http\RedirectResponse
     {
         $request->ensureIsNotRateLimited();
-        $credentials = $request->validated();
+        $credentials = $request->only('email', 'password');
+        $remember = $request->boolean('remember');
 
-        if (! Auth::attempt($credentials, true)) {
+        if (! Auth::attempt($credentials, $remember)) {
             $request->hitRateLimiter();
 
             throw ValidationException::withMessages([
