@@ -3,7 +3,9 @@
 namespace App\Services\Storefront;
 
 use App\Services\Storefront\Assistant\StorefrontAssistantGuidanceService;
+use App\Services\Storefront\Assistant\StorefrontAssistantContextResolver;
 use App\Services\Storefront\Assistant\StorefrontAssistantIntentRouter;
+use App\Services\Storefront\Assistant\StorefrontAssistantMessageNormalizer;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -15,13 +17,15 @@ class SmartShoppingAssistantService
         private readonly CartService $cartService,
         private readonly AuthFactory $auth,
         private readonly StorefrontAssistantGuidanceService $guidance,
+        private readonly StorefrontAssistantContextResolver $assistantContextResolver,
         private readonly StorefrontAssistantIntentRouter $intentRouter,
+        private readonly StorefrontAssistantMessageNormalizer $messageNormalizer,
         private readonly StoreSupportKnowledgeService $supportKnowledge,
     ) {}
 
-    public function respond(string $message): array
+    public function respond(string $message, array $assistantContext = []): array
     {
-        $resolution = $this->resolveMessage($message);
+        $resolution = $this->resolveMessage($message, $assistantContext);
 
         return $this->guidance->complete(
             intent: $resolution['intent'],
@@ -31,9 +35,9 @@ class SmartShoppingAssistantService
         );
     }
 
-    public function stream(string $message): iterable
+    public function stream(string $message, array $assistantContext = []): iterable
     {
-        $resolution = $this->resolveMessage($message);
+        $resolution = $this->resolveMessage($message, $assistantContext);
 
         return $this->guidance->stream(
             intent: $resolution['intent'],
@@ -43,16 +47,18 @@ class SmartShoppingAssistantService
         );
     }
 
-    private function resolveMessage(string $message): array
+    private function resolveMessage(string $message, array $assistantContext = []): array
     {
         $message = trim($message);
-        $normalized = Str::lower($message);
+        $assistantContext = $this->assistantContextResolver->sanitize($assistantContext);
+        $normalizedMessage = $this->messageNormalizer->normalize($message, $assistantContext);
         $criteria = $this->productDiscovery->buildCriteriaFromText($message);
-        $intent = $this->intentRouter->classify($message, $criteria);
+        $intent = $this->intentRouter->classify($normalizedMessage['normalized'], $criteria);
+        $intent = $this->assistantContextResolver->recoverIntent($intent, $normalizedMessage, $assistantContext) ?? $intent;
 
         $response = match ($intent['intent']) {
             StorefrontAssistantIntentRouter::INTENT_GREETING => $this->greetingResponse(),
-            StorefrontAssistantIntentRouter::INTENT_SMALL_TALK => $this->smallTalkResponse($normalized),
+            StorefrontAssistantIntentRouter::INTENT_SMALL_TALK => $this->smallTalkResponse($normalizedMessage['normalized']),
             StorefrontAssistantIntentRouter::INTENT_CART => $this->cartResponse(),
             StorefrontAssistantIntentRouter::INTENT_CHECKOUT,
             StorefrontAssistantIntentRouter::INTENT_SUPPORT,
@@ -63,17 +69,30 @@ class SmartShoppingAssistantService
             StorefrontAssistantIntentRouter::INTENT_SUPPORT_LOCATION,
             StorefrontAssistantIntentRouter::INTENT_SUPPORT_LOGIN,
             StorefrontAssistantIntentRouter::INTENT_SUPPORT_SIGNUP,
+            StorefrontAssistantIntentRouter::INTENT_SUPPORT_AUTH_QUICK_OPTIONS,
+            StorefrontAssistantIntentRouter::INTENT_SUPPORT_AUTH_PHONE_OPTION_STATUS,
+            StorefrontAssistantIntentRouter::INTENT_SUPPORT_AUTH_MAGIC_LINK_STATUS,
+            StorefrontAssistantIntentRouter::INTENT_SUPPORT_TOPIC_OPTIONS,
             StorefrontAssistantIntentRouter::INTENT_GUIDANCE_SITE_USE,
             StorefrontAssistantIntentRouter::INTENT_GUIDANCE_IMAGE_SEARCH,
             StorefrontAssistantIntentRouter::INTENT_GUIDANCE_ORDERING_FLOW => $this->supportKnowledge->responseForIntent(
                 $intent['intent'],
                 $intent['topic'] ?? null,
+                $assistantContext,
             ),
             StorefrontAssistantIntentRouter::INTENT_VISUAL_SEARCH => $this->visualSearchResponse(),
-            StorefrontAssistantIntentRouter::INTENT_PRODUCT_SEARCH => $this->productIntentResponse($message, $normalized, $criteria),
+            StorefrontAssistantIntentRouter::INTENT_PRODUCT_SEARCH => $this->productIntentResponse($message, $normalizedMessage['normalized'], $criteria),
             StorefrontAssistantIntentRouter::INTENT_OUT_OF_SCOPE => $this->outOfScopeResponse(),
-            default => $this->clarificationResponse(),
+            default => $this->clarificationResponse(
+                $this->assistantContextResolver->shouldUseSupportClarifier($normalizedMessage, $assistantContext)
+            ),
         };
+
+        $response['assistant_context'] = $this->assistantContextResolver->buildResponseContext(
+            $intent,
+            $response,
+            $assistantContext,
+        );
 
         return [
             'intent' => $intent['intent'],
@@ -253,10 +272,12 @@ class SmartShoppingAssistantService
         );
     }
 
-    private function clarificationResponse(): array
+    private function clarificationResponse(bool $supportClarifier = false): array
     {
         return $this->response(
-            answer: 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.',
+            answer: $supportClarifier
+                ? 'Are you asking about login options, checkout options, or contact/location details?'
+                : 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.',
             actions: $this->defaultActions(),
         );
     }

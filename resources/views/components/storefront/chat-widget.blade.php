@@ -132,12 +132,12 @@
 
                     <div class="ys-chat-refine-panel">
                         <div class="ys-chat-refine-grid">
-                            <label class="ys-field">
+                            <label class="ys-field ys-chat-refine-field">
                                 <span>Brand or style</span>
                                 <input type="text" name="brand_style" class="ys-input h-11" placeholder="Example: Onyx, runner, court" data-visual-filter-field data-filter-label="Brand/style">
                             </label>
 
-                            <label class="ys-field">
+                            <label class="ys-field ys-chat-refine-field">
                                 <span>Color</span>
                                 <select name="color" class="ys-select h-11" data-visual-filter-field data-filter-label="Color">
                                     <option value="">Any color</option>
@@ -147,7 +147,7 @@
                                 </select>
                             </label>
 
-                            <label class="ys-field">
+                            <label class="ys-field ys-chat-refine-field">
                                 <span>Category</span>
                                 <select name="category" class="ys-select h-11" data-visual-filter-field data-filter-label="Category">
                                     <option value="">Any category</option>
@@ -157,7 +157,7 @@
                                 </select>
                             </label>
 
-                            <label class="ys-field">
+                            <label class="ys-field ys-chat-refine-field">
                                 <span>Use case</span>
                                 <select name="use_case" class="ys-select h-11" data-visual-filter-field data-filter-label="Use case">
                                     <option value="">Any use case</option>

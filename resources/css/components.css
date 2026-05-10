@@ -907,11 +907,13 @@
 
     .ys-chat-tool-drawer {
         @apply gap-3 rounded-[1.4rem] border border-ys-gold/14 bg-[#120f0b]/96 p-3.5 shadow-[0_24px_60px_rgba(0,0,0,0.4)];
-        max-height: min(19rem, calc(100vh - 18rem));
+        max-height: min(22rem, calc(100vh - 16rem));
         min-width: 0;
         min-height: 0;
         max-width: 100%;
+        align-content: start;
         overflow-y: auto;
+        overflow-x: hidden;
         overscroll-behavior: contain;
         scrollbar-width: thin;
         scrollbar-color: rgba(212, 166, 59, 0.22) transparent;
@@ -1055,10 +1057,25 @@
     .ys-chat-refine-panel {
         @apply rounded-[1.1rem] border border-white/7 bg-white/[0.02] p-3.5;
         min-height: 0;
+        min-width: 0;
+        padding-bottom: 1rem;
     }
 
     .ys-chat-refine-grid {
-        @apply grid gap-3 sm:grid-cols-2;
+        @apply grid gap-3.5 sm:grid-cols-2;
+        min-width: 0;
+        align-items: start;
+    }
+
+    .ys-chat-refine-field {
+        min-width: 0;
+        gap: 0.55rem;
+    }
+
+    .ys-chat-refine-field .ys-input,
+    .ys-chat-refine-field .ys-select {
+        width: 100%;
+        min-width: 0;
     }
 
     .ys-chat-rerun-button:disabled {
@@ -1686,7 +1703,7 @@
 
         .ys-chat-tool-drawer {
             @apply p-3;
-            max-height: min(16rem, calc(100vh - 15rem));
+            max-height: min(18.5rem, calc(100vh - 13.5rem));
         }
 
         .ys-chat-refine-panel {
@@ -1715,6 +1732,10 @@
 
         .ys-chat-composer-chip {
             @apply gap-1.5 px-2.5 py-1.5;
+        }
+
+        .ys-chat-refine-grid {
+            @apply gap-3;
         }
 
         .ys-chat-composer-chip-badge {

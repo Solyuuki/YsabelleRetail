@@ -65,6 +65,7 @@ export const initChatWidget = () => {
     let pendingAssistantRetry = null;
     let csrfRefreshPromise = null;
     let visualThreadState = null;
+    let assistantContext = null;
 
     const setOpen = (isOpen) => {
         if (!panel) {
@@ -468,6 +469,10 @@ export const initChatWidget = () => {
     const appendResponse = (role, payload) => {
         if (!messages) {
             return;
+        }
+
+        if (role === 'assistant') {
+            syncAssistantContext(payload?.assistant_context);
         }
 
         const wrapper = createMessageGroup(role, payload.variant ?? 'default');
@@ -1008,12 +1013,26 @@ export const initChatWidget = () => {
         return null;
     };
 
+    const syncAssistantContext = (nextContext) => {
+        if (!nextContext || typeof nextContext !== 'object' || Array.isArray(nextContext)) {
+            return;
+        }
+
+        assistantContext = nextContext;
+    };
+
+    const messageRequestBody = (message) => JSON.stringify(
+        assistantContext
+            ? { message, assistant_context: assistantContext }
+            : { message },
+    );
+
     const postMessageJson = async (message) => {
         return await assistantFetch(messageEndpoint, {
             method: 'POST',
             contentType: 'application/json',
             accept: 'application/json',
-            body: JSON.stringify({ message }),
+            body: messageRequestBody(message),
             fallbackMessage: 'The assistant could not process that request.',
         });
     };
@@ -1038,7 +1057,7 @@ export const initChatWidget = () => {
                 method: 'POST',
                 contentType: 'application/json',
                 accept: 'text/event-stream',
-                body: JSON.stringify({ message }),
+                body: messageRequestBody(message),
                 responseType: 'raw',
                 fallbackMessage: 'The assistant could not process that request.',
             });

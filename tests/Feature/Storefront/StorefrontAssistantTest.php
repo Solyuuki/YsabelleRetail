@@ -281,6 +281,13 @@ function assistantPost($test, string $route, array $payload = [], array $headers
         ->post($route, $payload, assistantCsrfHeaders($headers));
 }
 
+function assistantContextFor($test, string $message): array
+{
+    return assistantPostJson($test, route('storefront.assistant.message'), [
+        'message' => $message,
+    ])->json('assistant_context') ?? [];
+}
+
 test('assistant returns product matches for running shoe questions', function () {
     $product = makeStorefrontProduct();
 
@@ -371,7 +378,144 @@ test('assistant returns login guidance for storefront support questions', functi
         ->assertJsonPath('answer', 'To log in, open Sign in, enter your email and password, then submit the form. If you do not have an account yet, use Create Account first.')
         ->assertJsonPath('actions.0.label', 'Login')
         ->assertJsonPath('actions.1.label', 'Create Account')
+        ->assertJsonPath('assistant_context.last_intent', 'support.login')
+        ->assertJsonPath('assistant_context.last_topic', 'login')
+        ->assertJsonPath('assistant_context.last_domain', 'support')
         ->assertJsonCount(0, 'products');
+});
+
+test('assistant recovers quick auth options from previous login context', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'How to login?');
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => "there's a quick sign also?",
+        'assistant_context' => $assistantContext,
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Login')
+        ->assertJsonPath('actions.1.label', 'Create Account')
+        ->assertJsonPath('assistant_context.last_intent', 'support.auth_quick_options');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => "there's a quick sign also?",
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('quick sign-in buttons')
+        ->toContain('Google')
+        ->toContain('Microsoft')
+        ->toContain('GitHub')
+        ->toContain('Phone OTP and Email Magic Link are not enabled yet');
+});
+
+test('assistant recovers quick auth options from vague taglish follow up', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'How to login?');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'may mabilis?',
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('quick sign-in buttons')
+        ->toContain('Phone OTP and Email Magic Link are not enabled yet');
+});
+
+test('assistant reports phone otp as disabled from login context follow ups', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'How to login?');
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'phone pwede?',
+        'assistant_context' => $assistantContext,
+    ])
+        ->assertOk()
+        ->assertJsonPath('assistant_context.last_intent', 'support.auth_phone_option_status');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'phone pwede?',
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('Phone OTP is not enabled yet');
+});
+
+test('assistant reports otp as disabled from login context follow ups', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'How to login?');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'OTP?',
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('Phone OTP is not enabled yet');
+});
+
+test('assistant reports email magic link as disabled from login context follow ups', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'How to login?');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'email link?',
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('Email Magic Link is not enabled yet');
+});
+
+test('assistant recognizes quick sign in questions without prior context', function () {
+    makeStorefrontProduct();
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'quick sign in?',
+    ])->json('answer'))
+        ->toContain('quick sign-in buttons');
+});
+
+test('assistant recognizes quick login phrasing in taglish without prior context', function () {
+    makeStorefrontProduct();
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'may quick login?',
+    ])->json('answer'))
+        ->toContain('quick sign-in buttons');
+});
+
+test('assistant recovers location help from bounded location context', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'Where is this located?');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'san yan?',
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('Bonifacio Global City')
+        ->toContain('Separate branch listings are not available');
+});
+
+test('assistant returns bounded topic options from prior support guidance context', function () {
+    makeStorefrontProduct();
+
+    $assistantContext = assistantContextFor($this, 'How to use image search?');
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'ano pa options?',
+        'assistant_context' => $assistantContext,
+    ])
+        ->assertOk()
+        ->assertJsonPath('actions.0.label', 'Start Image Search')
+        ->assertJsonPath('actions.1.label', 'Browse Products');
+
+    expect(assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'ano pa options?',
+        'assistant_context' => $assistantContext,
+    ])->json('answer'))
+        ->toContain('image search help')
+        ->toContain('Start Image Search')
+        ->toContain('Browse Products');
 });
 
 test('assistant returns sign up guidance for storefront support questions', function () {
@@ -551,6 +695,18 @@ test('assistant asks for clarification when the request is unclear', function ()
         ->assertOk()
         ->assertJsonPath('answer', 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.')
         ->assertJsonCount(0, 'products');
+});
+
+test('assistant uses a bounded clarifier for vague store-system phrasing without trusted context', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'phone pwede?',
+        'assistant_context' => 'not-trusted',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'Are you asking about login options, checkout options, or contact/location details?')
+        ->assertJsonPath('assistant_context.last_intent', 'fallback');
 });
 
 test('assistant falls back safely when ollama is unavailable', function () {

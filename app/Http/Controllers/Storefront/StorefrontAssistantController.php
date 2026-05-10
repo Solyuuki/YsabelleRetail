@@ -14,7 +14,10 @@ class StorefrontAssistantController extends Controller
         StorefrontAssistantMessageRequest $request,
         SmartShoppingAssistantService $assistant,
     ): JsonResponse {
-        return response()->json($assistant->respond($request->string('message')->toString()));
+        return response()->json($assistant->respond(
+            $request->string('message')->toString(),
+            $request->assistantContext(),
+        ));
     }
 
     public function stream(
@@ -22,10 +25,11 @@ class StorefrontAssistantController extends Controller
         SmartShoppingAssistantService $assistant,
     ): StreamedResponse {
         $message = $request->string('message')->toString();
+        $assistantContext = $request->assistantContext();
 
-        return response()->stream(function () use ($assistant, $message): void {
+        return response()->stream(function () use ($assistant, $message, $assistantContext): void {
             try {
-                foreach ($assistant->stream($message) as $event) {
+                foreach ($assistant->stream($message, $assistantContext) as $event) {
                     echo 'event: '.$event['event']."\n";
                     echo 'data: '.json_encode($event['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n\n";
 

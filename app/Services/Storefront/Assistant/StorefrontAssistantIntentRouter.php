@@ -30,6 +30,14 @@ class StorefrontAssistantIntentRouter
 
     public const INTENT_SUPPORT_SIGNUP = 'support.signup';
 
+    public const INTENT_SUPPORT_AUTH_QUICK_OPTIONS = 'support.auth_quick_options';
+
+    public const INTENT_SUPPORT_AUTH_PHONE_OPTION_STATUS = 'support.auth_phone_option_status';
+
+    public const INTENT_SUPPORT_AUTH_MAGIC_LINK_STATUS = 'support.auth_magic_link_status';
+
+    public const INTENT_SUPPORT_TOPIC_OPTIONS = 'support.topic_options';
+
     public const INTENT_GUIDANCE_SITE_USE = 'guidance.site_use';
 
     public const INTENT_GUIDANCE_IMAGE_SEARCH = 'guidance.image_search';
@@ -160,12 +168,15 @@ class StorefrontAssistantIntentRouter
     private function supportIntent(string $message): ?array
     {
         return match (true) {
+            $this->isQuickAuthIntent($message) => ['intent' => self::INTENT_SUPPORT_AUTH_QUICK_OPTIONS],
+            $this->isPhoneAuthIntent($message) => ['intent' => self::INTENT_SUPPORT_AUTH_PHONE_OPTION_STATUS],
+            $this->isMagicLinkIntent($message) => ['intent' => self::INTENT_SUPPORT_AUTH_MAGIC_LINK_STATUS],
             $this->containsAny($message, ['log in', 'login', 'sign in', 'signin']) => ['intent' => self::INTENT_SUPPORT_LOGIN],
             $this->containsAny($message, ['sign up', 'signup', 'register', 'create account']) => ['intent' => self::INTENT_SUPPORT_SIGNUP],
             $this->containsAny($message, ['shipping', 'delivery']) => ['intent' => self::INTENT_SUPPORT_SHIPPING],
             $this->containsAny($message, ['return', 'refund', 'exchange']) => ['intent' => self::INTENT_SUPPORT_RETURNS],
             $this->containsAny($message, ['size guide', 'sizing', 'true to size', 'fit', 'size']) => ['intent' => self::INTENT_SUPPORT_SIZE_GUIDE],
-            $this->containsAny($message, ['contact', 'email', 'phone', 'call', 'reach you', 'reach support']) => ['intent' => self::INTENT_SUPPORT_CONTACT],
+            $this->containsAny($message, ['contact', 'support email', 'phone number', 'call', 'reach you', 'reach support']) => ['intent' => self::INTENT_SUPPORT_CONTACT],
             $this->containsAny($message, ['where is', 'where are', 'located', 'location', 'address', 'branch', 'branches']) => ['intent' => self::INTENT_SUPPORT_LOCATION],
             $this->containsAny($message, ['authentic', 'genuine']) => ['intent' => self::INTENT_SUPPORT, 'topic' => 'authenticity'],
             $this->containsAny($message, ['care', 'policy', 'support']) => ['intent' => self::INTENT_SUPPORT, 'topic' => 'care'],
@@ -292,6 +303,21 @@ class StorefrontAssistantIntentRouter
         }
 
         return false;
+    }
+
+    private function isQuickAuthIntent(string $message): bool
+    {
+        return $this->containsAny($message, ['quick']) && $this->containsAny($message, ['login', 'signup']);
+    }
+
+    private function isPhoneAuthIntent(string $message): bool
+    {
+        return str_contains($message, 'phone otp') && $this->containsAny($message, ['login', 'signup']);
+    }
+
+    private function isMagicLinkIntent(string $message): bool
+    {
+        return str_contains($message, 'email magic link') && $this->containsAny($message, ['login', 'signup']);
     }
 
     private function startsWithAny(string $message, array $prefixes): bool
