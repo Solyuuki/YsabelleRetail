@@ -17,4 +17,11 @@ class StorefrontAssistantMessageRequest extends FormRequest
             'message' => ['required', 'string', 'max:400'],
         ];
     }
+
+    public function assistantContext(): array
+    {
+        $context = $this->input('assistant_context');
+
+        return is_array($context) ? $context : [];
+    }
 }

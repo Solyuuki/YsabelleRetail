@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Services\Auth\SocialAuthException;
 use App\Services\Auth\SocialAuthService;
+use App\Support\Auth\AuthenticatedRedirector;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +29,7 @@ class SocialAuthController extends Controller
         Request $request,
         string $provider,
         SocialAuthService $socialAuth,
+        AuthenticatedRedirector $redirector,
     ): RedirectResponse {
         try {
             $user = $socialAuth->resolveCallbackUser($provider, $request);
@@ -38,26 +40,7 @@ class SocialAuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        $intended = $request->session()->get('url.intended');
-        $adminDashboard = route('admin.dashboard');
-
-        if ($intended === $adminDashboard && ! $user->isAdmin()) {
-            $request->session()->forget('url.intended');
-
-            return redirect()->route('storefront.account.index')
-                ->with('toast', [
-                    'type' => 'error',
-                    'title' => 'Admin area unavailable',
-                    'message' => 'Admin access requires an authorized admin account.',
-                ]);
-        }
-
-        return redirect()->intended(route('storefront.account.index'))
-            ->with('toast', [
-                'type' => 'success',
-                'title' => 'Welcome back',
-                'message' => 'You are now signed in to Ysabelle Retail.',
-            ]);
+        return $redirector->redirectAfterLogin($request, $user);
     }
 
     private function redirectWithOAuthError(

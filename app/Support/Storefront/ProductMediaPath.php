@@ -68,9 +68,20 @@ class ProductMediaPath
             return null;
         }
 
-        $candidate = public_path($relativePath);
+        $candidates = [public_path($relativePath)];
 
-        return is_file($candidate) ? $candidate : null;
+        if (str_starts_with($relativePath, 'storage/')) {
+            $storageRelativePath = ltrim(substr($relativePath, strlen('storage/')), '/');
+            $candidates[] = storage_path('app/public/'.$storageRelativePath);
+        }
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     public function toIdentity(mixed $value): ?string

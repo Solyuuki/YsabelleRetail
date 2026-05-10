@@ -14,17 +14,36 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Artisan::command('visual-search:index {--fresh : Clear the existing visual search index before rebuilding}', function (): void {
-    $stats = app(VisualSearchIndexService::class)->rebuildIndex((bool) $this->option('fresh'));
+Artisan::command('visual-search:index {--fresh : Clear the existing visual search index before rebuilding} {--limit= : Limit products/images for debugging}', function (): void {
+    $fresh = (bool) $this->option('fresh');
+    $limitOption = $this->option('limit');
+    $limit = is_numeric($limitOption) && (int) $limitOption > 0 ? (int) $limitOption : null;
+
+    $this->components->info(sprintf(
+        'Starting visual search indexing%s%s',
+        $fresh ? ' with fresh replacement' : '',
+        $limit !== null ? " (limit: {$limit})" : '',
+    ));
+
+    $stats = app(VisualSearchIndexService::class)->rebuildIndex($fresh, $limit);
 
     $this->table(
         ['Metric', 'Value'],
         [
+            ['Product limit', $limit ?? 'none'],
             ['Products scanned', $stats['products_scanned']],
+            ['Products with images', $stats['products_with_images']],
+            ['Products skipped', $stats['products_skipped']],
+            ['Images discovered', $stats['images_discovered']],
             ['Images indexed', $stats['images_indexed']],
             ['Images skipped', $stats['images_skipped']],
+            ['Missing image files', $stats['missing_image_files']],
             ['Embeddings generated', $stats['embeddings_generated']],
             ['Embeddings failed', $stats['embeddings_failed']],
+            ['Index entries before', $stats['index_entries_before']],
+            ['Entries with embeddings before', $stats['entries_with_embeddings_before']],
+            ['Index entries after', $stats['index_entries_after']],
+            ['Entries with embeddings after', $stats['entries_with_embeddings_after']],
             ['Entries deleted', $stats['entries_deleted']],
         ],
     );
@@ -55,14 +74,19 @@ Artisan::command('visual-search:health', function (): void {
             ['Embedding version', $embedding['embedding_version'] ?? 'n/a'],
             ['Embedding device', $embedding['device'] ?? 'n/a'],
             ['Embedding message', $embedding['message'] ?? 'n/a'],
+            ['GD available', ($index['gd_available'] ?? false) ? 'yes' : 'no'],
+            ['GD message', $index['gd_message'] ?? 'n/a'],
             ['Index table exists', $index['table_exists'] ? 'yes' : 'no'],
             ['Index entries', $index['entries']],
             ['Entries with embeddings', $index['embedded_entries']],
+            ['Entries matching current version', $index['entries_matching_current_version'] ?? 0],
             ['Fallback-only entries', $index['fallback_only_entries']],
             ['Indexed model', $index['current_model'] ?? 'n/a'],
             ['Indexed version', $index['current_embedding_version'] ?? 'n/a'],
             ['Outdated embedded entries', $index['outdated_embedded_entries'] ?? 0],
             ['Source-stale entries', $index['stale_source_entries'] ?? 0],
+            ['Index status', $index['status'] ?? 'n/a'],
+            ['Rebuild guidance', $index['rebuild_guidance'] ?? 'n/a'],
         ],
     );
 })->purpose('Check the local visual search embedding service and index coverage');
@@ -95,6 +119,8 @@ Artisan::command('catalog:images:audit', function (): int {
             ['Visual-search index entries', $audit['index']['entries']],
             ['Distinct indexed image URLs', $audit['index']['distinct_indexed_image_urls']],
             ['Entries with embeddings', $audit['index']['entries_with_embeddings']],
+            ['Entries matching current version', $audit['index']['entries_matching_current_version'] ?? 0],
+            ['Outdated embedded entries', $audit['index']['outdated_embedded_entries'] ?? 0],
             ['Fallback-only index entries', $audit['index']['fallback_only_entries']],
         ],
     );

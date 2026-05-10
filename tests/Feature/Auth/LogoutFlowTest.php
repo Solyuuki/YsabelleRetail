@@ -24,11 +24,13 @@ function createUserWithRole(string $slug, array $attributes = []): User
 test('customer logout posts safely and returns the user to the storefront as a guest', function () {
     $customer = createUserWithRole('customer');
 
-    $this->actingAs($customer)
+    $response = $this->actingAs($customer)
         ->post(route('logout'))
         ->assertRedirect(route('storefront.home'));
 
     $this->assertGuest();
+    expect($response->headers->get('Cache-Control'))->toContain('no-store')
+        ->and($response->headers->get('Clear-Site-Data'))->toBe('"cache", "storage"');
 
     $this->get(route('storefront.home'))
         ->assertOk()
@@ -43,11 +45,13 @@ test('customer logout posts safely and returns the user to the storefront as a g
 test('admin logout posts safely and returns the user to the storefront as a guest', function () {
     $admin = createUserWithRole('admin');
 
-    $this->actingAs($admin)
+    $response = $this->actingAs($admin)
         ->post(route('logout'))
         ->assertRedirect(route('storefront.home'));
 
     $this->assertGuest();
+    expect($response->headers->get('Cache-Control'))->toContain('no-store')
+        ->and($response->headers->get('Clear-Site-Data'))->toBe('"cache", "storage"');
 
     $this->get(route('storefront.home'))
         ->assertOk()
@@ -72,21 +76,25 @@ test('direct get logout redirects home without attempting an insecure logout', f
 test('authenticated customer pages render a csrf protected logout form', function () {
     $customer = createUserWithRole('customer');
 
-    $this->actingAs($customer)
+    $response = $this->actingAs($customer)
         ->get(route('storefront.account.index'))
         ->assertOk()
         ->assertSee('action="'.route('logout').'"', escape: false)
         ->assertSee('name="_token"', escape: false)
         ->assertSee('Sign out');
+
+    expect($response->headers->get('Cache-Control'))->toContain('no-store');
 });
 
 test('authenticated admin pages render a csrf protected logout form', function () {
     $admin = createUserWithRole('admin');
 
-    $this->actingAs($admin)
+    $response = $this->actingAs($admin)
         ->get(route('admin.dashboard'))
         ->assertOk()
         ->assertSee('action="'.route('logout').'"', escape: false)
         ->assertSee('name="_token"', escape: false)
         ->assertSee('Sign out');
+
+    expect($response->headers->get('Cache-Control'))->toContain('no-store');
 });

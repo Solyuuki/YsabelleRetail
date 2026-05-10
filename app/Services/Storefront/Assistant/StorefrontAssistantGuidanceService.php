@@ -49,6 +49,9 @@ class StorefrontAssistantGuidanceService
             'answer' => (string) ($response['answer'] ?? ''),
             'products' => array_values($response['products'] ?? []),
             'actions' => array_values($response['actions'] ?? []),
+            'assistant_context' => is_array($response['assistant_context'] ?? null)
+                ? $response['assistant_context']
+                : [],
         ];
     }
 

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')
     ->name('admin.')
-    ->middleware(['auth', 'admin'])
+    ->middleware(['auth', 'admin', 'prevent-back-history'])
     ->group(function (): void {
         Route::get('/', DashboardController::class)->name('dashboard');
         Route::get('/realtime/feed', ActivityFeedController::class)->name('realtime.feed');

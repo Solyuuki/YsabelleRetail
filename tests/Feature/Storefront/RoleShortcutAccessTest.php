@@ -26,13 +26,14 @@ function seedShortcutRoles(): array
 }
 
 test('guest users are redirected away from protected admin and customer areas', function () {
-    $expectedAdminLogin = route('login', ['intended' => route('admin.dashboard')]);
+    $expectedAdminAccess = route('login', ['portal' => 'admin']);
 
     $this->get(route('storefront.home'))
         ->assertOk()
         ->assertSee('window.AppAuth =', escape: false)
         ->assertSee('"isAuthenticated":false', escape: false)
-        ->assertSee('"adminLogin":"'.$expectedAdminLogin.'"', escape: false);
+        ->assertSee('"adminAccess":"'.$expectedAdminAccess.'"', escape: false)
+        ->assertDontSee('"adminDashboard":"http', escape: false);
 
     $this->get(route('storefront.account.index'))
         ->assertRedirect(route('login'));
@@ -77,7 +78,9 @@ test('admins can access admin pages but not customer-only pages without the cust
         ->assertOk()
         ->assertSee('"isAuthenticated":true', escape: false)
         ->assertSee('"isAdmin":true', escape: false)
-        ->assertSee('"isCustomer":false', escape: false);
+        ->assertSee('"isCustomer":false', escape: false)
+        ->assertSeeText('Admin dashboard')
+        ->assertDontSeeText('My account');
 
     $this->actingAs($admin)
         ->get(route('admin.dashboard'))
@@ -101,7 +104,7 @@ test('guest admin shortcut login intent redirects admins to the admin dashboard 
     ]);
     $admin->roles()->attach($adminRole);
 
-    $this->get(route('login', ['intended' => route('admin.dashboard')]))
+    $this->get(route('login', ['portal' => 'admin']))
         ->assertOk();
 
     $this->post(route('login.store'), [
@@ -119,7 +122,7 @@ test('guest admin shortcut login intent does not grant admin access to non-admin
     ]);
     $customer->roles()->attach($customerRole);
 
-    $this->get(route('login', ['intended' => route('admin.dashboard')]))
+    $this->get(route('login', ['portal' => 'admin']))
         ->assertOk();
 
     $this->post(route('login.store'), [

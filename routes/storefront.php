@@ -54,7 +54,7 @@ Route::prefix('assistant')
         Route::post('/visual-search', StorefrontVisualSearchController::class)->name('visual-search');
     });
 
-Route::middleware(['auth', 'customer'])->group(function (): void {
+Route::middleware(['auth', 'customer', 'prevent-back-history'])->group(function (): void {
     Route::get('/checkout', [CheckoutController::class, 'create'])->name('storefront.checkout.create');
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('storefront.checkout.store');
     Route::get('/account', AccountController::class)->name('storefront.account.index');

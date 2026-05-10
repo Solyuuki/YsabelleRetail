@@ -134,7 +134,7 @@
                     <input
                         type="file"
                         name="image"
-                        accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                         class="sr-only"
                         data-inline-visual-search-input
                     >

@@ -5,6 +5,7 @@ namespace App\Services\Catalog;
 use App\Models\Catalog\Product;
 use App\Models\Storefront\VisualSearchIndexEntry;
 use App\Services\Storefront\ImageFeatureExtractor;
+use App\Services\Storefront\VisualSearchIndexHealthService;
 use App\Support\Storefront\ProductMediaPath;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -14,6 +15,7 @@ class CatalogImageAuditService
     public function __construct(
         private readonly ImageFeatureExtractor $featureExtractor,
         private readonly ProductMediaPath $mediaPath,
+        private readonly VisualSearchIndexHealthService $indexHealth,
     ) {}
 
     public function audit(): array
@@ -121,6 +123,10 @@ class CatalogImageAuditService
             $errors[] = 'Some indexed images are missing embeddings.';
         }
 
+        if (($indexMetrics['entries'] ?? 0) > 0 && ($indexMetrics['entries_matching_current_version'] ?? 0) === 0 && ($indexMetrics['outdated_embedded_entries'] ?? 0) > 0) {
+            $errors[] = 'Visual search embeddings are outdated for the active embedding version. Rebuild the index before relying on image search.';
+        }
+
         if ($indexMetrics['entries'] === 0) {
             $warnings[] = 'Visual search index is empty. Run php artisan visual-search:index --fresh.';
         } elseif ($indexMetrics['stale']) {
@@ -157,18 +163,20 @@ class CatalogImageAuditService
 
     private function indexMetrics(Collection $catalogImageUrls): array
     {
+        $health = $this->indexHealth->summary();
+
         if (! $this->indexTableExists()) {
             return [
                 'entries' => 0,
                 'distinct_indexed_image_urls' => 0,
                 'entries_with_embeddings' => 0,
                 'fallback_only_entries' => 0,
+                'entries_matching_current_version' => 0,
+                'outdated_embedded_entries' => 0,
                 'stale' => false,
             ];
         }
 
-        $entries = VisualSearchIndexEntry::query()->count();
-        $entriesWithEmbeddings = VisualSearchIndexEntry::query()->whereNotNull('embedding_vector')->count();
         $indexedUrls = VisualSearchIndexEntry::query()
             ->pluck('image_url')
             ->map(fn (mixed $url): ?string => $this->mediaPath->toIdentity($url))
@@ -182,11 +190,13 @@ class CatalogImageAuditService
         $orphanedIndexedUrls = $indexedUrls->reject(fn (string $url): bool => $catalogUrlSet->has($url))->count();
 
         return [
-            'entries' => $entries,
+            'entries' => $health['entries'] ?? 0,
             'distinct_indexed_image_urls' => $indexedUrls->count(),
-            'entries_with_embeddings' => $entriesWithEmbeddings,
-            'fallback_only_entries' => max(0, $entries - $entriesWithEmbeddings),
-            'stale' => $entries > 0 && ($missingCatalogUrls > 0 || $orphanedIndexedUrls > 0),
+            'entries_with_embeddings' => $health['embedded_entries'] ?? 0,
+            'fallback_only_entries' => $health['fallback_only_entries'] ?? 0,
+            'entries_matching_current_version' => $health['entries_matching_current_version'] ?? 0,
+            'outdated_embedded_entries' => $health['outdated_embedded_entries'] ?? 0,
+            'stale' => ($health['entries'] ?? 0) > 0 && ($missingCatalogUrls > 0 || $orphanedIndexedUrls > 0),
         ];
     }
 

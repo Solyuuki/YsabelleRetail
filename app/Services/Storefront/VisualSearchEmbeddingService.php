@@ -10,6 +10,10 @@ use Symfony\Component\Process\Process;
 
 class VisualSearchEmbeddingService
 {
+    public function __construct(
+        private readonly VisualSearchImageSource $imageSource,
+    ) {}
+
     public function health(): array
     {
         if (! $this->enabled()) {
@@ -54,20 +58,33 @@ class VisualSearchEmbeddingService
 
     public function embedUpload(UploadedFile $image): ?array
     {
-        $path = $image->getRealPath();
+        $materialized = $this->imageSource->materializeFromUpload($image);
 
-        if (! is_string($path) || $path === '' || ! is_file($path)) {
+        if (! is_array($materialized) || ! is_string($materialized['path'] ?? null)) {
             return null;
         }
 
-        $result = $this->embedPaths([
-            [
-                'id' => 'upload',
-                'path' => $path,
-            ],
-        ]);
+        try {
+            return $this->embedPath($materialized['path']);
+        } finally {
+            if (($materialized['temporary'] ?? false) === true && is_string($materialized['path'])) {
+                @unlink($materialized['path']);
+            }
+        }
+    }
 
-        return $result['upload'] ?? null;
+    public function embedPath(string $path, string $id = 'upload'): ?array
+    {
+        if ($path === '' || ! is_file($path) || ! is_readable($path)) {
+            return null;
+        }
+
+        $result = $this->embedPaths([[
+            'id' => $id,
+            'path' => $path,
+        ]]);
+
+        return $result[$id] ?? null;
     }
 
     public function embedPaths(array $items): array
@@ -102,7 +119,7 @@ class VisualSearchEmbeddingService
 
         try {
             $payloadPath = $this->writeBatchPayload($normalized);
-            $payload = $this->runCommand(['embed-batch', '--input', $payloadPath], $this->timeoutSeconds());
+            $payload = $this->runCommand(['embed-batch', '--input', $payloadPath], $this->batchTimeoutSeconds(count($normalized)));
 
             return collect(Arr::get($payload, 'results', []))
                 ->filter(fn (mixed $result): bool => is_array($result) && isset($result['id']))
@@ -135,6 +152,17 @@ class VisualSearchEmbeddingService
     public function timeoutSeconds(): int
     {
         return max(10, (int) config('storefront.assistant.visual_search.embedding.timeout', 120));
+    }
+
+    public function batchTimeoutSeconds(int $itemCount): int
+    {
+        $baseline = $this->timeoutSeconds();
+
+        if ($itemCount <= 1) {
+            return $baseline;
+        }
+
+        return max($baseline, 60 + ($itemCount * 4));
     }
 
     private function writeBatchPayload(array $items): string

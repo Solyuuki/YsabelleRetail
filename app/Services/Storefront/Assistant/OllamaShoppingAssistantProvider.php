@@ -14,6 +14,20 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
         'ecommerce_cart',
         'ecommerce_checkout',
         'ecommerce_support',
+        'support.shipping',
+        'support.returns',
+        'support.contact',
+        'support.size_guide',
+        'support.location',
+        'support.login',
+        'support.signup',
+        'support.auth_quick_options',
+        'support.auth_phone_option_status',
+        'support.auth_magic_link_status',
+        'support.topic_options',
+        'guidance.site_use',
+        'guidance.image_search',
+        'guidance.ordering_flow',
         'visual_search',
         'ecommerce_product_search',
     ];
@@ -135,7 +149,8 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
             'Use only the supplied context and approved response data.',
             'Do not answer general knowledge, history, politics, science, coding, or unrelated questions.',
             'Do not invent products, prices, stock, policies, shipping rules, checkout steps, or brand claims.',
-            'Keep the reply short, polished, and under two sentences.',
+            'Keep the reply short, polished, premium, and under three sentences.',
+            'When useful, you may add one short follow-up question about size, color, budget, or intended use.',
             'Return plain text only.',
         ]);
     }
@@ -155,9 +170,10 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
         ];
 
         return implode("\n\n", [
-            'Rewrite the approved answer so it sounds polished and helpful, but keep the meaning and scope unchanged.',
+            'Rewrite the approved answer so it sounds polished, helpful, and conversational, but keep the meaning and scope unchanged.',
             'If the approved answer is already clear, keep it close.',
             'Never add facts that are not in the approved response or context.',
+            'If products are present, keep the answer grounded in those products only.',
             'Context:',
             json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}',
         ]);
@@ -211,6 +227,10 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
             return $this->containsAssistantDomainLanguage($answer);
         }
 
+        if (str_starts_with($intent, 'support.') || str_starts_with($intent, 'guidance.')) {
+            return $this->containsAssistantDomainLanguage($answer);
+        }
+
         return $this->containsAssistantDomainLanguage($answer) || $answer === $fallback;
     }
 
@@ -218,13 +238,20 @@ class OllamaShoppingAssistantProvider implements ShoppingAssistantGuidanceProvid
     {
         return $this->containsAny($answer, [
             'Ysabelle',
+            'account',
             'catalog',
             'cart',
             'checkout',
+            'contact',
+            'login',
             'product',
             'products',
+            'returns',
             'shoe',
             'shoes',
+            'shipping',
+            'sign in',
+            'size guide',
             'stock',
             'store',
             'support',

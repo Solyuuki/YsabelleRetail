@@ -62,7 +62,7 @@ export const initRoleShortcuts = () => {
             }
 
             if (!isAuthenticated) {
-                redirectTo(routes.adminLogin || routes.login);
+                redirectTo(routes.adminAccess || routes.login);
                 return;
             }
 
