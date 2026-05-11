@@ -7,6 +7,7 @@ use App\Models\Access\Role;
 use App\Models\Audit\AuditLog;
 use App\Models\Auth\SocialAccount;
 use App\Models\Cart\Cart;
+use App\Models\Catalog\ProductReview;
 use App\Models\Inventory\StockMovement;
 use App\Models\Orders\Order;
 use Database\Factories\UserFactory;
@@ -78,6 +79,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function productReviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class);
     }
 
     public function socialAccounts(): HasMany

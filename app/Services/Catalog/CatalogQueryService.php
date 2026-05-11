@@ -55,7 +55,7 @@ class CatalogQueryService
 
         $fallback = Product::query()
             ->with(['category', 'variants.inventoryItem'])
-            ->where('status', 'active')
+            ->active()
             ->whereNotIn('id', $excludedIds->unique()->values()->all())
             ->orderByDesc('is_featured')
             ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
@@ -123,19 +123,15 @@ class CatalogQueryService
         $query = Product::query()
             ->with(['category', 'variants.inventoryItem'])
             ->withCount('variants')
-            ->where('status', 'active');
+            ->active();
 
         $this->productDiscovery->applyBrowseFilters($query, $filters);
 
         $this->applyBrowseSort($query, $filters['sort'] ?? 'featured');
 
-        $products = $query
+        return $query
             ->paginate($perPage)
             ->withQueryString();
-
-        $this->decorateBrowseProducts($products->getCollection(), $filters);
-
-        return $products;
     }
 
     public function resolveBrowseFilters(array $filters): array
@@ -167,7 +163,7 @@ class CatalogQueryService
     {
         return Product::query()
             ->with(['category', 'variants.inventoryItem'])
-            ->where('status', 'active')
+            ->active()
             ->where('is_featured', true)
             ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
             ->orderBy('featured_rank')
@@ -236,12 +232,4 @@ class CatalogQueryService
         ]);
     }
 
-    private function decorateBrowseProducts(Collection $products, array $filters): void
-    {
-        $isNewArrivals = CatalogCollection::isNewArrivals($filters['collection'] ?? null);
-
-        $products->each(function (Product $product) use ($isNewArrivals): void {
-            $product->markAsStorefrontNewArrival($isNewArrivals);
-        });
-    }
 }

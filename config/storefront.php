@@ -56,6 +56,11 @@ return [
         ],
     ],
 
+    'catalog' => [
+        'new_badge_window_days' => 60,
+        'reviews_per_page' => 5,
+    ],
+
     'assistant' => [
         'ai' => [
             'enabled' => env('STOREFRONT_ASSISTANT_AI_ENABLED', false),

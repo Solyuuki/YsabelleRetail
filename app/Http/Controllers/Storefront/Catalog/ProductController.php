@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Storefront\Catalog\ProductBrowseRequest;
 use App\Models\Catalog\Product;
 use App\Services\Catalog\CatalogQueryService;
+use App\Services\Catalog\ProductReviewService;
 use App\Support\Storefront\CatalogCollection;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
@@ -28,15 +30,21 @@ class ProductController extends Controller
         ]);
     }
 
-    public function show(Product $product): View
+    public function show(Request $request, Product $product, ProductReviewService $reviews): View
     {
         $product->load(['category', 'variants.inventoryItem']);
+        $viewerReview = $reviews->viewerReview($request->user(), $product);
 
         return view('storefront.catalog.products.show', [
             'product' => $product,
+            'productReviewSummary' => $reviews->reviewSummary($product),
+            'productReviews' => $reviews->paginateVisibleReviews($product, (int) config('storefront.catalog.reviews_per_page', 5)),
+            'reviewEligibility' => $reviews->eligibilityFor($request->user(), $product, $viewerReview),
+            'viewerReview' => $viewerReview,
             'storefrontTrustMarks' => $this->storefrontTrustMarks(),
             'relatedProducts' => Product::query()
                 ->with(['category', 'variants.inventoryItem'])
+                ->active()
                 ->where('id', '!=', $product->id)
                 ->where('category_id', $product->category_id)
                 ->limit(4)

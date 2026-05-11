@@ -11,6 +11,7 @@ import { initProtectedPageGuard } from './modules/protected-page-guard';
 import { initRoleShortcuts } from './modules/role-shortcuts';
 import { initCartQuantityForms } from './modules/cart';
 import { initHeroShowcase } from './modules/hero-showcase';
+import { initProductReviews } from './modules/product-reviews';
 import { initSupportPages } from './modules/support-pages';
 import { initToasts } from './modules/toasts';
 
@@ -25,6 +26,7 @@ const initStorefront = () => {
     initStorefrontFilters();
     initInlineVisualSearch();
     initProductDetailForm();
+    initProductReviews();
     initCartQuantityForms();
     initCheckoutOptions();
     initToasts();

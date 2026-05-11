@@ -42,6 +42,8 @@ test('default shop keeps the base catalog path and only shows active products', 
 });
 
 test('new arrivals collection uses real product timestamps and keeps category filters active', function () {
+    Carbon::setTestNow('2026-05-11 12:00:00');
+
     $category = Category::factory()->create([
         'name' => 'Running',
         'slug' => 'running',
@@ -97,7 +99,9 @@ test('new arrivals collection uses real product timestamps and keeps category fi
         ->assertSee('name="collection" value="new-arrivals"', escape: false)
         ->assertSee('value="best_sellers"', escape: false);
 
-    expect(substr_count($response->getContent(), 'ys-status-pill bg-ys-gold text-ys-ink">New</span>'))->toBe(3);
+    expect(substr_count($response->getContent(), 'ys-status-pill bg-ys-gold text-ys-ink">New</span>'))->toBe(2);
+
+    Carbon::setTestNow();
 });
 
 test('seeded new arrivals use a deterministic release chronology instead of the last seeded category', function () {
@@ -239,6 +243,8 @@ test('best sellers falls back to a deterministic popularity ranking when no comp
         'review_count' => 220,
         'is_featured' => false,
         'featured_rank' => null,
+        'created_at' => Carbon::parse('2025-12-01 08:00:00'),
+        'updated_at' => Carbon::parse('2025-12-01 08:00:00'),
     ]);
 
     $reviewLeader = Product::factory()->for($category)->create([
@@ -252,6 +258,8 @@ test('best sellers falls back to a deterministic popularity ranking when no comp
         'review_count' => 180,
         'is_featured' => false,
         'featured_rank' => null,
+        'created_at' => Carbon::parse('2025-12-03 08:00:00'),
+        'updated_at' => Carbon::parse('2025-12-03 08:00:00'),
     ]);
 
     $baseline = Product::factory()->for($category)->create([
@@ -265,6 +273,8 @@ test('best sellers falls back to a deterministic popularity ranking when no comp
         'review_count' => 20,
         'is_featured' => false,
         'featured_rank' => null,
+        'created_at' => Carbon::parse('2025-12-05 08:00:00'),
+        'updated_at' => Carbon::parse('2025-12-05 08:00:00'),
     ]);
 
     $response = $this->get(route('storefront.shop', [

@@ -99,7 +99,7 @@ test('the featured showcase renders four cards even when the hero comes from the
 
     expect(substr_count($response->getContent(), 'class="ys-featured-card group"'))->toBe(4);
     expect($response->getContent())
-        ->toContain('ys-featured-card-rating-star')
+        ->toContain('No reviews yet')
         ->not->toContain('ys-featured-card-rating-dot');
 });
 

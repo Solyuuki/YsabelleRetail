@@ -4,6 +4,7 @@ use App\Http\Controllers\Storefront\AccountController;
 use App\Http\Controllers\Storefront\Cart\CartController;
 use App\Http\Controllers\Storefront\Catalog\CategoryController;
 use App\Http\Controllers\Storefront\Catalog\ProductController;
+use App\Http\Controllers\Storefront\Catalog\ProductReviewController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
 use App\Http\Controllers\Storefront\SupportPageController;
@@ -59,4 +60,10 @@ Route::middleware(['auth', 'customer', 'prevent-back-history'])->group(function 
     Route::post('/checkout', [CheckoutController::class, 'store'])->name('storefront.checkout.store');
     Route::put('/checkout/draft', [CheckoutController::class, 'saveDraft'])->name('storefront.checkout.draft.save');
     Route::get('/account', AccountController::class)->name('storefront.account.index');
+});
+
+Route::middleware(['auth', 'customer'])->prefix('catalog')->as('storefront.catalog.')->group(function (): void {
+    Route::post('/products/{product:slug}/reviews', [ProductReviewController::class, 'store'])->name('products.reviews.store');
+    Route::put('/products/{product:slug}/reviews/{review}', [ProductReviewController::class, 'update'])->name('products.reviews.update');
+    Route::delete('/products/{product:slug}/reviews/{review}', [ProductReviewController::class, 'destroy'])->name('products.reviews.destroy');
 });

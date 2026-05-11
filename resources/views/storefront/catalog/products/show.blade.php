@@ -19,10 +19,18 @@
                 'label' => 'Fast Delivery',
                 'description' => 'Reliable shipping for every confirmed order.',
             ],
-        ])
-            ->filter(fn ($mark) => filled(data_get($mark, 'label')) || filled(data_get($mark, 'description')))
-            ->values();
+        ])->filter(fn ($mark) => filled(data_get($mark, 'label')) || filled(data_get($mark, 'description')))->values();
         $productRelatedItems = collect($relatedProducts ?? []);
+        $reviewSummary = $productReviewSummary ?? ['average' => null, 'count' => 0, 'breakdown' => collect()];
+        $reviewErrors = $errors->review;
+        $activeReview = $viewerReview;
+        $canManageReview = (bool) ($reviewEligibility['can_review'] ?? false) || $activeReview;
+        $reviewAction = $activeReview
+            ? route('storefront.catalog.products.reviews.update', [$product, $activeReview])
+            : route('storefront.catalog.products.reviews.store', $product);
+        $reviewFormRating = old('rating', $activeReview?->rating ?? 0);
+        $reviewFormTitle = old('title', $activeReview?->title ?? '');
+        $reviewFormBody = old('body', $activeReview?->body ?? '');
     @endphp
 
     <section class="ys-container pb-18 pt-10 lg:pt-14">
@@ -51,21 +59,34 @@
                 <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-gold/90">{{ $product->category?->name ?? 'Collection' }}</p>
                 <h1 class="mt-4 font-serif text-5xl leading-none text-ys-ivory md:text-6xl">{{ $product->name }}</h1>
 
+                <div class="mt-5 flex flex-wrap items-center gap-2">
+                    @if ($product->shows_new_badge)
+                        <span class="ys-status-pill bg-ys-gold text-ys-ink">New</span>
+                    @endif
+                    @if ($product->shows_sale_badge)
+                        <span class="ys-status-pill bg-[#e44040] text-white">Sale</span>
+                    @endif
+                </div>
+
                 <div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ys-ivory/55">
-                    <span class="inline-flex items-center gap-1.5 text-ys-gold">
-                        <svg class="h-3.5 w-3.5 fill-current" viewBox="0 0 20 20">
-                            <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
-                        </svg>
-                        {{ number_format((float) $product->rating_average, 1) }}
-                    </span>
-                    <span>({{ $product->review_count }} reviews)</span>
+                    @if ($product->shows_rating_summary)
+                        <span class="inline-flex items-center gap-1.5 text-ys-gold">
+                            <svg class="h-3.5 w-3.5 fill-current" viewBox="0 0 20 20">
+                                <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                            </svg>
+                            {{ number_format((float) $reviewSummary['average'], 1) }}
+                        </span>
+                        <span>({{ $reviewSummary['count'] }} reviews)</span>
+                    @else
+                        <span class="font-medium uppercase tracking-[0.18em] text-ys-ivory/38">No reviews yet</span>
+                    @endif
                     <span>&middot;</span>
                     <span>{{ $product->variants->sum(fn ($variant) => $variant->inventoryItem?->available_quantity ?? 0) }} in stock</span>
                 </div>
 
                 <div class="mt-6 flex items-center gap-3">
                     <p class="text-4xl font-semibold text-ys-gold">&#8369;{{ number_format((float) $product->base_price, 0) }}</p>
-                    @if ($product->compare_at_price)
+                    @if ($product->shows_sale_badge)
                         <p class="text-xl text-ys-ivory/28 line-through">&#8369;{{ number_format((float) $product->compare_at_price, 0) }}</p>
                     @endif
                 </div>
@@ -119,6 +140,191 @@
                         </div>
                     @endforeach
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="reviews" class="ys-container pb-18">
+        <div class="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+            <div class="space-y-6" data-reveal>
+                <div class="rounded-[2rem] border border-white/8 bg-white/[0.02] p-7 shadow-[0_18px_60px_rgba(0,0,0,0.3)]">
+                    <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-gold/90">Ratings & Reviews</p>
+
+                    @if ($product->shows_rating_summary)
+                        <div class="mt-4 flex items-end gap-4">
+                            <p class="font-serif text-6xl leading-none text-ys-ivory">{{ number_format((float) $reviewSummary['average'], 1) }}</p>
+                            <div class="pb-1">
+                                <div class="flex items-center gap-1.5 text-ys-gold">
+                                    @for ($star = 1; $star <= 5; $star++)
+                                        <svg class="h-4 w-4 fill-current {{ $star <= round((float) $reviewSummary['average']) ? '' : 'text-ys-ivory/18' }}" viewBox="0 0 20 20">
+                                            <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                                        </svg>
+                                    @endfor
+                                </div>
+                                <p class="mt-2 text-sm text-ys-ivory/52">Based on {{ $reviewSummary['count'] }} verified customer {{ \Illuminate\Support\Str::plural('review', $reviewSummary['count']) }}.</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 space-y-3">
+                            @foreach ($reviewSummary['breakdown'] as $breakdownRow)
+                                <div class="flex items-center gap-3 text-sm text-ys-ivory/58">
+                                    <span class="w-7 text-right">{{ $breakdownRow['rating'] }}&#9733;</span>
+                                    <div class="h-2 flex-1 overflow-hidden rounded-full bg-white/6">
+                                        <div class="h-full rounded-full bg-ys-gold/85" style="width: {{ number_format((float) $breakdownRow['share'], 2, '.', '') }}%"></div>
+                                    </div>
+                                    <span class="w-8 text-right text-ys-ivory/42">{{ $breakdownRow['count'] }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="mt-5 rounded-[1.4rem] border border-dashed border-white/12 bg-white/[0.02] px-5 py-6 text-sm text-ys-ivory/48">
+                            No reviews yet. Verified customers will see their review option here after a completed paid order.
+                        </div>
+                    @endif
+                </div>
+
+                <div class="rounded-[2rem] border border-white/8 bg-black/25 p-7 shadow-[0_18px_60px_rgba(0,0,0,0.28)]" data-reveal>
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-gold/90">{{ $activeReview ? 'Update Your Review' : 'Write a Review' }}</p>
+                            <h2 class="mt-3 font-serif text-3xl text-ys-ivory">Real customer feedback only</h2>
+                        </div>
+                        @if ($activeReview?->is_verified_purchase)
+                            <span class="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-emerald-200">Verified purchase</span>
+                        @endif
+                    </div>
+
+                    @if ($reviewErrors->any())
+                        <div class="mt-5 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                            <p class="font-semibold">We couldn't save your review yet.</p>
+                            <ul class="mt-2 space-y-1">
+                                @foreach ($reviewErrors->all() as $message)
+                                    <li>{{ $message }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    @auth
+                        @if ($canManageReview)
+                            <p class="mt-5 text-sm leading-7 text-ys-ivory/52">{{ $reviewEligibility['reason'] ?? 'Share a review based on your purchase experience.' }}</p>
+
+                            <form action="{{ $reviewAction }}" method="POST" class="mt-6 space-y-5" data-review-form>
+                                @csrf
+                                @if ($activeReview)
+                                    @method('PUT')
+                                @endif
+
+                                <div data-review-rating-group data-current-rating="{{ $reviewFormRating }}">
+                                    <input type="hidden" name="rating" value="{{ $reviewFormRating }}">
+                                    <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-ivory/45">Rating</p>
+                                    <div class="mt-3 flex items-center gap-2">
+                                        @for ($star = 1; $star <= 5; $star++)
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/12 text-ys-ivory/35 transition hover:border-ys-gold/80 hover:text-ys-gold"
+                                                data-review-star="{{ $star }}"
+                                                aria-label="Rate {{ $star }} out of 5"
+                                                aria-pressed="false"
+                                            >
+                                                <svg class="h-5 w-5 fill-current" viewBox="0 0 20 20" aria-hidden="true">
+                                                    <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                                                </svg>
+                                            </button>
+                                        @endfor
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="review-title" class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-ivory/45">Title</label>
+                                    <input id="review-title" type="text" name="title" value="{{ $reviewFormTitle }}" maxlength="120" class="ys-input mt-3" placeholder="Optional headline">
+                                </div>
+
+                                <div>
+                                    <label for="review-body" class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-ivory/45">Your review</label>
+                                    <textarea id="review-body" name="body" rows="6" class="ys-input mt-3 min-h-36 resize-y" placeholder="Share your fit, comfort, and overall experience.">{{ $reviewFormBody }}</textarea>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <button type="submit" class="ys-button-primary" data-review-submit data-loading-label="{{ $activeReview ? 'Updating review...' : 'Publishing review...' }}">
+                                        {{ $activeReview ? 'Update review' : 'Publish review' }}
+                                    </button>
+                                </div>
+                            </form>
+
+                            @if ($activeReview)
+                                <form action="{{ route('storefront.catalog.products.reviews.destroy', [$product, $activeReview]) }}" method="POST" class="mt-3" data-review-delete-form>
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="ys-button-secondary" data-review-delete-submit data-loading-label="Removing review...">
+                                        Delete review
+                                    </button>
+                                </form>
+                            @endif
+                        @else
+                            <p class="mt-5 text-sm leading-7 text-ys-ivory/52">{{ $reviewEligibility['reason'] ?? 'Only verified customers can review this product.' }}</p>
+                        @endif
+                    @else
+                        <p class="mt-5 text-sm leading-7 text-ys-ivory/52">
+                            <a href="{{ route('login') }}" class="text-ys-gold underline-offset-4 hover:underline">Sign in</a>
+                            with your customer account after purchase to leave a verified review.
+                        </p>
+                    @endauth
+                </div>
+            </div>
+
+            <div class="space-y-5" data-reveal>
+                <div class="flex items-end justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-gold/90">Community Notes</p>
+                        <h2 class="mt-3 font-serif text-3xl text-ys-ivory">Customer reviews</h2>
+                    </div>
+                    @if ($product->shows_rating_summary)
+                        <p class="text-sm text-ys-ivory/48">{{ $reviewSummary['count'] }} {{ \Illuminate\Support\Str::plural('review', $reviewSummary['count']) }}</p>
+                    @endif
+                </div>
+
+                @forelse ($productReviews as $review)
+                    <article class="rounded-[1.7rem] border border-white/8 bg-white/[0.02] p-6 shadow-[0_16px_55px_rgba(0,0,0,0.22)]">
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <h3 class="text-lg font-semibold text-ys-ivory">{{ $review->user?->name ?? 'Verified customer' }}</h3>
+                                    @if ($review->is_verified_purchase)
+                                        <span class="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-emerald-200">Verified purchase</span>
+                                    @endif
+                                </div>
+                                <div class="mt-3 flex items-center gap-1.5 text-ys-gold">
+                                    @for ($star = 1; $star <= 5; $star++)
+                                        <svg class="h-4 w-4 fill-current {{ $star <= $review->rating ? '' : 'text-ys-ivory/18' }}" viewBox="0 0 20 20">
+                                            <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                                        </svg>
+                                    @endfor
+                                </div>
+                            </div>
+                            <p class="text-sm text-ys-ivory/42">{{ $review->created_at?->format('F j, Y') }}</p>
+                        </div>
+
+                        @if (filled($review->title))
+                            <h4 class="mt-5 text-base font-semibold text-ys-ivory">{{ $review->title }}</h4>
+                        @endif
+
+                        <div class="mt-3 text-sm leading-7 text-ys-ivory/58">{!! nl2br(e($review->body)) !!}</div>
+                    </article>
+                @empty
+                    <div class="rounded-[1.7rem] border border-dashed border-white/12 bg-white/[0.02] px-8 py-16 text-center">
+                        <p class="font-serif text-3xl text-ys-ivory">No reviews yet</p>
+                        <p class="mx-auto mt-4 max-w-lg text-sm leading-7 text-ys-ivory/48">
+                            Once verified customers complete a paid order for this product, their reviews will appear here.
+                        </p>
+                    </div>
+                @endforelse
+
+                @if ($productReviews->hasPages())
+                    <div class="pt-4">
+                        {{ $productReviews->fragment('reviews')->onEachSide(1)->links('vendor.pagination.storefront') }}
+                    </div>
+                @endif
             </div>
         </div>
     </section>

@@ -7,6 +7,7 @@ use Database\Factories\Catalog\ProductFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -68,24 +69,33 @@ class Product extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    public function markAsStorefrontNewArrival(bool $value = true): static
+    public function reviews(): HasMany
     {
-        $this->setAttribute('storefront_new_arrival', $value);
-
-        return $this;
+        return $this->hasMany(ProductReview::class);
     }
 
-    protected function storefrontNewArrival(): Attribute
+    public function visibleReviews(): HasMany
+    {
+        return $this->reviews()->where('is_visible', true);
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', 'active');
+    }
+
+    protected function isNewArrival(): Attribute
     {
         return Attribute::make(
-            get: fn (mixed $value): bool => (bool) ($value ?? false),
+            get: fn (): bool => $this->created_at !== null
+                && $this->created_at->greaterThanOrEqualTo(now()->subDays((int) config('storefront.catalog.new_badge_window_days', 60))),
         );
     }
 
     protected function showsNewBadge(): Attribute
     {
         return Attribute::make(
-            get: fn (): bool => (bool) ($this->storefront_new_arrival || $this->is_featured),
+            get: fn (): bool => $this->is_new_arrival,
         );
     }
 
@@ -94,6 +104,27 @@ class Product extends Model
         return Attribute::make(
             get: fn (): bool => $this->compare_at_price !== null
                 && (float) $this->compare_at_price > (float) $this->base_price,
+        );
+    }
+
+    protected function hasReviews(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => (int) $this->review_count > 0,
+        );
+    }
+
+    protected function showsRatingSummary(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->has_reviews,
+        );
+    }
+
+    protected function ratingDisplayState(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): string => $this->has_reviews ? 'rated' : 'no_reviews',
         );
     }
 }

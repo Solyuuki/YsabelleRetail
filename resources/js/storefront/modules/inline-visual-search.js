@@ -178,8 +178,8 @@ export const initInlineVisualSearch = () => {
                             : `<div class="flex h-full w-full items-center justify-center px-6 text-center text-sm font-medium text-ys-ivory/54">${escapeHtml(product.name)}</div>`
                     }
                     <div class="absolute left-5 top-5 flex gap-2">
-                        ${product.is_featured ? '<span class="ys-status-pill bg-ys-gold text-ys-ink">New</span>' : ''}
-                        ${product.compare_at_price ? '<span class="ys-status-pill bg-[#e44040] text-white">Sale</span>' : ''}
+                        ${product.shows_new_badge ? '<span class="ys-status-pill bg-ys-gold text-ys-ink">New</span>' : ''}
+                        ${product.shows_sale_badge ? '<span class="ys-status-pill bg-[#e44040] text-white">Sale</span>' : ''}
                     </div>
                 </div>
                 <div class="space-y-4.5 p-6">
@@ -188,17 +188,22 @@ export const initInlineVisualSearch = () => {
                             <h3 class="text-[1.18rem] font-semibold leading-6 text-ys-ivory transition group-hover:text-ys-gold">${escapeHtml(product.name)}</h3>
                             <p class="mt-1.5 text-[0.72rem] uppercase tracking-[0.3em] text-ys-ivory/42">${escapeHtml(product.category ?? 'Collection')}</p>
                         </div>
-                        <div class="flex items-center gap-1.5 text-[0.95rem] text-ys-gold">
-                            <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20">
-                                <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
-                            </svg>
-                            <span>${escapeHtml(Number(product.rating_average ?? 0).toFixed(1))}</span>
-                        </div>
+                        ${
+                            product.shows_rating_summary
+                                ? `<div class="flex items-center gap-1.5 text-[0.95rem] text-ys-gold">
+                                    <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                                        <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                                    </svg>
+                                    <span>${escapeHtml(Number(product.rating_average ?? 0).toFixed(1))}</span>
+                                    <span class="text-[0.72rem] text-ys-ivory/42">(${escapeHtml(product.review_count ?? 0)})</span>
+                                </div>`
+                                : '<span class="text-[0.72rem] font-medium uppercase tracking-[0.18em] text-ys-ivory/38">No reviews yet</span>'
+                        }
                     </div>
                     <div class="flex items-end justify-between gap-5">
                         <div>
                             <p class="text-[1.2rem] font-semibold text-ys-ivory">${escapeHtml(product.price_label)}</p>
-                            ${product.compare_at_price_label ? `<p class="mt-1 text-[0.96rem] text-ys-ivory/35 line-through">${escapeHtml(product.compare_at_price_label)}</p>` : ''}
+                            ${product.shows_sale_badge && product.compare_at_price_label ? `<p class="mt-1 text-[0.96rem] text-ys-ivory/35 line-through">${escapeHtml(product.compare_at_price_label)}</p>` : ''}
                         </div>
                         <span class="text-[0.76rem] font-semibold uppercase tracking-[0.28em] text-ys-ivory/42 transition group-hover:text-ys-gold">Explore</span>
                     </div>

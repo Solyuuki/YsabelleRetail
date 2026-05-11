@@ -38,10 +38,10 @@
                     <a href="{{ route('storefront.catalog.products.show', $product) }}" class="ys-featured-card-link">
                         <div class="ys-featured-card-media {{ $hasImage ? '' : 'is-fallback-visible' }}" data-featured-card-media>
                             <div class="ys-featured-card-badges">
-                                @if ($product->is_featured)
+                                @if ($product->shows_new_badge)
                                     <span class="ys-featured-card-badge is-gold">New</span>
                                 @endif
-                                @if ($product->compare_at_price)
+                                @if ($product->shows_sale_badge)
                                     <span class="ys-featured-card-badge is-sale">Sale</span>
                                 @endif
                             </div>
@@ -69,12 +69,17 @@
                                     <p class="ys-featured-card-caption">{{ $product->category?->name ?? 'Collection' }}</p>
                                 </div>
 
-                                <div class="flex shrink-0 items-center gap-1.5 text-[0.95rem] text-ys-gold" aria-label="Rated {{ number_format((float) $product->rating_average, 1) }}">
-                                    <svg class="ys-featured-card-rating-star h-4 w-4 fill-current" viewBox="0 0 20 20" aria-hidden="true">
-                                        <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
-                                    </svg>
-                                    <span>{{ number_format((float) $product->rating_average, 1) }}</span>
-                                </div>
+                                @if ($product->shows_rating_summary)
+                                    <div class="flex shrink-0 items-center gap-1.5 text-[0.95rem] text-ys-gold" aria-label="Rated {{ number_format((float) $product->rating_average, 1) }} from {{ $product->review_count }} reviews">
+                                        <svg class="ys-featured-card-rating-star h-4 w-4 fill-current" viewBox="0 0 20 20" aria-hidden="true">
+                                            <path d="m10 1.7 2.52 5.1 5.63.82-4.08 3.98.96 5.62L10 14.54l-5.03 2.65.96-5.62L1.85 7.6l5.63-.82L10 1.7Z" />
+                                        </svg>
+                                        <span>{{ number_format((float) $product->rating_average, 1) }}</span>
+                                        <span class="text-[0.72rem] text-ys-ivory/42">({{ $product->review_count }})</span>
+                                    </div>
+                                @else
+                                    <span class="text-[0.72rem] font-medium uppercase tracking-[0.18em] text-ys-ivory/38">No reviews yet</span>
+                                @endif
                             </div>
 
                             <div class="ys-featured-card-row is-bottom">

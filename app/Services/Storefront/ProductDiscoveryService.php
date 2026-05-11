@@ -243,10 +243,12 @@ class ProductDiscoveryService
             'compare_at_price' => $product->compare_at_price ? (float) $product->compare_at_price : null,
             'compare_at_price_label' => $product->compare_at_price ? '₱'.number_format((float) $product->compare_at_price, 0) : null,
             'is_featured' => (bool) $product->is_featured,
-            'is_new_arrival' => (bool) $product->storefront_new_arrival,
             'shows_new_badge' => (bool) $product->shows_new_badge,
             'shows_sale_badge' => (bool) $product->shows_sale_badge,
-            'rating_average' => round((float) ($product->rating_average ?? 0), 1),
+            'rating_average' => $product->shows_rating_summary ? round((float) ($product->rating_average ?? 0), 1) : null,
+            'review_count' => (int) $product->review_count,
+            'shows_rating_summary' => (bool) $product->shows_rating_summary,
+            'rating_display_state' => (string) $product->rating_display_state,
             'short_description' => $product->short_description,
             'url' => route('storefront.catalog.products.show', $product),
             'image_url' => $this->productMedia->imageUrlFor($product),
@@ -406,7 +408,7 @@ class ProductDiscoveryService
     {
         return Product::query()
             ->with(['category', 'variants.inventoryItem'])
-            ->where('status', 'active');
+            ->active();
     }
 
     private function productMatchesName(Product $product, string $text): bool

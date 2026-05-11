@@ -3,10 +3,12 @@
 namespace App\Models\Orders;
 
 use App\Models\Catalog\Product;
+use App\Models\Catalog\ProductReview;
 use App\Models\Catalog\ProductVariant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class OrderItem extends Model
 {
@@ -47,5 +49,10 @@ class OrderItem extends Model
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    public function review(): HasOne
+    {
+        return $this->hasOne(ProductReview::class);
     }
 }

@@ -4,9 +4,12 @@ namespace App\Providers;
 
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
+use App\Models\Catalog\ProductReview;
 use App\Models\Orders\Order;
+use App\Observers\Catalog\ProductReviewObserver;
 use App\Policies\Catalog\CategoryPolicy;
 use App\Policies\Catalog\ProductPolicy;
+use App\Policies\Catalog\ProductReviewPolicy;
 use App\Policies\Orders\OrderPolicy;
 use App\View\Composers\StorefrontLayoutComposer;
 use Illuminate\Support\Facades\Event;
@@ -41,7 +44,9 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Category::class, CategoryPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(ProductReview::class, ProductReviewPolicy::class);
         Gate::policy(Order::class, OrderPolicy::class);
+        ProductReview::observe(ProductReviewObserver::class);
 
         View::composer([
             'layouts.storefront',
