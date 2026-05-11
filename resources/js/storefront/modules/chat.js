@@ -824,8 +824,12 @@ export const initChatWidget = () => {
 
     const resetPreview = () => {
         cancelActiveVisualRequest();
+        visualRequestId += 1;
+        visualSelectionId += 1;
         selectedVisualFile = null;
         lastVisualSentSelectionId = 0;
+        visualThreadState = null;
+        clearPendingAssistantRetry();
         clearPendingFileInput();
 
         if (currentPreviewUrl) {

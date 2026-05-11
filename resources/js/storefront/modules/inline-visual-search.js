@@ -103,6 +103,8 @@ export const initInlineVisualSearch = () => {
     };
 
     const resetPanel = () => {
+        requestId += 1;
+
         if (activeRequestController) {
             activeRequestController.abort();
             activeRequestController = null;
@@ -212,7 +214,7 @@ export const initInlineVisualSearch = () => {
         </article>
     `;
 
-    const applyVisualGrid = (matchedProducts) => {
+    const applyVisualGrid = (matchedProducts, emptyMessage = 'No nearby styles were available from the current catalog.') => {
         const targetGrid = ensureGrid();
 
         if (!targetGrid || !countLabel) {
@@ -240,7 +242,7 @@ export const initInlineVisualSearch = () => {
         if (matchedProducts.length === 0) {
             targetGrid.innerHTML = '';
             countLabel.textContent = 'Showing closest styles from your image';
-            showInlineMessage('No nearby styles were available from the current catalog.');
+            showInlineMessage(emptyMessage);
             return;
         }
 
@@ -330,8 +332,22 @@ export const initInlineVisualSearch = () => {
                 return;
             }
 
-            applyVisualGrid(Array.isArray(payload.products) ? payload.products : []);
-            showStatus(file.name, COMPLETE_LABEL);
+            const responseMessage = typeof payload?.answer === 'string' && payload.answer.trim() !== ''
+                ? payload.answer.trim()
+                : COMPLETE_LABEL;
+            const products = Array.isArray(payload?.products) ? payload.products : [];
+            const failed = payload?.status === 'failed' || payload?.search_confidence === 'failed';
+
+            if (failed || products.length === 0) {
+                restoreOriginalGrid();
+                clearButton?.classList.remove('hidden');
+                showStatus(file.name, responseMessage);
+                showInlineMessage(responseMessage);
+                return;
+            }
+
+            applyVisualGrid(products, responseMessage);
+            showStatus(file.name, responseMessage);
         } catch (error) {
             if (error instanceof DOMException && error.name === 'AbortError') {
                 return;

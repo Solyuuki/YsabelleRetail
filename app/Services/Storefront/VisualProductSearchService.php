@@ -130,17 +130,23 @@ class VisualProductSearchService
             }
 
             if (! is_array($fallbackFeatures) && ! $embeddingGenerated) {
+                $processingFailureReason = $embeddingException !== null
+                    ? 'runtime_unavailable'
+                    : ($this->isScreenshotLikeUpload($criteria, $uploadContext, $embeddingPayload, $fallbackFeatures)
+                        ? 'screenshot_needs_crop'
+                        : 'processing_error');
+
                 $this->logFailure('processing_error', $image, [
                     'criteria' => $criteria,
                     'upload' => $uploadContext,
                     'message' => 'Image processing failed and no embedding was generated.',
                 ]);
 
-                return $this->failedVisualResponse(
-                    reason: 'processing_error',
-                    answer: 'I couldn\'t scan that image. Try another photo.',
+                return $this->withDebugMeta($this->failedVisualResponse(
+                    reason: $processingFailureReason,
+                    answer: $this->failedAnswerFor($processingFailureReason),
                     engine: 'processing',
-                );
+                ));
             }
 
             $indexEntries = $this->indexService->indexedEntries();
@@ -171,12 +177,14 @@ class VisualProductSearchService
                 ] + $context);
                 $this->debugLog('no_index', $context);
 
-                return $this->failedVisualResponse(
+                return $this->withDebugMeta($this->failedVisualResponse(
                     reason: $indexReason,
                     answer: $this->failedAnswerFor($indexReason),
                     engine: 'catalog_unavailable',
                     signals: $visualSignals,
-                );
+                ), [
+                    'index' => $indexAvailability,
+                ]);
             }
 
             $engine = 'fallback';
@@ -205,12 +213,14 @@ class VisualProductSearchService
                     'top_products' => [],
                 ]);
 
-                return $this->failedVisualResponse(
+                return $this->withDebugMeta($this->failedVisualResponse(
                     reason: $reason,
                     answer: $this->failedAnswerFor($reason),
                     engine: $engine,
                     signals: $visualSignals,
-                );
+                ), [
+                    'top_candidates' => [],
+                ]);
             }
 
             $filterResolution = $this->applyExplicitFilterGuard($scoredProducts, $criteria);
@@ -223,6 +233,27 @@ class VisualProductSearchService
             $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, $topCandidate, $criteria, $uploadContext);
             $topProducts = $this->debugCandidates($scoredProducts);
             $searchConfidence = $this->searchConfidenceForCandidate($topCandidate, $engine);
+
+            if ($this->shouldSurfaceClosestMatches($reason, $topCandidate)) {
+                $closestMatchResponse = $this->lowConfidenceResponse(
+                    candidates: $scoredProducts,
+                    criteria: $criteria,
+                    topCandidate: $topCandidate,
+                    engine: $engine,
+                    signals: $visualSignals,
+                    reason: $reason,
+                );
+
+                $this->debugLog('closest_match_fallback', $context + [
+                    'reason' => $reason,
+                    'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
+                    'top_products' => $topProducts,
+                ]);
+
+                return $this->withDebugMeta($closestMatchResponse, [
+                    'top_candidates' => $topProducts,
+                ]);
+            }
 
             if ($this->shouldFailVisualSearch($reason, $topCandidate)) {
                 $this->logFailure($reason, $image, [
@@ -237,12 +268,14 @@ class VisualProductSearchService
                     'top_products' => $topProducts,
                 ]);
 
-                return $this->failedVisualResponse(
+                return $this->withDebugMeta($this->failedVisualResponse(
                     reason: $reason,
                     answer: $this->failedAnswerFor($reason),
                     engine: $engine,
                     signals: $visualSignals,
-                );
+                ), [
+                    'top_candidates' => $topProducts,
+                ]);
             }
 
             if ($searchConfidence === 'low_confidence' || $usedExplicitFilterFallback) {
@@ -262,7 +295,9 @@ class VisualProductSearchService
                     'top_products' => $topProducts,
                 ]);
 
-                return $fallbackResponse;
+                return $this->withDebugMeta($fallbackResponse, [
+                    'top_candidates' => $topProducts,
+                ]);
             }
 
             $products = $this->presentableCandidates($scoredProducts)
@@ -286,7 +321,7 @@ class VisualProductSearchService
                 'top_products' => $topProducts,
             ]);
 
-            return [
+            return $this->withDebugMeta([
                 'status' => 'success',
                 'search_confidence' => $searchConfidence,
                 'answer' => $this->successfulMatchAnswer($searchConfidence, $engine, (string) ($topCandidate['confidence'] ?? 'no_match')),
@@ -311,7 +346,9 @@ class VisualProductSearchService
                     ['label' => 'Browse full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
                     ['label' => 'Ask assistant', 'type' => 'message', 'message' => 'Help me choose a shoe for daily use'],
                 ],
-            ];
+            ], [
+                'top_candidates' => $topProducts,
+            ]);
         } finally {
             if (($materializedUpload['temporary'] ?? false) === true && is_string($materializedUpload['path'] ?? null)) {
                 @unlink($materializedUpload['path']);
@@ -818,7 +855,8 @@ class VisualProductSearchService
         $saturation = 0.0;
 
         if ($delta > 0.0) {
-            $saturation = $delta / (1 - abs((2 * $lightness) - 1));
+            $denominator = 1 - abs((2 * $lightness) - 1);
+            $saturation = $denominator > 0.0 ? $delta / $denominator : 0.0;
             $hue = match ($max) {
                 $red => 60 * fmod((($green - $blue) / $delta), 6),
                 $green => 60 * ((($blue - $red) / $delta) + 2),
@@ -1061,6 +1099,9 @@ class VisualProductSearchService
     {
         return match ($reason) {
             'filter_fallback' => 'No exact match found. Showing closest alternatives.',
+            'screenshot_needs_crop' => 'I found a few closest matches, but cropping closer to the shoe should improve accuracy.',
+            'blurred_upload' => 'I found a few closest matches, but a clearer photo should improve accuracy.',
+            'low_similarity' => 'No exact match found. Showing closest matches from the current catalog.',
             default => 'This looks like a nearby match.',
         };
     }
@@ -1162,8 +1203,10 @@ class VisualProductSearchService
             'non_shoe' => 'I couldn\'t scan that image. Try another shoe photo.',
             'screenshot_needs_crop' => 'I can read the screenshot, but the shoe is too small/noisy. Try cropping closer.',
             'index_stale' => 'I couldn\'t scan that image right now because visual search is refreshing. Please try again shortly.',
-            'gd_unavailable', 'index_unavailable', 'processing_error' => 'I couldn\'t scan that image right now. Try again shortly.',
-            'upload_invalid', 'upload_materialization_failed', 'upload_read_failed', 'decode_failed', 'empty_image', 'image_too_small' => 'I couldn\'t scan that image. Try another photo.',
+            'index_unavailable' => 'Visual search is unavailable because the current catalog index is empty.',
+            'gd_unavailable', 'processing_error', 'runtime_unavailable' => 'Visual search runtime is unavailable right now. Please try again shortly.',
+            'upload_invalid', 'upload_materialization_failed', 'upload_read_failed', 'decode_failed', 'empty_image', 'image_too_small' => 'The uploaded image is invalid or unreadable. Try another photo.',
+            'low_similarity', 'no_visual_candidate' => 'I couldn\'t find close enough matches in the current catalog for that image.',
             default => 'I couldn\'t scan that image. Try another photo.',
         };
     }
@@ -1574,5 +1617,31 @@ class VisualProductSearchService
     private function blurFloor(): float
     {
         return (float) config('storefront.assistant.visual_search.thresholds.blur_floor', 0.0015);
+    }
+
+    private function shouldSurfaceClosestMatches(string $reason, array $topCandidate): bool
+    {
+        $score = (float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'] ?? 0.0);
+
+        if ($score < $this->minCandidateThreshold()) {
+            return false;
+        }
+
+        return in_array($reason, ['blurred_upload', 'low_similarity', 'screenshot_needs_crop'], true);
+    }
+
+    private function withDebugMeta(array $response, array $debug = []): array
+    {
+        if (! app()->environment(['local', 'testing']) || ! config('storefront.assistant.visual_search.debug', false)) {
+            return $response;
+        }
+
+        $response['debug'] = array_filter([
+            'runtime' => $this->embeddingService->runtimeDetails(),
+            'index' => $this->indexService->availabilityStatus(),
+            'top_candidates' => $debug['top_candidates'] ?? null,
+        ], fn (mixed $value): bool => $value !== null);
+
+        return $response;
     }
 }

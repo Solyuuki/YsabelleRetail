@@ -61,7 +61,9 @@ Artisan::command('visual-search:clear', function (): void {
 })->purpose('Clear the visual product search index');
 
 Artisan::command('visual-search:health', function (): void {
-    $embedding = app(VisualSearchEmbeddingService::class)->health();
+    $embeddingService = app(VisualSearchEmbeddingService::class);
+    $embedding = $embeddingService->health();
+    $runtime = $embeddingService->runtimeDetails();
     $index = app(VisualSearchIndexService::class)->health();
 
     $this->table(
@@ -74,6 +76,13 @@ Artisan::command('visual-search:health', function (): void {
             ['Embedding version', $embedding['embedding_version'] ?? 'n/a'],
             ['Embedding device', $embedding['device'] ?? 'n/a'],
             ['Embedding message', $embedding['message'] ?? 'n/a'],
+            ['Configured Python', $runtime['configured_python_binary'] ?? 'n/a'],
+            ['Configured Python exists', ($runtime['configured_python_binary_exists'] ?? false) ? 'yes' : 'no'],
+            ['Env-file Python', $runtime['env_file_python_binary'] ?? 'n/a'],
+            ['Env-file Python exists', ($runtime['env_file_python_binary_exists'] ?? false) ? 'yes' : 'no'],
+            ['Resolved Python', $runtime['resolved_python_binary'] ?? 'n/a'],
+            ['Embedding script', $runtime['script_path'] ?? 'n/a'],
+            ['Embedding script exists', ($runtime['script_exists'] ?? false) ? 'yes' : 'no'],
             ['GD available', ($index['gd_available'] ?? false) ? 'yes' : 'no'],
             ['GD message', $index['gd_message'] ?? 'n/a'],
             ['Index table exists', $index['table_exists'] ? 'yes' : 'no'],
@@ -90,6 +99,47 @@ Artisan::command('visual-search:health', function (): void {
         ],
     );
 })->purpose('Check the local visual search embedding service and index coverage');
+
+Artisan::command('visual-search:doctor', function (): int {
+    $embeddingService = app(VisualSearchEmbeddingService::class);
+    $doctor = $embeddingService->runtimeDetails(true);
+    $health = $embeddingService->health();
+    $index = app(VisualSearchIndexService::class)->health();
+    $dependencies = $doctor['dependencies'] ?? [];
+
+    $this->table(
+        ['Check', 'Result'],
+        [
+            ['Embedding enabled', $embeddingService->enabled() ? 'yes' : 'no'],
+            ['Configured Python', $doctor['configured_python_binary'] ?? 'n/a'],
+            ['Configured Python exists', ($doctor['configured_python_binary_exists'] ?? false) ? 'yes' : 'no'],
+            ['Env-file Python', $doctor['env_file_python_binary'] ?? 'n/a'],
+            ['Env-file Python exists', ($doctor['env_file_python_binary_exists'] ?? false) ? 'yes' : 'no'],
+            ['Resolved Python', $doctor['resolved_python_binary'] ?? 'n/a'],
+            ['Python version', $doctor['python_version'] ?? 'n/a'],
+            ['Python version reachable', ($doctor['python_version_ok'] ?? false) ? 'yes' : 'no'],
+            ['numpy import', ($dependencies['numpy']['ok'] ?? false) ? 'ok' : ($dependencies['numpy']['message'] ?? 'failed')],
+            ['torch import', ($dependencies['torch']['ok'] ?? false) ? 'ok' : ($dependencies['torch']['message'] ?? 'failed')],
+            ['transformers import', ($dependencies['transformers']['ok'] ?? false) ? 'ok' : ($dependencies['transformers']['message'] ?? 'failed')],
+            ['Embedding model', $doctor['model'] ?? 'n/a'],
+            ['Embedding version', $doctor['embedding_version'] ?? 'n/a'],
+            ['Embedding reachable', ($health['reachable'] ?? false) ? 'yes' : 'no'],
+            ['Embedding available', ($health['available'] ?? false) ? 'yes' : 'no'],
+            ['Embedding message', $health['message'] ?? 'n/a'],
+            ['Script path', $doctor['script_path'] ?? 'n/a'],
+            ['Script exists', ($doctor['script_exists'] ?? false) ? 'yes' : 'no'],
+            ['Index entries', $index['entries'] ?? 0],
+            ['Entries with embeddings', $index['embedded_entries'] ?? 0],
+            ['Entries matching current version', $index['entries_matching_current_version'] ?? 0],
+            ['Outdated embedded entries', $index['outdated_embedded_entries'] ?? 0],
+            ['Source-stale entries', $index['stale_source_entries'] ?? 0],
+            ['Index status', $index['status'] ?? 'n/a'],
+            ['Recommended fix', $doctor['recommended_fix'] ?? ($index['rebuild_guidance'] ?? 'n/a')],
+        ],
+    );
+
+    return (($health['available'] ?? false) && ($index['entries'] ?? 0) > 0) ? 0 : 1;
+})->purpose('Diagnose visual search runtime, Python dependencies, and index readiness');
 
 Artisan::command('catalog:images:audit', function (): int {
     $audit = app(CatalogImageAuditService::class)->audit();

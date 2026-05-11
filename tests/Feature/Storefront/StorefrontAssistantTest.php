@@ -813,7 +813,7 @@ test('visual search returns a safe index-unavailable failure when no engine can 
         ->assertJsonPath('status', 'failed')
         ->assertJsonPath('match.reason', 'index_unavailable')
         ->assertJsonPath('products', [])
-        ->assertJsonPath('answer', 'I couldn\'t scan that image right now. Try again shortly.');
+        ->assertJsonPath('answer', 'Visual search is unavailable because the current catalog index is empty.');
 });
 
 test('visual search gives screenshot crop guidance for screenshot-like uploads with weak shoe signal', function () {
@@ -836,6 +836,18 @@ test('visual search gives screenshot crop guidance for screenshot-like uploads w
         ->assertJsonPath('status', 'failed')
         ->assertJsonPath('match.reason', 'screenshot_needs_crop')
         ->assertJsonPath('answer', 'I can read the screenshot, but the shoe is too small/noisy. Try cropping closer.');
+});
+
+test('visual search surfaces closest matches for screenshot-like candidate band scores', function () {
+    $service = app(VisualProductSearchService::class);
+    $reflection = new ReflectionClass($service);
+    $method = $reflection->getMethod('shouldSurfaceClosestMatches');
+    $method->setAccessible(true);
+
+    expect($method->invoke($service, 'screenshot_needs_crop', ['confidence_score' => 0.7]))->toBeTrue()
+        ->and($method->invoke($service, 'low_similarity', ['visual_score' => 0.65]))->toBeTrue()
+        ->and($method->invoke($service, 'non_shoe', ['confidence_score' => 0.7]))->toBeFalse()
+        ->and($method->invoke($service, 'screenshot_needs_crop', ['confidence_score' => 0.4]))->toBeFalse();
 });
 
 test('visual search fails safely for unrelated non-shoe images', function () {
@@ -903,6 +915,8 @@ test('visual search does not let metadata hints override stronger visual similar
     makeStorefrontProduct([
         'name' => 'Shadow Tempo',
         'slug' => 'shadow-tempo',
+        'category_name' => 'Sneakers',
+        'category_slug' => 'sneakers',
         'primary_image_url' => visualSearchFixtureUrl('catalog-black-shoe.png'),
         'image_alt' => 'Shadow Tempo product image',
     ], [
@@ -1172,7 +1186,7 @@ test('visual search returns a safe message when the index is missing', function 
         ->assertJsonPath('match.confidence', 'no_match')
         ->assertJsonPath('match.reason', 'index_unavailable')
         ->assertJsonPath('match.engine', 'catalog_unavailable')
-        ->assertJsonPath('answer', 'I couldn\'t scan that image right now. Try again shortly.')
+        ->assertJsonPath('answer', 'Visual search is unavailable because the current catalog index is empty.')
         ->assertJsonCount(0, 'products');
 });
 
@@ -1245,7 +1259,7 @@ test('visual search no-index failures do not leak catalog recommendations', func
         ]);
 });
 
-test('visual search falls back safely when the embedding service is unavailable', function () {
+test('visual search self-heals a stale python config by retrying the env-file python binary', function () {
     drawShoeFixture('fallback-source-shoe.png', '#355fc7');
     $product = makeStorefrontProduct([
         'name' => 'Fallback Runner',
@@ -1264,11 +1278,11 @@ test('visual search falls back safely when the embedding service is unavailable'
         'Accept' => 'application/json',
     ])
         ->assertOk()
-        ->assertJsonPath('search_confidence', 'low_confidence')
-        ->assertJsonPath('answer', 'This looks like a nearby match.')
+        ->assertJsonPath('search_confidence', 'high_confidence')
+        ->assertJsonPath('answer', 'Found a strong match for this shoe.')
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('products.0.match.label', 'Approximate image-cue match')
-        ->assertJsonPath('match.engine', 'fallback');
+        ->assertJsonPath('products.0.match.label', 'Strong visual match')
+        ->assertJsonPath('match.engine', 'embedding');
 });
 
 test('visual search response copy maps strong close and nearby states honestly', function () {

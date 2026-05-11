@@ -374,6 +374,10 @@ class ImageFeatureExtractor
 
     private function rgbToHueSaturation(int $red, int $green, int $blue): array
     {
+        if ($red === 0 && $green === 0 && $blue === 0) {
+            return [0.0, 0.0];
+        }
+
         $red /= 255;
         $green /= 255;
         $blue /= 255;
@@ -396,7 +400,11 @@ class ImageFeatureExtractor
             $hue += 360;
         }
 
-        $saturation = $max === 0.0 ? 0.0 : $delta / $max;
+        if ($max <= 0.0 || $delta <= 0.0) {
+            return [$hue, 0.0];
+        }
+
+        $saturation = $delta / $max;
 
         return [$hue, $saturation];
     }
