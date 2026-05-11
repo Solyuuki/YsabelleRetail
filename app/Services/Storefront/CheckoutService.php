@@ -43,7 +43,7 @@ class CheckoutService
                 'source' => 'online',
                 'handled_by_user_id' => null,
                 'order_number' => $this->orderNumbers->generate(),
-                'status' => 'pending',
+                'status' => $isSimulatedCard ? 'processing' : 'pending',
                 'payment_status' => $isSimulatedCard ? 'paid' : 'unpaid',
                 'fulfillment_status' => 'unfulfilled',
                 'currency' => 'PHP',

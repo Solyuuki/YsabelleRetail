@@ -129,6 +129,7 @@ test('guest admin shortcut login intent does not grant admin access to non-admin
         'email' => 'customer.shortcut@example.com',
         'password' => 'password',
     ])
-        ->assertRedirect(route('storefront.account.index'))
-        ->assertSessionHas('toast', fn (array $toast) => ($toast['title'] ?? null) === 'Admin area unavailable');
+        ->assertSessionHasErrors(['email']);
+
+    $this->assertGuest();
 });

@@ -49,11 +49,23 @@ class LoginController extends Controller
 
         if (! $request->user()?->isActive()) {
             Auth::logout();
+            $redirector->clearLoginContext($request);
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
             throw ValidationException::withMessages([
                 'email' => 'This account is inactive. Please contact an administrator.',
+            ]);
+        }
+
+        if ($message = $redirector->portalAccessViolationMessage($request, $request->user())) {
+            Auth::logout();
+            $redirector->clearLoginContext($request);
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => $message,
             ]);
         }
 

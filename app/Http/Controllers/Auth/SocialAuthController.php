@@ -40,6 +40,22 @@ class SocialAuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        if ($message = $redirector->portalAccessViolationMessage($request, $user)) {
+            $loginUrl = $redirector->loginUrlForCurrentPortal($request);
+
+            Auth::logout();
+            $redirector->clearLoginContext($request);
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->to($loginUrl)
+                ->with('toast', [
+                    'type' => 'error',
+                    'title' => 'Access restricted',
+                    'message' => $message,
+                ]);
+        }
+
         return $redirector->redirectAfterLogin($request, $user);
     }
 

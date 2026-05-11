@@ -40,7 +40,7 @@ class AdminDashboardService
             'total_products' => Product::query()->count(),
             'low_stock_items' => $this->lowStockItemsQuery()->count(),
             'out_of_stock_items' => InventoryItem::query()->where('quantity_on_hand', 0)->count(),
-            'pending_orders' => Order::query()->where('status', 'pending')->count(),
+            'pending_orders' => Order::query()->whereIn('status', ['pending', 'processing'])->count(),
             'completed_orders' => (clone $completedOrders)->count(),
         ];
     }
@@ -161,7 +161,11 @@ class AdminDashboardService
             'customer' => $order->customer_name ?: 'Registered customer',
             'amount' => (float) $order->grand_total,
             'status' => (string) str($status)->headline(),
-            'status_tone' => $status === 'completed' ? 'success' : 'warning',
+            'status_tone' => match ($status) {
+                'completed' => 'success',
+                'processing' => 'neutral',
+                default => 'warning',
+            },
             'source' => $source,
             'source_tone' => $order->source === 'walk_in' ? 'warning' : 'neutral',
             'placed_at' => optional($order->placed_at)->format('M d, Y h:i A') ?: 'Awaiting timestamp',

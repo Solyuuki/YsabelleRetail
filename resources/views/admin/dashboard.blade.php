@@ -40,10 +40,10 @@
                 'is_primary' => false,
             ],
             [
-                'label' => 'Pending Orders',
+                'label' => 'Open Orders',
                 'value' => $metrics['pending_orders'],
                 'display' => number_format($metrics['pending_orders']),
-                'meta' => 'Needs review or fulfillment',
+                'meta' => 'Needs payment review or fulfillment',
                 'icon' => 'clock',
                 'format' => 'integer',
                 'is_primary' => false,

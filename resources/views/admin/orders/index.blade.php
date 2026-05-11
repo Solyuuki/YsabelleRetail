@@ -16,7 +16,7 @@
                 @endforeach
             </select>
             <select name="status" class="ys-admin-select">
-                @foreach (['all' => 'All statuses', 'pending' => 'Pending', 'completed' => 'Completed'] as $value => $label)
+                @foreach (['all' => 'All statuses', 'pending' => 'Pending', 'processing' => 'Processing', 'completed' => 'Completed'] as $value => $label)
                     <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
                 @endforeach
             </select>
@@ -52,8 +52,18 @@
                                 <p class="text-xs text-ys-ivory/38">{{ $order->customer_phone ?: $order->customer_email ?: '-' }}</p>
                             </td>
                             <td>
+                                @php
+                                    $statusTone = match ($order->status) {
+                                        'completed' => 'success',
+                                        'processing' => 'neutral',
+                                        default => 'warning',
+                                    };
+                                @endphp
                                 <p>{{ strtoupper((string) $order->payment_method) }}</p>
                                 <p class="text-xs text-ys-ivory/38">{{ ucfirst($order->payment_status) }}</p>
+                                <div class="mt-2">
+                                    <x-admin.status-pill :tone="$statusTone">{{ $order->status }}</x-admin.status-pill>
+                                </div>
                             </td>
                             <td>PHP {{ number_format((float) $order->grand_total, 2) }}</td>
                             <td class="text-right">

@@ -9,6 +9,30 @@
         <button type="button" class="ys-admin-button-secondary" data-print-page>Print receipt</button>
     </x-admin.page-header>
 
+    @if ($errors->any())
+        <div class="ys-admin-form-error">
+            <ul class="space-y-1">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    @php
+        $statusTone = match ($order->status) {
+            'completed' => 'success',
+            'processing' => 'neutral',
+            default => 'warning',
+        };
+        $paymentTone = match ($order->payment_status) {
+            'paid' => 'success',
+            'pending' => 'warning',
+            default => 'danger',
+        };
+        $fulfillmentTone = $order->fulfillment_status === 'fulfilled' ? 'success' : 'warning';
+    @endphp
+
     <section class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <article class="ys-admin-panel" data-admin-panel>
             <div class="ys-admin-panel-heading">
@@ -55,18 +79,74 @@
                         <span class="font-semibold text-ys-ivory">{{ $order->customer_name ?: 'Registered customer' }}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span>Payment</span>
+                        <span>Method</span>
                         <span class="font-semibold text-ys-ivory">{{ strtoupper((string) $order->payment_method) }}</span>
                     </div>
                     <div class="flex items-center justify-between">
                         <span>Status</span>
-                        <x-admin.status-pill :tone="$order->status === 'completed' ? 'success' : 'warning'">{{ $order->status }}</x-admin.status-pill>
+                        <x-admin.status-pill :tone="$statusTone">{{ $order->status }}</x-admin.status-pill>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>Payment Status</span>
+                        <x-admin.status-pill :tone="$paymentTone">{{ $order->payment_status }}</x-admin.status-pill>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span>Fulfillment</span>
+                        <x-admin.status-pill :tone="$fulfillmentTone">{{ $order->fulfillment_status }}</x-admin.status-pill>
                     </div>
                     <div class="flex items-center justify-between border-t border-white/7 pt-3">
                         <span>Total</span>
                         <span class="text-lg font-semibold text-ys-gold">PHP {{ number_format((float) $order->grand_total, 2) }}</span>
                     </div>
                 </div>
+            </article>
+
+            <article class="ys-admin-panel" data-admin-panel>
+                <div class="ys-admin-panel-heading">
+                    <div>
+                        <h2 class="ys-admin-panel-title">Order Lifecycle</h2>
+                        <p class="ys-admin-subtle">Move simulated online orders from paid processing to completed without bypassing payment integrity.</p>
+                    </div>
+                </div>
+
+                @if ($order->status === 'completed')
+                    <div class="ys-admin-empty-panel mt-4">
+                        This order is already completed and locked from moving back to an earlier lifecycle stage.
+                    </div>
+                @else
+                    <form method="POST" action="{{ route('admin.orders.lifecycle.update', $order) }}" class="space-y-4 pt-4" data-admin-form>
+                        @csrf
+                        @method('PATCH')
+
+                        <div class="ys-admin-grid-fields">
+                            <label class="ys-admin-field">
+                                <span class="ys-admin-label">Order Status</span>
+                                <select name="status" class="ys-admin-select">
+                                    @foreach (['pending' => 'Pending', 'processing' => 'Processing', 'completed' => 'Completed'] as $value => $label)
+                                        <option value="{{ $value }}" @selected(old('status', $order->status) === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <label class="ys-admin-field">
+                                <span class="ys-admin-label">Payment Status</span>
+                                <select name="payment_status" class="ys-admin-select">
+                                    @foreach (['unpaid' => 'Unpaid', 'pending' => 'Pending', 'paid' => 'Paid'] as $value => $label)
+                                        <option value="{{ $value }}" @selected(old('payment_status', $order->payment_status) === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                        </div>
+
+                        <p class="ys-admin-subtle">
+                            Completed orders require a paid payment status. Paid orders stay paid and cannot move backward.
+                        </p>
+
+                        <div class="ys-admin-inline-actions">
+                            <button type="submit" class="ys-admin-button-primary" data-loading-label="Updating order...">Update lifecycle</button>
+                        </div>
+                    </form>
+                @endif
             </article>
 
             <article class="ys-admin-panel" data-admin-panel>

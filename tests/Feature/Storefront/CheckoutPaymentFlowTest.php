@@ -102,6 +102,7 @@ test('cash on delivery stays unpaid and uses the offline payment flow', function
     $payment = Payment::query()->latest('id')->firstOrFail();
 
     expect($order->payment_method)->toBe('cod')
+        ->and($order->status)->toBe('pending')
         ->and($order->payment_status)->toBe('unpaid')
         ->and($payment->provider)->toBe('cash-on-delivery')
         ->and($payment->status)->toBe('pending')
@@ -154,6 +155,7 @@ test('simulated card checkout marks the order as paid and uses the card flow', f
     $payment = Payment::query()->latest('id')->firstOrFail();
 
     expect($order->payment_method)->toBe('card_simulated')
+        ->and($order->status)->toBe('processing')
         ->and($order->payment_status)->toBe('paid')
         ->and($payment->provider)->toBe('card-simulated')
         ->and($payment->status)->toBe('succeeded')

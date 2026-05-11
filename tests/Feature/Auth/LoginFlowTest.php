@@ -109,11 +109,30 @@ test('manual login only enables remember me when explicitly requested', function
     $this->assertAuthenticatedAs($customer);
 });
 
-test('admin login redirects to the admin dashboard by default', function () {
+test('admin login is rejected from the customer login portal', function () {
     $admin = makeUserWithRole('admin', [
         'email' => 'admin.login@example.com',
         'password' => 'Password123x',
     ]);
+
+    $this->post(route('login.store'), [
+        'email' => $admin->email,
+        'password' => 'Password123x',
+    ])
+        ->assertSessionHasErrors(['email']);
+
+    $this->assertGuest();
+});
+
+test('admin accounts can sign in through the admin login portal', function () {
+    $admin = makeUserWithRole('admin', [
+        'email' => 'admin.portal@example.com',
+        'password' => 'Password123x',
+    ]);
+
+    $this->get(route('login', ['portal' => 'admin']))
+        ->assertOk()
+        ->assertSeeText('Admin access mode is active for this sign-in session.');
 
     $this->post(route('login.store'), [
         'email' => $admin->email,
@@ -135,6 +154,7 @@ test('customer accounts cannot use the hidden admin portal to gain admin access'
         'email' => $customer->email,
         'password' => 'Password123x',
     ])
-        ->assertRedirect(route('storefront.account.index'))
-        ->assertSessionHas('toast', fn (array $toast) => ($toast['title'] ?? null) === 'Admin area unavailable');
+        ->assertSessionHasErrors(['email']);
+
+    $this->assertGuest();
 });

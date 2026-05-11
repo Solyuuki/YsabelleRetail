@@ -54,6 +54,7 @@ Route::prefix('admin')
             ->group(function (): void {
                 Route::get('/', [OrderController::class, 'index'])->name('index');
                 Route::get('/{order}', [OrderController::class, 'show'])->name('show');
+                Route::patch('/{order}/lifecycle', [OrderController::class, 'updateLifecycle'])->name('lifecycle.update');
             });
 
         Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');

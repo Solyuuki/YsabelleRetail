@@ -45,20 +45,6 @@ class AuthenticatedRedirector
 
     public function redirectAfterLogin(Request $request, User $user): RedirectResponse
     {
-        if ($this->isAdminPortal($request) && ! $user->isAdmin()) {
-            $request->session()->forget([
-                'url.intended',
-                self::LOGIN_PORTAL_SESSION_KEY,
-            ]);
-
-            return redirect()->to($this->defaultDestinationFor($user))
-                ->with('toast', [
-                    'type' => 'error',
-                    'title' => 'Admin area unavailable',
-                    'message' => 'Admin access requires an authorized admin account.',
-                ]);
-        }
-
         $request->session()->forget(self::LOGIN_PORTAL_SESSION_KEY);
 
         return redirect()->intended($this->defaultDestinationFor($user))
@@ -72,6 +58,37 @@ class AuthenticatedRedirector
     public function adminAccessUrl(): string
     {
         return route('login', ['portal' => self::ADMIN_PORTAL]);
+    }
+
+    public function loginUrlForCurrentPortal(Request $request): string
+    {
+        return $this->isAdminPortal($request)
+            ? $this->adminAccessUrl()
+            : route('login');
+    }
+
+    public function portalAccessViolationMessage(Request $request, User $user): ?string
+    {
+        if ($this->isAdminPortal($request) && ! $user->isAdmin()) {
+            return 'This account is not authorized for the admin login portal.';
+        }
+
+        if (! $this->isAdminPortal($request) && $user->isAdmin()) {
+            return 'Admin accounts must sign in through the admin login portal only.';
+        }
+
+        return null;
+    }
+
+    public function clearLoginContext(Request $request, bool $forgetIntended = true): void
+    {
+        $keys = [self::LOGIN_PORTAL_SESSION_KEY];
+
+        if ($forgetIntended) {
+            $keys[] = 'url.intended';
+        }
+
+        $request->session()->forget($keys);
     }
 
     private function defaultDestinationFor(User $user): string
