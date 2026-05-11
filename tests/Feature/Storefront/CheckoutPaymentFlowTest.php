@@ -161,7 +161,12 @@ test('simulated card checkout marks the order as paid and uses the card flow', f
         ->and($payment->provider_reference)->not->toBeNull()
         ->and($payment->metadata['flow'])->toBe('simulated-card')
         ->and($payment->metadata['card_last4'])->toBe('4242')
-        ->and($payment->metadata['simulated'])->toBeTrue();
+        ->and($payment->metadata['simulated'])->toBeTrue()
+        ->and($payment->metadata)->not->toHaveKeys([
+            'card_number',
+            'card_expiry',
+            'card_cvc',
+        ]);
 });
 
 test('invalid payment methods are rejected gracefully', function () {

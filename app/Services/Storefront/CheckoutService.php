@@ -112,11 +112,23 @@ class CheckoutService
                 ],
             ]);
 
+            $user->profile()->updateOrCreate([], $this->reusableShippingProfileData($payload));
+
             $order = $order->load(['items', 'payments']);
             $this->activityLogger->recordOrder($order);
             OrderPlaced::dispatch($order);
 
             return $order;
         });
+    }
+
+    private function reusableShippingProfileData(array $payload): array
+    {
+        return [
+            'mobile_number' => $payload['phone'],
+            'shipping_city' => $payload['city'],
+            'shipping_address_line' => $payload['address'],
+            'shipping_postal_code' => $payload['postal_code'],
+        ];
     }
 }

@@ -366,6 +366,8 @@ const initContactHub = (root) => {
     }
 
     let selectedIssue = categoryField.value || 'order-issue';
+    let isDirty = false;
+    let isSubmitting = false;
 
     const fieldConfig = [
         {
@@ -451,10 +453,30 @@ const initContactHub = (root) => {
         emailFallbackLink.href = buildMailto(`Support Request: ${issueTitle}`, bodyLines);
     };
 
-    const setSubmitting = (isSubmitting) => {
-        submitButton.disabled = isSubmitting;
-        submitButton.setAttribute('aria-disabled', isSubmitting ? 'true' : 'false');
-        submitButton.textContent = isSubmitting
+    const hasDraftInput = () => [
+        nameField.value,
+        emailField.value,
+        referenceField.value,
+        detailsField.value,
+    ].some((value) => value.trim() !== '');
+
+    const syncDirtyState = () => {
+        isDirty = hasDraftInput();
+    };
+
+    const beforeUnloadHandler = (event) => {
+        if (!isDirty || isSubmitting) {
+            return;
+        }
+
+        event.preventDefault();
+        event.returnValue = '';
+    };
+
+    const setSubmitting = (submitting) => {
+        submitButton.disabled = submitting;
+        submitButton.setAttribute('aria-disabled', submitting ? 'true' : 'false');
+        submitButton.textContent = submitting
             ? submitButton.dataset.loadingLabel ?? 'Sending...'
             : submitButton.dataset.idleLabel ?? 'Send Support Request';
     };
@@ -468,6 +490,7 @@ const initContactHub = (root) => {
         categoryField.value = selectedIssue;
         clearFieldErrors();
         updateMailtoLink();
+        syncDirtyState();
     };
 
     const payload = () => ({
@@ -623,13 +646,17 @@ const initContactHub = (root) => {
             }
 
             updateMailtoLink();
+            syncDirtyState();
         });
     });
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
+        isSubmitting = true;
+
         if (!validateDraftFields()) {
+            isSubmitting = false;
             return;
         }
 
@@ -662,6 +689,7 @@ const initContactHub = (root) => {
                     message: data.message ?? CONTACT_SUCCESS_NOTICE,
                 });
                 resetForm();
+                isDirty = false;
                 return;
             }
 
@@ -684,7 +712,9 @@ const initContactHub = (root) => {
                 type: 'error',
             });
         } finally {
+            isSubmitting = false;
             setSubmitting(false);
+            syncDirtyState();
         }
     });
 
@@ -715,6 +745,8 @@ const initContactHub = (root) => {
 
     render();
     setSubmitting(false);
+    syncDirtyState();
+    window.addEventListener('beforeunload', beforeUnloadHandler);
 };
 
 export const initSupportPages = () => {

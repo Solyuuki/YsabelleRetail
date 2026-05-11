@@ -3,10 +3,24 @@
 namespace App\Http\Requests\Storefront\Checkout;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CheckoutRequest extends FormRequest
 {
+    private const SAFE_OLD_INPUT_KEYS = [
+        'full_name',
+        'email',
+        'phone',
+        'city',
+        'address',
+        'postal_code',
+        'order_notes',
+        'payment_method',
+        'cardholder_name',
+    ];
+
     public function authorize(): bool
     {
         return true;
@@ -21,6 +35,13 @@ class CheckoutRequest extends FormRequest
         };
 
         $this->merge([
+            'full_name' => $this->trimStringInput('full_name'),
+            'email' => $this->normalizeEmail('email'),
+            'phone' => $this->trimStringInput('phone'),
+            'city' => $this->trimStringInput('city'),
+            'address' => $this->trimStringInput('address'),
+            'postal_code' => $this->trimStringInput('postal_code'),
+            'order_notes' => $this->nullableTrimmedInput('order_notes'),
             'payment_method' => $paymentMethod,
             'card_number' => is_string($this->input('card_number'))
                 ? preg_replace('/\D+/', '', $this->input('card_number'))
@@ -31,7 +52,29 @@ class CheckoutRequest extends FormRequest
             'cardholder_name' => is_string($this->input('cardholder_name'))
                 ? trim($this->input('cardholder_name'))
                 : $this->input('cardholder_name'),
+            'card_cvc' => $this->trimStringInput('card_cvc'),
         ]);
+    }
+
+    private function trimStringInput(string $key): mixed
+    {
+        return is_string($this->input($key))
+            ? trim($this->input($key))
+            : $this->input($key);
+    }
+
+    private function nullableTrimmedInput(string $key): mixed
+    {
+        $value = $this->trimStringInput($key);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function normalizeEmail(string $key): mixed
+    {
+        $value = $this->trimStringInput($key);
+
+        return is_string($value) ? strtolower($value) : $value;
     }
 
     public function rules(): array
@@ -66,5 +109,14 @@ class CheckoutRequest extends FormRequest
             'card_cvc.required' => 'Enter the simulated card security code.',
             'card_cvc.digits_between' => 'Use a valid 3 or 4 digit security code.',
         ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        $response = redirect($this->getRedirectUrl())
+            ->withInput($this->only(self::SAFE_OLD_INPUT_KEYS))
+            ->withErrors($validator, $this->errorBag);
+
+        throw new ValidationException($validator, $response);
     }
 }

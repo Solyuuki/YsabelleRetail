@@ -4,7 +4,7 @@
 
 @section('content')
     @php
-        $selectedPaymentMethod = old('payment_method', 'cod');
+        $selectedPaymentMethod = old('payment_method', $checkoutDefaults['payment_method'] ?? 'cod');
         $usesSimulatedCard = $selectedPaymentMethod === 'card_simulated';
     @endphp
 
@@ -12,8 +12,29 @@
         <div class="grid gap-10 lg:grid-cols-[1.08fr_0.52fr] xl:gap-14">
             <div data-reveal>
                 <h1 class="font-serif text-5xl text-ys-ivory">Checkout</h1>
+                <p
+                    class="mt-3 text-sm leading-7 text-ys-ivory/50"
+                    data-checkout-draft-status
+                    data-idle-message="Shipping details save automatically on this account for {{ $checkoutDraftTtlDays }} days. Payment details are never saved."
+                    data-saving-message="Saving your checkout details..."
+                    data-saved-message="Checkout details saved for this account."
+                    data-error-message="We could not save your latest checkout changes. Payment details were not saved."
+                    data-offline-message="You appear to be offline. We will retry saving your checkout details when the connection returns."
+                    data-session-message="Your session expired before we could save the latest checkout changes. Refresh and sign in again if needed."
+                >
+                    {{ $checkoutDraftRestored
+                        ? "Saved checkout details were restored for this account. Payment details were not restored."
+                        : "Shipping details save automatically on this account for {$checkoutDraftTtlDays} days. Payment details are never saved." }}
+                </p>
 
-                <form action="{{ route('storefront.checkout.store') }}" method="POST" id="checkout-form" class="mt-10 space-y-10" data-checkout-form>
+                <form
+                    action="{{ route('storefront.checkout.store') }}"
+                    method="POST"
+                    id="checkout-form"
+                    class="mt-10 space-y-10"
+                    data-checkout-form
+                    data-checkout-draft-endpoint="{{ route('storefront.checkout.draft.save') }}"
+                >
                     @csrf
                     @if ($errors->any())
                         <div class="rounded-[1.4rem] border border-[#7c2727] bg-[#361010] px-5 py-4 text-sm text-[#ffd8d8]">
@@ -31,31 +52,31 @@
                         <div class="mt-6 grid gap-5 md:grid-cols-2">
                             <label class="ys-field">
                                 <span>Full name</span>
-                                <input type="text" name="full_name" class="ys-input" value="{{ old('full_name', $user->name) }}">
+                                <input type="text" name="full_name" class="ys-input" value="{{ old('full_name', $checkoutDefaults['full_name']) }}">
                             </label>
                             <label class="ys-field">
                                 <span>Email</span>
-                                <input type="email" name="email" class="ys-input" value="{{ old('email', $user->email) }}">
+                                <input type="email" name="email" class="ys-input" value="{{ old('email', $checkoutDefaults['email']) }}">
                             </label>
                             <label class="ys-field">
                                 <span>Phone</span>
-                                <input type="text" name="phone" class="ys-input" value="{{ old('phone', $user->profile?->mobile_number ?? $user->profile?->phone) }}">
+                                <input type="text" name="phone" class="ys-input" value="{{ old('phone', $checkoutDefaults['phone']) }}">
                             </label>
                             <label class="ys-field">
                                 <span>City</span>
-                                <input type="text" name="city" class="ys-input" value="{{ old('city') }}">
+                                <input type="text" name="city" class="ys-input" value="{{ old('city', $checkoutDefaults['city']) }}">
                             </label>
                             <label class="ys-field md:col-span-2">
                                 <span>Address</span>
-                                <input type="text" name="address" class="ys-input" value="{{ old('address') }}">
+                                <input type="text" name="address" class="ys-input" value="{{ old('address', $checkoutDefaults['address']) }}">
                             </label>
                             <label class="ys-field">
                                 <span>Postal code</span>
-                                <input type="text" name="postal_code" class="ys-input" value="{{ old('postal_code') }}">
+                                <input type="text" name="postal_code" class="ys-input" value="{{ old('postal_code', $checkoutDefaults['postal_code']) }}">
                             </label>
                             <label class="ys-field md:col-span-2">
                                 <span>Order notes (optional)</span>
-                                <textarea name="order_notes" rows="4" class="ys-input min-h-34 resize-none py-4">{{ old('order_notes') }}</textarea>
+                                <textarea name="order_notes" rows="4" class="ys-input min-h-34 resize-none py-4">{{ old('order_notes', $checkoutDefaults['order_notes']) }}</textarea>
                             </label>
                         </div>
                     </div>
@@ -126,7 +147,7 @@
                                         type="text"
                                         name="card_number"
                                         class="ys-input"
-                                        value="{{ old('card_number') }}"
+                                        value=""
                                         placeholder="4242 4242 4242 4242"
                                         inputmode="numeric"
                                         autocomplete="cc-number"
@@ -139,7 +160,7 @@
                                         type="text"
                                         name="card_expiry"
                                         class="ys-input"
-                                        value="{{ old('card_expiry') }}"
+                                        value=""
                                         placeholder="12/30"
                                         inputmode="numeric"
                                         autocomplete="cc-exp"
@@ -152,7 +173,7 @@
                                         type="text"
                                         name="card_cvc"
                                         class="ys-input"
-                                        value="{{ old('card_cvc') }}"
+                                        value=""
                                         placeholder="123"
                                         inputmode="numeric"
                                         autocomplete="cc-csc"

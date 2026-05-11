@@ -2,23 +2,24 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class UserProfile extends Model
+class CheckoutDraft extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'user_id',
-        'phone',
-        'mobile_number',
-        'shipping_city',
-        'shipping_address_line',
-        'shipping_postal_code',
-        'preferred_name',
+        'payload',
+        'expires_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'payload' => 'array',
+            'expires_at' => 'datetime',
+        ];
+    }
 
     public function user(): BelongsTo
     {
