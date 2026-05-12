@@ -39,7 +39,7 @@
                     <input
                         type="text"
                         class="ys-admin-pos-search-input"
-                        placeholder="Search products by name, SKU, or category..."
+                        placeholder="Search by product, SKU, category, color, or size..."
                         autocomplete="off"
                         data-pos-search
                     >
@@ -61,7 +61,7 @@
                     <div class="ys-admin-pos-sidebar-header">
                         <div>
                             <h2 class="ys-admin-panel-title">Current sale</h2>
-                            <p class="ys-admin-subtle">Build the receipt from live stock only.</p>
+                            <p class="ys-admin-subtle">Pick a product card, choose the exact size and SKU, then add from live stock.</p>
                         </div>
                     </div>
 
@@ -78,11 +78,34 @@
 
                         <label class="ys-admin-field">
                             <span class="ys-admin-label">Phone</span>
-                            <input type="text" name="customer_phone" value="{{ old('customer_phone') }}" class="ys-admin-input" placeholder="Phone">
+                            <input
+                                type="text"
+                                name="customer_phone"
+                                value="{{ old('customer_phone') }}"
+                                class="ys-admin-input ys-admin-pos-phone-input"
+                                placeholder="+63 912 345 6789"
+                                inputmode="tel"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                dir="ltr"
+                            >
                         </label>
                     </div>
 
                     <div class="ys-admin-pos-field-grid">
+                        <label class="ys-admin-field">
+                            <span class="ys-admin-label">Email</span>
+                            <input
+                                type="email"
+                                name="customer_email"
+                                value="{{ old('customer_email') }}"
+                                class="ys-admin-input"
+                                placeholder="Email"
+                                autocomplete="email"
+                            >
+                        </label>
+
                         <label class="ys-admin-field">
                             <span class="ys-admin-label">Payment</span>
                             <select name="payment_method" class="ys-admin-select">

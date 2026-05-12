@@ -1,6 +1,11 @@
 <?php
 
 use App\Models\Access\Role;
+use App\Models\Catalog\Category;
+use App\Models\Catalog\Product;
+use App\Models\Catalog\ProductVariant;
+use App\Models\Orders\Order;
+use App\Models\Orders\OrderReviewClaim;
 use App\Models\User;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,6 +24,84 @@ function ensureCustomerRoleExists(): void
             'is_system' => true,
         ],
     );
+}
+
+function registerClaimDestinationUrl(string $email): string
+{
+    $category = Category::factory()->create([
+        'name' => 'Register Claim Category',
+        'slug' => 'register-claim-category',
+        'is_active' => true,
+    ]);
+
+    $product = Product::factory()->for($category)->create([
+        'name' => 'Register Claim Product',
+        'slug' => 'register-claim-product',
+        'status' => 'active',
+        'base_price' => 4990,
+        'compare_at_price' => 5590,
+    ]);
+
+    $variant = ProductVariant::factory()->for($product)->create([
+        'name' => 'Size 8',
+        'sku' => 'YS-REG-CLAIM-001',
+        'option_values' => ['size' => '8', 'color' => 'Black'],
+        'status' => 'active',
+        'price' => 4990,
+    ]);
+
+    $variant->inventoryItem()->create([
+        'quantity_on_hand' => 6,
+        'reserved_quantity' => 0,
+        'reorder_level' => 2,
+        'allow_backorder' => false,
+    ]);
+
+    $order = Order::query()->create([
+        'user_id' => null,
+        'source' => 'walk_in',
+        'handled_by_user_id' => null,
+        'order_number' => 'YSP-REG-CLAIM-001',
+        'status' => 'completed',
+        'payment_status' => 'paid',
+        'fulfillment_status' => 'fulfilled',
+        'currency' => 'PHP',
+        'subtotal_amount' => 4990,
+        'discount_amount' => 0,
+        'shipping_amount' => 0,
+        'tax_amount' => 0,
+        'grand_total' => 4990,
+        'placed_at' => now(),
+        'customer_name' => 'Walk-in Customer',
+        'customer_email' => $email,
+        'payment_method' => 'cash',
+        'metadata' => ['walk_in' => true],
+    ]);
+
+    $order->items()->create([
+        'product_id' => $product->id,
+        'product_variant_id' => $variant->id,
+        'product_name' => $product->name,
+        'variant_name' => $variant->name,
+        'sku' => $variant->sku,
+        'quantity' => 1,
+        'unit_price' => 4990,
+        'line_total' => 4990,
+    ]);
+
+    $token = str_repeat('f', 64);
+
+    OrderReviewClaim::query()->create([
+        'order_id' => $order->id,
+        'claimed_by_user_id' => null,
+        'customer_email' => $email,
+        'token_hash' => hash('sha256', $token),
+        'expires_at' => now()->addDays(30),
+        'sent_at' => now(),
+        'used_at' => null,
+    ]);
+
+    return route('storefront.account.review-claims.show', ['token' => $token]);
 }
 
 test('valid registration creates a real customer account', function () {
@@ -217,4 +300,27 @@ test('registered user passwords are hashed before persistence', function () {
 
     expect($user->password)->not->toBe('Password123');
     expect(Hash::check('Password123', $user->password))->toBeTrue();
+});
+
+test('registration keeps a walk in review claim destination when the new account email matches', function () {
+    ensureCustomerRoleExists();
+    Notification::fake();
+    $claimUrl = registerClaimDestinationUrl('claim.register@example.com');
+
+    $this->get(route('register', ['intended' => $claimUrl]))
+        ->assertOk();
+
+    $this->post(route('register.store'), [
+        'name' => 'Claim Register Customer',
+        'email' => 'claim.register@example.com',
+        'password' => 'Password123',
+        'password_confirmation' => 'Password123',
+    ])
+        ->assertRedirect($claimUrl)
+        ->assertSessionHas('status', 'We sent a verification link to your email address.');
+
+    $user = User::query()->where('email', 'claim.register@example.com')->firstOrFail();
+
+    $this->assertAuthenticatedAs($user);
+    Notification::assertSentTo($user, VerifyEmail::class);
 });

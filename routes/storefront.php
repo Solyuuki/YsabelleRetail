@@ -11,6 +11,7 @@ use App\Http\Controllers\Storefront\SupportPageController;
 use App\Http\Controllers\Storefront\SupportTicketController;
 use App\Http\Controllers\Storefront\StorefrontAssistantController;
 use App\Http\Controllers\Storefront\StorefrontVisualSearchController;
+use App\Http\Controllers\Storefront\WalkInReviewClaimController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('storefront.home');
@@ -45,6 +46,15 @@ Route::prefix('cart')
         Route::post('/', [CartController::class, 'store'])->name('store');
         Route::patch('/items/{item}', [CartController::class, 'update'])->name('items.update');
         Route::delete('/items/{item}', [CartController::class, 'destroy'])->name('items.destroy');
+    });
+
+Route::prefix('account/review-claims')
+    ->as('storefront.account.review-claims.')
+    ->group(function (): void {
+        Route::get('/{token}', [WalkInReviewClaimController::class, 'show'])->name('show');
+        Route::post('/{token}', [WalkInReviewClaimController::class, 'store'])
+            ->middleware('auth')
+            ->name('store');
     });
 
 Route::prefix('assistant')

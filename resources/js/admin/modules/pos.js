@@ -48,7 +48,7 @@ const cartEmptyMarkup = `
         </span>
         <div>
             <p class="ys-admin-pos-empty-title">Add products to start</p>
-            <p class="ys-admin-pos-empty-copy">Search live inventory and tap a product card to build the current sale.</p>
+            <p class="ys-admin-pos-empty-copy">Search live inventory, choose the exact size and SKU, then add to the current sale.</p>
         </div>
     </div>
 `;
@@ -56,7 +56,7 @@ const cartEmptyMarkup = `
 const resultsEmptyMarkup = `
     <div class="ys-admin-pos-results-empty">
         <p class="ys-admin-pos-empty-title">No products found</p>
-        <p class="ys-admin-pos-empty-copy">Try a broader name, SKU, category, or variant search.</p>
+        <p class="ys-admin-pos-empty-copy">Try a broader product, SKU, category, color, or size search.</p>
     </div>
 `;
 
@@ -81,6 +81,8 @@ const normalizeLine = (line) => {
         name: line.name,
         variant_name: line.variant_name,
         variant_label: line.variant_label ?? line.variant_name,
+        size: line.size ?? null,
+        color: line.color ?? null,
         category_name: line.category_name,
         price: Number(line.price),
         available_quantity: availableQuantity,
@@ -88,6 +90,76 @@ const normalizeLine = (line) => {
         image_alt: line.image_alt ?? line.name,
         quantity: Math.max(1, Math.min(Number(line.quantity ?? 1), Math.max(availableQuantity, 1))),
     };
+};
+
+const normalizeCatalogVariant = (variant) => ({
+    ...normalizeLine(variant),
+    is_match: Boolean(variant.is_match),
+});
+
+const normalizeCatalogGroup = (group) => ({
+    id: String(group.id),
+    product_id: Number(group.product_id ?? 0),
+    name: group.name,
+    category_name: group.category_name,
+    color: group.color ?? 'Unspecified color',
+    image_url: group.image_url ?? null,
+    image_alt: group.image_alt ?? group.name,
+    price: Number(group.price ?? 0),
+    price_min: Number(group.price_min ?? group.price ?? 0),
+    price_max: Number(group.price_max ?? group.price ?? 0),
+    has_price_range: Boolean(group.has_price_range),
+    available_quantity: Number(group.available_quantity ?? 0),
+    variant_count: Number(group.variant_count ?? 0),
+    badges: Array.isArray(group.badges) ? group.badges : [],
+    matched_variant_ids: Array.isArray(group.matched_variant_ids)
+        ? group.matched_variant_ids.map((id) => Number(id))
+        : [],
+    variants: Array.isArray(group.variants)
+        ? group.variants.map(normalizeCatalogVariant)
+        : [],
+});
+
+const formatCatalogPrice = (group) => {
+    if (group.has_price_range) {
+        return `${peso}${toCurrency(group.price_min)} - ${peso}${toCurrency(group.price_max)}`;
+    }
+
+    return `${peso}${toCurrency(group.price)}`;
+};
+
+const formatVariantSize = (variant) => variant.size ? `Size ${variant.size}` : variant.variant_name;
+
+const formatVariantOption = (variant, showPrice = true) => {
+    const parts = [];
+
+    parts.push(formatVariantSize(variant));
+    parts.push(variant.sku);
+    parts.push(`${variant.available_quantity} in stock`);
+
+    if (showPrice) {
+        parts.push(`${peso}${toCurrency(variant.price)}`);
+    }
+
+    return parts.join(' / ');
+};
+
+const formatVariantPreview = (variant, showPrice = true) => {
+    if (!variant) {
+        return 'Choose an exact size and SKU to preview the variant details here.';
+    }
+
+    const details = [
+        formatVariantSize(variant),
+        `SKU ${variant.sku}`,
+        `${variant.available_quantity} in stock`,
+    ];
+
+    if (showPrice) {
+        details.push(`${peso}${toCurrency(variant.price)}`);
+    }
+
+    return details.join(' / ');
 };
 
 const getDiscountAmount = (root, subtotal) => {
@@ -242,37 +314,78 @@ const renderResults = (root, state) => {
         return;
     }
 
-    results.innerHTML = state.catalog.map((item) => {
-        const selectedLine = state.lines.find((line) => line.id === item.id);
-        const selected = Boolean(selectedLine);
-        const disabled = item.available_quantity < 1;
+    results.innerHTML = state.catalog.map((group) => {
+        const selectedVariantId = Number(state.selectedVariants[group.id] ?? 0);
+        const selectedVariant = group.variants.find((variant) => variant.id === selectedVariantId) ?? null;
+        const selectedLineCount = state.lines.filter((line) => group.variants.some((variant) => variant.id === line.id)).length;
+        const hasSelection = selectedVariant !== null;
+        const canAdd = hasSelection && selectedVariant.available_quantity > 0;
+        const stockLabel = group.available_quantity > 0
+            ? `${group.available_quantity} total in stock`
+            : 'Out of stock';
+        const pickerPreview = formatVariantPreview(selectedVariant, group.has_price_range);
+        const badges = [
+            ...group.badges,
+            ...(selectedLineCount > 0 ? [selectedLineCount > 1 ? `${selectedLineCount} in sale` : 'In sale'] : []),
+        ];
 
         return `
-            <button
-                type="button"
-                class="ys-admin-pos-card ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}"
-                data-pos-add="${item.id}"
-                ${disabled ? 'disabled' : ''}
-            >
+            <article class="ys-admin-pos-card ${selectedLineCount > 0 ? 'is-selected' : ''} ${group.available_quantity < 1 ? 'is-disabled' : ''}" data-pos-card="${escapeHtml(group.id)}">
                 <div class="ys-admin-pos-card-media">
-                    ${productImageMarkup(item)}
-                    ${selected ? '<span class="ys-admin-pos-card-badge">In sale</span>' : ''}
+                    ${productImageMarkup(group)}
+                    ${badges.length > 0 ? `
+                        <div class="ys-admin-pos-card-badges">
+                            ${badges.map((badge) => `<span class="ys-admin-pos-card-badge">${escapeHtml(badge)}</span>`).join('')}
+                        </div>
+                    ` : ''}
                 </div>
 
                 <div class="ys-admin-pos-card-body">
                     <div>
-                        <p class="ys-admin-pos-card-title">${escapeHtml(item.name)}</p>
-                        <p class="ys-admin-pos-card-subtitle">${escapeHtml(item.category_name)}</p>
-                        <p class="ys-admin-pos-card-variant">${escapeHtml(item.variant_label)}</p>
-                        <p class="ys-admin-pos-card-sku">${escapeHtml(item.sku)}</p>
+                        <p class="ys-admin-pos-card-title">${escapeHtml(group.name)}</p>
+                        <p class="ys-admin-pos-card-subtitle">${escapeHtml(group.category_name)}</p>
+                        <p class="ys-admin-pos-card-variant">${escapeHtml(group.color)}</p>
+                        <p class="ys-admin-pos-card-sku">${escapeHtml(`${group.variant_count} size options`)}</p>
                     </div>
 
                     <div class="ys-admin-pos-card-foot">
-                        <strong class="ys-admin-pos-card-price">${peso}${toCurrency(item.price)}</strong>
-                        <span class="ys-admin-pos-card-stock">${disabled ? 'Out of stock' : `x${item.available_quantity}`}</span>
+                        <strong class="ys-admin-pos-card-price">${formatCatalogPrice(group)}</strong>
+                        <span class="ys-admin-pos-card-stock">${escapeHtml(stockLabel)}</span>
                     </div>
+
+                    <label class="ys-admin-pos-picker">
+                        <span class="ys-admin-pos-picker-label">Size / SKU</span>
+                        <select
+                            class="ys-admin-pos-picker-select"
+                            data-pos-variant-picker="${escapeHtml(group.id)}"
+                            title="${escapeHtml(pickerPreview)}"
+                        >
+                            <option value="">Choose exact size and SKU</option>
+                            ${group.variants.map((variant) => `
+                                <option
+                                    value="${variant.id}"
+                                    ${variant.id === selectedVariantId ? 'selected' : ''}
+                                    ${variant.available_quantity < 1 ? 'disabled' : ''}
+                                >
+                                    ${escapeHtml(formatVariantOption(variant, group.has_price_range))}
+                                </option>
+                            `).join('')}
+                        </select>
+                        <p class="ys-admin-pos-picker-preview ${hasSelection ? 'is-selected' : 'is-placeholder'}">
+                            ${escapeHtml(pickerPreview)}
+                        </p>
+                    </label>
+
+                    <button
+                        type="button"
+                        class="ys-admin-button-primary ys-admin-pos-card-action"
+                        data-pos-add-group="${escapeHtml(group.id)}"
+                        ${canAdd ? '' : 'disabled'}
+                    >
+                        ${hasSelection ? 'Add selected variant' : 'Choose size to add'}
+                    </button>
                 </div>
-            </button>
+            </article>
         `;
     }).join('');
 
@@ -301,6 +414,7 @@ export const initAdminPos = () => {
             .filter((line) => line && typeof line.id === 'number')
             .map(normalizeLine),
         catalog: [],
+        selectedVariants: {},
         searchTerm: '',
         loading: false,
         requestId: 0,
@@ -339,6 +453,38 @@ export const initAdminPos = () => {
         refresh();
     };
 
+    const syncLineAvailability = () => {
+        const variantsById = new Map();
+
+        state.catalog.forEach((group) => {
+            group.variants.forEach((variant) => {
+                variantsById.set(variant.id, variant);
+            });
+
+            const selectedVariantId = Number(state.selectedVariants[group.id] ?? 0);
+
+            if (selectedVariantId > 0 && !group.variants.some((variant) => variant.id === selectedVariantId)) {
+                delete state.selectedVariants[group.id];
+            }
+        });
+
+        state.lines.forEach((line) => {
+            const current = variantsById.get(line.id);
+
+            if (!current) {
+                return;
+            }
+
+            line.available_quantity = current.available_quantity;
+            line.price = current.price;
+            line.variant_label = current.variant_label;
+            line.sku = current.sku;
+            line.size = current.size;
+            line.color = current.color;
+            line.quantity = Math.max(1, Math.min(line.quantity, Math.max(current.available_quantity, 1)));
+        });
+    };
+
     const loadResults = async (nextPage = state.page) => {
         if (!endpoint) {
             return;
@@ -373,19 +519,9 @@ export const initAdminPos = () => {
                 return;
             }
 
-            state.catalog = (payload.data || []).map(normalizeLine);
+            state.catalog = (payload.data || []).map(normalizeCatalogGroup);
             state.meta = payload.meta ?? null;
-
-            state.catalog.forEach((item) => {
-                const selectedLine = state.lines.find((line) => line.id === item.id);
-
-                if (!selectedLine) {
-                    return;
-                }
-
-                selectedLine.available_quantity = item.available_quantity;
-                selectedLine.quantity = Math.max(1, Math.min(selectedLine.quantity, item.available_quantity));
-            });
+            syncLineAvailability();
         } catch (error) {
             if (state.requestId !== currentRequestId) {
                 return;
@@ -423,7 +559,7 @@ export const initAdminPos = () => {
             }
 
             const nextQuantity = Number(quantityField.value || 1);
-            line.quantity = Math.max(1, Math.min(nextQuantity, line.available_quantity));
+            line.quantity = Math.max(1, Math.min(nextQuantity, Math.max(line.available_quantity, 1)));
             refresh();
             return;
         }
@@ -433,14 +569,40 @@ export const initAdminPos = () => {
         }
     });
 
+    root.addEventListener('change', (event) => {
+        const picker = event.target.closest('[data-pos-variant-picker]');
+
+        if (!picker) {
+            return;
+        }
+
+        const groupId = picker.dataset.posVariantPicker;
+        const selectedVariantId = picker.value ? Number(picker.value) : null;
+
+        if (!groupId) {
+            return;
+        }
+
+        if (selectedVariantId && Number.isFinite(selectedVariantId)) {
+            state.selectedVariants[groupId] = selectedVariantId;
+        } else {
+            delete state.selectedVariants[groupId];
+        }
+
+        refresh();
+    });
+
     root.addEventListener('click', (event) => {
-        const addButton = event.target.closest('[data-pos-add]');
+        const addButton = event.target.closest('[data-pos-add-group]');
 
         if (addButton) {
-            const item = state.catalog.find((entry) => entry.id === Number(addButton.dataset.posAdd));
+            const group = state.catalog.find((entry) => entry.id === String(addButton.dataset.posAddGroup));
+            const selectedVariantId = group ? Number(state.selectedVariants[group.id] ?? 0) : 0;
+            const variant = group?.variants.find((entry) => entry.id === selectedVariantId);
 
-            if (item) {
-                addLine(item, addButton);
+            if (variant) {
+                const card = addButton.closest('[data-pos-card]');
+                addLine(variant, card || addButton);
             }
 
             return;
@@ -465,7 +627,7 @@ export const initAdminPos = () => {
                 return;
             }
 
-            line.quantity = Math.max(1, Math.min(line.quantity + direction, line.available_quantity));
+            line.quantity = Math.max(1, Math.min(line.quantity + direction, Math.max(line.available_quantity, 1)));
             refresh();
             return;
         }

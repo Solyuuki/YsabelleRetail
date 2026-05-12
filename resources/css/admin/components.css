@@ -623,7 +623,7 @@
     }
 
     .ys-admin-pos-card {
-        @apply flex h-full flex-col overflow-hidden rounded-[1.2rem] border border-white/7 bg-white/[0.02] text-left transition;
+        @apply flex h-full flex-col rounded-[1.2rem] border border-white/7 bg-white/[0.02] text-left transition;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
@@ -654,7 +654,7 @@
     }
 
     .ys-admin-pos-card-media {
-        @apply relative overflow-hidden border-b border-white/6 bg-[#070a0f];
+        @apply relative overflow-hidden rounded-t-[1.2rem] border-b border-white/6 bg-[#070a0f];
         aspect-ratio: 1 / 0.95;
     }
 
@@ -679,15 +679,20 @@
     }
 
     .ys-admin-pos-card-badge {
-        @apply absolute right-3 top-3 inline-flex items-center rounded-full border border-ys-gold/20 bg-[#17120a]/88 px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-ys-gold;
+        @apply inline-flex items-center rounded-full border border-ys-gold/20 bg-[#17120a]/88 px-2.5 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-ys-gold;
+    }
+
+    .ys-admin-pos-card-badges {
+        @apply absolute right-3 top-3 flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-2;
     }
 
     .ys-admin-pos-card-body {
-        @apply flex flex-1 flex-col justify-between gap-4 p-4;
+        @apply flex min-w-0 flex-1 flex-col justify-between gap-4 p-4;
     }
 
     .ys-admin-pos-card-title {
         @apply text-base font-semibold text-ys-ivory;
+        overflow-wrap: anywhere;
     }
 
     .ys-admin-pos-card-subtitle {
@@ -696,14 +701,16 @@
 
     .ys-admin-pos-card-variant {
         @apply mt-3 text-sm font-medium text-ys-ivory/72;
+        overflow-wrap: anywhere;
     }
 
     .ys-admin-pos-card-sku {
         @apply mt-2 text-xs text-ys-ivory/38;
+        overflow-wrap: anywhere;
     }
 
     .ys-admin-pos-card-foot {
-        @apply flex items-end justify-between gap-3;
+        @apply flex min-w-0 items-end justify-between gap-3;
     }
 
     .ys-admin-pos-card-price {
@@ -712,6 +719,40 @@
 
     .ys-admin-pos-card-stock {
         @apply text-xs text-ys-ivory/44;
+    }
+
+    .ys-admin-pos-picker {
+        @apply space-y-2;
+    }
+
+    .ys-admin-pos-picker-label {
+        @apply text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-ys-ivory/42;
+    }
+
+    .ys-admin-pos-picker-select {
+        @apply min-h-11 w-full max-w-full rounded-[0.95rem] border border-white/9 bg-[#0b1118] px-3 py-2.5 pr-10 text-sm text-ys-ivory placeholder:text-ys-ivory/28 focus:border-ys-gold/45 focus:outline-none;
+        min-width: 0;
+    }
+
+    .ys-admin-pos-picker-preview {
+        @apply min-h-12 rounded-[0.95rem] border px-3 py-2.5 text-xs leading-5;
+        overflow-wrap: anywhere;
+    }
+
+    .ys-admin-pos-picker-preview.is-placeholder {
+        @apply border-dashed border-white/10 bg-white/[0.02] text-ys-ivory/38;
+    }
+
+    .ys-admin-pos-picker-preview.is-selected {
+        @apply border-white/8 bg-[#121926] text-ys-ivory/74;
+    }
+
+    .ys-admin-pos-card-action {
+        @apply mt-auto w-full justify-center text-sm;
+    }
+
+    .ys-admin-pos-card-action:disabled {
+        @apply cursor-not-allowed border-white/8 bg-[#4f411f] text-[#e6d4a2] opacity-75 shadow-none;
     }
 
     .ys-admin-pos-skeleton-line {
@@ -793,11 +834,20 @@
     }
 
     .ys-admin-pos-field-grid {
-        @apply grid gap-4 md:grid-cols-2;
+        @apply grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)];
     }
 
     .ys-admin-pos-field-grid.is-single {
         @apply mt-4 md:grid-cols-1;
+    }
+
+    .ys-admin-pos-field-grid > .ys-admin-field {
+        min-width: 0;
+    }
+
+    .ys-admin-pos-phone-input {
+        font-variant-numeric: tabular-nums;
+        unicode-bidi: plaintext;
     }
 
     .ys-admin-pos-summary {

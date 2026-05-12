@@ -6,10 +6,13 @@ use App\Models\Catalog\Product;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Inventory\InventoryImportBatch;
 use App\Models\Orders\Order;
+use App\Models\Orders\OrderReviewClaim;
 use App\Models\User;
+use App\Mail\Orders\WalkInReviewClaimMail;
 use App\Support\Admin\InventoryMovementType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 
 uses(RefreshDatabase::class);
 
@@ -351,12 +354,16 @@ test('batch stock template downloads successfully', function () {
         ->assertDownload('ysabelle-stock-import-template.csv');
 });
 
-test('walk in pos sale deducts shared inventory and creates audited order records', function () {
+test('walk in pos sale deducts shared inventory creates audited order records and stores optional customer contacts', function () {
     $admin = createAdminUser();
     $variant = createInventoryVariant(7, ['price' => 1599]);
+    $formattedPhone = '+1 (555) 123-4567';
+    Mail::fake();
 
     $response = $this->actingAs($admin)
         ->post(route('admin.pos.store'), [
+            'customer_email' => '  Pos.Buyer@Example.com  ',
+            'customer_phone' => $formattedPhone,
             'payment_method' => 'cash',
             'payment_status' => 'paid',
             'notes' => 'Counter sale',
@@ -367,6 +374,7 @@ test('walk in pos sale deducts shared inventory and creates audited order record
         ->assertRedirect();
 
     $order = Order::query()->latest('id')->firstOrFail();
+    $item = $order->items()->firstOrFail();
     $variant->refresh();
     $variant->load('inventoryItem');
 
@@ -374,9 +382,20 @@ test('walk in pos sale deducts shared inventory and creates audited order record
         ->and($order->payment_status)->toBe('paid')
         ->and($order->payment_method)->toBe('cash')
         ->and($order->customer_name)->toBe('Walk-in Customer')
-        ->and($order->customer_phone)->toBeNull()
+        ->and($order->customer_email)->toBe('pos.buyer@example.com')
+        ->and($order->customer_phone)->toBe($formattedPhone)
+        ->and($item->product_variant_id)->toBe($variant->id)
+        ->and($item->sku)->toBe($variant->sku)
+        ->and($item->variant_name)->toBe($variant->name)
         ->and((int) $variant->inventoryItem->quantity_on_hand)->toBe(5)
         ->and($response->headers->get('Location'))->toContain(route('admin.orders.show', $order, false));
+
+    $claim = OrderReviewClaim::query()->where('order_id', $order->id)->first();
+
+    expect($claim)->not->toBeNull()
+        ->and($claim?->customer_email)->toBe('pos.buyer@example.com')
+        ->and($claim?->sent_at)->not->toBeNull()
+        ->and($claim?->used_at)->toBeNull();
 
     $this->assertDatabaseHas('stock_movements', [
         'product_variant_id' => $variant->id,
@@ -385,11 +404,144 @@ test('walk in pos sale deducts shared inventory and creates audited order record
         'quantity_delta' => -2,
         'actor_id' => $admin->id,
     ]);
+
+    Mail::assertSent(WalkInReviewClaimMail::class, function (WalkInReviewClaimMail $mail) use ($order): bool {
+        return $mail->claim->order->is($order)
+            && $mail->hasTo('pos.buyer@example.com')
+            && str_contains($mail->claimUrl, '/account/review-claims/');
+    });
 });
 
-test('walk in pos search returns paginated real variants with accurate labels', function () {
+test('walk in pos accepts flexible international phone formats and preserves readable formatting', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(10, ['price' => 1599]);
+    $phones = [
+        '09123456789',
+        '+639123456789',
+        '639123456789',
+        '+1 (555) 123-4567',
+        '+44 20 7946 0958',
+    ];
+
+    foreach ($phones as $index => $phone) {
+        $this->actingAs($admin)
+            ->post(route('admin.pos.store'), [
+                'customer_phone' => $phone,
+                'payment_method' => 'cash',
+                'payment_status' => 'paid',
+                'lines_json' => json_encode([
+                    ['variant_id' => $variant->id, 'quantity' => 1],
+                ], JSON_THROW_ON_ERROR),
+            ])
+            ->assertRedirect();
+
+        $order = Order::query()->latest('id')->firstOrFail();
+
+        expect($order->customer_phone)->toBe($phone)
+            ->and($order->items()->firstOrFail()->product_variant_id)->toBe($variant->id)
+            ->and(Order::query()->count())->toBe($index + 1);
+    }
+});
+
+test('walk in pos does not generate a review claim when no email is provided', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(8, ['price' => 1599]);
+    Mail::fake();
+
+    $this->actingAs($admin)
+        ->post(route('admin.pos.store'), [
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'lines_json' => json_encode([
+                ['variant_id' => $variant->id, 'quantity' => 1],
+            ], JSON_THROW_ON_ERROR),
+        ])
+        ->assertRedirect();
+
+    $order = Order::query()->latest('id')->firstOrFail();
+
+    expect($order->customer_email)->toBeNull()
+        ->and(OrderReviewClaim::query()->where('order_id', $order->id)->exists())->toBeFalse();
+
+    Mail::assertNothingSent();
+});
+
+test('walk in pos rejects invalid optional customer email', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(7, ['price' => 1599]);
+
+    $this->from(route('admin.pos.create'))
+        ->actingAs($admin)
+        ->post(route('admin.pos.store'), [
+            'customer_email' => 'not-an-email',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'lines_json' => json_encode([
+                ['variant_id' => $variant->id, 'quantity' => 1],
+            ], JSON_THROW_ON_ERROR),
+        ])
+        ->assertRedirect(route('admin.pos.create'))
+        ->assertSessionHasErrors(['customer_email']);
+
+    expect(Order::query()->count())->toBe(0);
+});
+
+test('walk in pos rejects clearly invalid optional customer phone values', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(7, ['price' => 1599]);
+    $invalidPhones = [
+        'abcdefg',
+        '12345',
+        '+123456789012345678901',
+        '+63<script>',
+    ];
+
+    foreach ($invalidPhones as $phone) {
+        $this->from(route('admin.pos.create'))
+            ->actingAs($admin)
+            ->post(route('admin.pos.store'), [
+                'customer_phone' => $phone,
+                'payment_method' => 'cash',
+                'payment_status' => 'paid',
+                'lines_json' => json_encode([
+                    ['variant_id' => $variant->id, 'quantity' => 1],
+                ], JSON_THROW_ON_ERROR),
+            ])
+            ->assertRedirect(route('admin.pos.create'))
+            ->assertSessionHasErrors(['customer_phone']);
+    }
+
+    expect(Order::query()->count())->toBe(0);
+});
+
+test('walk in pos search returns paginated product color groups with variant picker data', function () {
     $admin = createAdminUser();
     $running = Category::factory()->create(['name' => 'Running']);
+
+    collect(range(1, 8))->each(function (int $index) use ($running): void {
+        $size = $index + 6;
+
+        $product = Product::factory()->for($running)->create([
+            'name' => "Running Filler {$index}",
+            'status' => 'active',
+        ]);
+
+        $variant = ProductVariant::factory()->for($product)->create([
+            'name' => "Size {$size}",
+            'sku' => "YSP-FILLER-{$index}",
+            'status' => 'active',
+            'price' => 1999 + $index,
+            'option_values' => ['size' => (string) $size, 'color' => 'Grey/White'],
+        ]);
+
+        $variant->inventoryItem()->create([
+            'quantity_on_hand' => 3 + $index,
+            'reserved_quantity' => 0,
+            'reorder_level' => 1,
+            'allow_backorder' => false,
+        ]);
+    });
+
     $product = Product::factory()->for($running)->create([
         'name' => 'Aurum Runner',
         'status' => 'active',
@@ -424,22 +576,19 @@ test('walk in pos search returns paginated real variants with accurate labels', 
         'allow_backorder' => false,
     ]);
 
-    collect(range(10, 18))->each(function (int $size) use ($product): void {
-        $variant = ProductVariant::factory()->for($product)->create([
-            'name' => "Size {$size}",
-            'sku' => "YSP-AURUM-{$size}",
-            'status' => 'active',
-            'price' => 2499 + $size,
-            'option_values' => ['size' => (string) $size, 'color' => 'Black/Gold'],
-        ]);
-
-        $variant->inventoryItem()->create([
-            'quantity_on_hand' => 4,
-            'reserved_quantity' => 0,
-            'reorder_level' => 1,
-            'allow_backorder' => false,
-        ]);
-    });
+    $thirdVariant = ProductVariant::factory()->for($product)->create([
+        'name' => 'Size 8 / White/Navy',
+        'sku' => 'YSP-AURUM-WHT-8',
+        'status' => 'active',
+        'price' => 2699,
+        'option_values' => ['size' => '8', 'color' => 'White/Navy'],
+    ]);
+    $thirdVariant->inventoryItem()->create([
+        'quantity_on_hand' => 2,
+        'reserved_quantity' => 0,
+        'reorder_level' => 1,
+        'allow_backorder' => false,
+    ]);
 
     $response = $this->actingAs($admin)
         ->getJson(route('admin.pos.search', ['search' => 'Running', 'page' => 1]))
@@ -448,7 +597,8 @@ test('walk in pos search returns paginated real variants with accurate labels', 
 
     expect($response['meta']['per_page'])->toBe(8)
         ->and($response['meta']['current_page'])->toBe(1)
-        ->and($response['meta']['last_page'])->toBeGreaterThanOrEqual(2)
+        ->and($response['meta']['last_page'])->toBe(2)
+        ->and($response['meta']['total'])->toBe(10)
         ->and(collect($response['data'])->pluck('id')->duplicates()->isEmpty())->toBeTrue();
 
     $skuResponse = $this->actingAs($admin)
@@ -457,12 +607,29 @@ test('walk in pos search returns paginated real variants with accurate labels', 
         ->json();
 
     expect($skuResponse['meta']['total'])->toBe(1)
-        ->and($skuResponse['data'][0]['sku'])->toBe('YSP-AURUM-8')
         ->and($skuResponse['data'][0]['name'])->toBe('Aurum Runner')
         ->and($skuResponse['data'][0]['category_name'])->toBe('Running')
-        ->and($skuResponse['data'][0]['variant_label'])->toBe('Size 8 / Color Black/Gold')
-        ->and($skuResponse['data'][0]['available_quantity'])->toBe(5)
-        ->and($skuResponse['data'][0]['image_url'])->toBe('https://example.com/aurum.jpg');
+        ->and($skuResponse['data'][0]['color'])->toBe('Black/Gold')
+        ->and($skuResponse['data'][0]['available_quantity'])->toBe(10)
+        ->and($skuResponse['data'][0]['variant_count'])->toBe(2)
+        ->and($skuResponse['data'][0]['image_url'])->toBe('https://example.com/aurum.jpg')
+        ->and($skuResponse['data'][0]['matched_variant_ids'])->toBe([$firstVariant->id])
+        ->and(collect($skuResponse['data'][0]['variants'])->pluck('sku')->all())->toBe([
+            'YSP-AURUM-8',
+            'YSP-AURUM-9',
+        ])
+        ->and($skuResponse['data'][0]['variants'][0]['variant_label'])->toBe('Size 8 / Color Black/Gold')
+        ->and($skuResponse['data'][0]['variants'][0]['available_quantity'])->toBe(5)
+        ->and($skuResponse['data'][0]['variants'][0]['is_match'])->toBeTrue();
+
+    $colorResponse = $this->actingAs($admin)
+        ->getJson(route('admin.pos.search', ['search' => 'White/Navy', 'page' => 1]))
+        ->assertOk()
+        ->json();
+
+    expect($colorResponse['meta']['total'])->toBe(1)
+        ->and($colorResponse['data'][0]['color'])->toBe('White/Navy')
+        ->and(collect($colorResponse['data'][0]['variants'])->pluck('sku')->all())->toBe(['YSP-AURUM-WHT-8']);
 });
 
 test('report pages and exports are available to admins with valid filters', function () {

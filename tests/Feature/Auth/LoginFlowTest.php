@@ -76,6 +76,22 @@ test('customer login redirects to the storefront account area by default', funct
     ])->assertRedirect(route('storefront.account.index'));
 });
 
+test('customer login respects an intended walk in review claim destination', function () {
+    $customer = makeUserWithRole('customer', [
+        'email' => 'claim.login@example.com',
+        'password' => 'Password123x',
+    ]);
+    $claimUrl = url('/account/review-claims/'.str_repeat('1', 64));
+
+    $this->get(route('login', ['intended' => $claimUrl]))
+        ->assertOk();
+
+    $this->post(route('login.store'), [
+        'email' => $customer->email,
+        'password' => 'Password123x',
+    ])->assertRedirect($claimUrl);
+});
+
 test('manual login does not enable remember me unless explicitly requested', function () {
     $customer = makeUserWithRole('customer', [
         'email' => 'remember.off@example.com',

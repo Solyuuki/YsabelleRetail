@@ -7,6 +7,7 @@ use App\Models\Catalog\ProductVariant;
 use App\Models\Orders\Order;
 use App\Models\User;
 use App\Services\Inventory\InventoryManager;
+use App\Services\Orders\WalkInReviewClaimService;
 use App\Support\OrderNumberGenerator;
 use Illuminate\Support\Facades\DB;
 
@@ -16,11 +17,12 @@ class WalkInSaleService
         private readonly AdminActivityLogger $activityLogger,
         private readonly InventoryManager $inventoryManager,
         private readonly OrderNumberGenerator $orderNumbers,
+        private readonly WalkInReviewClaimService $reviewClaims,
     ) {}
 
     public function create(array $payload, User $cashier): Order
     {
-        return DB::transaction(function () use ($payload, $cashier): Order {
+        $order = DB::transaction(function () use ($payload, $cashier): Order {
             $lines = collect($payload['lines']);
             $variants = ProductVariant::query()
                 ->with(['product', 'inventoryItem'])
@@ -59,7 +61,7 @@ class WalkInSaleService
                 'placed_at' => now(),
                 'notes' => $payload['notes'] ?: null,
                 'customer_name' => $payload['customer_name'] ?: 'Walk-in Customer',
-                'customer_email' => null,
+                'customer_email' => $payload['customer_email'] ?: null,
                 'customer_phone' => $payload['customer_phone'] ?: null,
                 'shipping_city' => null,
                 'shipping_address_line' => null,
@@ -119,5 +121,9 @@ class WalkInSaleService
 
             return $order;
         });
+
+        $this->reviewClaims->issueAndSendForEligibleOrder($order);
+
+        return $order;
     }
 }
