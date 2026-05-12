@@ -57,8 +57,20 @@
                         @foreach ($order->items as $item)
                             <tr>
                                 <td>
-                                    <p class="font-semibold text-ys-ivory">{{ $item->product_name }}</p>
-                                    <p class="text-xs text-ys-ivory/38">{{ $item->variant_name }}</p>
+                                    <div class="flex items-center gap-3">
+                                        <x-storefront.product-media
+                                            :image-url="$item->product_image_url"
+                                            :alt="$item->product_image_alt"
+                                            :title="$item->product_name"
+                                            eyebrow="Order Item"
+                                            class="h-14 w-14 rounded-xl border border-white/6"
+                                            fallback-class="p-2.5"
+                                        />
+                                        <div>
+                                            <p class="font-semibold text-ys-ivory">{{ $item->product_name }}</p>
+                                            <p class="text-xs text-ys-ivory/38">{{ $item->variant_name }}</p>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td>{{ $item->sku }}</td>
                                 <td>{{ $item->quantity }}</td>

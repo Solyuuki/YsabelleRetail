@@ -11,11 +11,25 @@ class AuthenticatedRedirector
 {
     private const ADMIN_PORTAL = 'admin';
 
+    private const STOREFRONT_PORTAL = 'storefront';
+
     private const LOGIN_PORTAL_SESSION_KEY = 'auth.login_portal';
 
     public function rememberLoginContext(Request $request): void
     {
-        $portal = $this->normalizePortal($request->query('portal'));
+        [$portalProvided, $portal] = $this->resolvePortal($request);
+
+        if ($portalProvided && $portal === self::STOREFRONT_PORTAL) {
+            if ($intended = $this->normalizeIntendedUrl($request->input('intended', $request->query('intended')))) {
+                $request->session()->put('url.intended', $intended);
+            } elseif ($this->isAdminDestination($request->session()->get('url.intended'))) {
+                $request->session()->forget('url.intended');
+            }
+
+            $request->session()->forget(self::LOGIN_PORTAL_SESSION_KEY);
+
+            return;
+        }
 
         if ($portal === self::ADMIN_PORTAL) {
             $request->session()->put('url.intended', route('admin.dashboard'));
@@ -24,7 +38,7 @@ class AuthenticatedRedirector
             return;
         }
 
-        if ($intended = $this->normalizeIntendedUrl($request->query('intended'))) {
+        if ($intended = $this->normalizeIntendedUrl($request->input('intended', $request->query('intended')))) {
             $request->session()->put('url.intended', $intended);
         }
 
@@ -39,8 +53,15 @@ class AuthenticatedRedirector
 
     public function isAdminPortal(Request $request): bool
     {
+        return $this->currentPortal($request) === self::ADMIN_PORTAL;
+    }
+
+    public function currentPortal(Request $request): string
+    {
         return $request->session()->get(self::LOGIN_PORTAL_SESSION_KEY) === self::ADMIN_PORTAL
-            || $this->isAdminDestination($request->session()->get('url.intended'));
+            || $this->isAdminDestination($request->session()->get('url.intended'))
+                ? self::ADMIN_PORTAL
+                : self::STOREFRONT_PORTAL;
     }
 
     public function redirectAfterLogin(Request $request, User $user): RedirectResponse
@@ -108,7 +129,27 @@ class AuthenticatedRedirector
 
         $portal = Str::lower(trim($portal));
 
-        return $portal === self::ADMIN_PORTAL ? self::ADMIN_PORTAL : null;
+        return match ($portal) {
+            self::ADMIN_PORTAL => self::ADMIN_PORTAL,
+            self::STOREFRONT_PORTAL => self::STOREFRONT_PORTAL,
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{0: bool, 1: string|null}
+     */
+    private function resolvePortal(Request $request): array
+    {
+        if ($request->request->has('portal')) {
+            return [true, $this->normalizePortal($request->input('portal'))];
+        }
+
+        if ($request->query->has('portal')) {
+            return [true, $this->normalizePortal($request->query('portal'))];
+        }
+
+        return [false, null];
     }
 
     private function isAdminDestination(mixed $intended): bool

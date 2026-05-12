@@ -3,6 +3,7 @@
 namespace App\Services\Storefront;
 
 use App\Models\Catalog\Product;
+use App\Services\Storefront\Assistant\StorefrontCommerceQueryParser;
 use App\Support\Storefront\ProductMediaResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -26,6 +27,7 @@ class ProductDiscoveryService
         'running' => ['running'],
         'walking' => ['walking-shoes', 'running'],
         'gym' => ['training-shoes', 'basketball-shoes'],
+        'hiking' => ['boots-high-cut', 'walking-shoes'],
         'performance' => ['basketball-shoes', 'training-shoes', 'running'],
     ];
 
@@ -41,28 +43,33 @@ class ProductDiscoveryService
 
     private const STOP_WORDS = [
         'a', 'an', 'and', 'are', 'by', 'cart', 'checkout', 'choose', 'daily', 'do', 'find', 'for', 'from', 'have',
-        'help', 'i', 'image', 'in', 'is', 'it', 'like', 'me', 'my', 'need', 'of', 'on', 'or', 'please', 'recommend',
-        'search', 'shoe', 'shoes', 'show', 'similar', 'something', 'that', 'the', 'to', 'under', 'use', 'want', 'what',
-        'with',
+        'help', 'i', 'image', 'in', 'is', 'it', 'kayo', 'like', 'may', 'me', 'my', 'na', 'need', 'ng', 'nito', 'of',
+        'on', 'or', 'please', 'recommend', 'search', 'shoe', 'shoes', 'show', 'similar', 'something', 'that', 'the',
+        'to', 'under', 'use', 'want', 'what', 'with', 'yung',
     ];
 
     public function __construct(
         private readonly ProductMediaResolver $productMedia,
+        private readonly StorefrontCommerceQueryParser $commerceQueryParser,
     ) {}
 
-    public function buildCriteriaFromText(string $text): array
+    public function buildCriteriaFromText(string $text, array $commerce = []): array
     {
         $normalized = Str::lower(trim($text));
+        $commerce = $commerce === [] ? $this->commerceQueryParser->parse($text) : $commerce;
 
         return $this->normalizeCriteria([
-            'search' => $text,
-            'category' => $this->detectCategory($normalized),
-            'color' => $this->detectColor($normalized),
-            'use_case' => $this->detectUseCase($normalized),
-            'size' => $this->detectSize($normalized),
-            'max_price' => $this->detectMaxPrice($normalized),
-            'min_price' => $this->detectMinPrice($normalized),
-            'keywords' => $this->keywordsFromText($text),
+            'search' => $commerce['query'] ?? $text,
+            'product_name' => $commerce['entities']['product_name'] ?? null,
+            'category' => $commerce['entities']['category'] ?? $this->detectCategory($normalized),
+            'color' => $commerce['entities']['color'] ?? $this->detectColor($normalized),
+            'use_case' => $commerce['entities']['use_case'] ?? $this->detectUseCase($normalized),
+            'size' => $commerce['entities']['size'] ?? $this->detectSize($normalized),
+            'max_price' => $commerce['entities']['budget_max'] ?? $this->commerceMaxPrice($normalized),
+            'min_price' => $commerce['entities']['budget_min'] ?? $this->commerceMinPrice($normalized),
+            'gender' => $commerce['entities']['gender'] ?? null,
+            'affordable' => (bool) ($commerce['flags']['affordable'] ?? false),
+            'keywords' => $commerce['keywords'] ?? $this->keywordsFromText($text),
         ]);
     }
 
@@ -84,19 +91,23 @@ class ProductDiscoveryService
         $color = $criteria['color'] ?? $this->detectColor((string) ($criteria['search'] ?? ''));
         $useCase = $criteria['use_case'] ?? $this->detectUseCase((string) ($criteria['search'] ?? ''));
         $size = $criteria['size'] ?? $this->detectSize((string) ($criteria['search'] ?? ''));
-        $maxPrice = $criteria['max_price'] ?? $this->detectMaxPrice((string) ($criteria['search'] ?? ''));
-        $minPrice = $criteria['min_price'] ?? $this->detectMinPrice((string) ($criteria['search'] ?? ''));
+        $maxPrice = $criteria['max_price'] ?? $this->commerceMaxPrice((string) ($criteria['search'] ?? ''));
+        $minPrice = $criteria['min_price'] ?? $this->commerceMinPrice((string) ($criteria['search'] ?? ''));
+        $affordable = (bool) ($criteria['affordable'] ?? false);
 
         return [
             'search' => trim((string) ($criteria['search'] ?? '')),
             'brand_style' => trim((string) ($criteria['brand_style'] ?? '')),
             'filename' => trim((string) ($criteria['filename'] ?? '')),
+            'product_name' => trim((string) ($criteria['product_name'] ?? '')) ?: null,
             'category' => $category ? Str::lower($category) : null,
             'color' => $color ? Str::lower($color) : null,
             'use_case' => $useCase ? Str::lower($useCase) : null,
             'size' => $size ? (string) $size : null,
             'max_price' => $maxPrice !== null ? (float) $maxPrice : null,
             'min_price' => $minPrice !== null ? (float) $minPrice : null,
+            'gender' => trim((string) ($criteria['gender'] ?? '')) ?: null,
+            'affordable' => $affordable,
             'keywords' => $keywords,
         ];
     }
@@ -207,6 +218,66 @@ class ProductDiscoveryService
         ];
     }
 
+    public function findDirectProductMatch(string $message, array $pageContext = [], array $commerce = []): array
+    {
+        $commerce = $commerce === [] ? $this->commerceQueryParser->parse($message, $pageContext) : $commerce;
+
+        if (($commerce['flags']['references_current_product'] ?? false) || $this->referencesCurrentProduct($message)) {
+            $currentProduct = $this->currentProductFromContext($pageContext);
+
+            if ($currentProduct) {
+                return [
+                    'status' => 'current_product',
+                    'product' => $currentProduct,
+                    'query' => $currentProduct->name,
+                    'match_type' => 'current_product',
+                ];
+            }
+        }
+
+        $query = $this->directLookupQuery($message, $commerce);
+
+        if ($query === '') {
+            return [
+                'status' => 'none',
+                'product' => null,
+                'query' => null,
+                'match_type' => null,
+            ];
+        }
+
+        $activeMatch = $this->bestNamedProductMatchMeta($query, activeOnly: true);
+
+        if ($activeMatch) {
+            return [
+                'status' => $activeMatch['match_type'] === 'exact' ? 'active_match' : 'active_close_match',
+                'product' => $activeMatch['product'],
+                'query' => $activeMatch['product']->name,
+                'match_type' => $activeMatch['match_type'],
+                'matched_query' => $query,
+            ];
+        }
+
+        $inactiveMatch = $this->bestNamedProductMatchMeta($query, activeOnly: false);
+
+        if ($inactiveMatch && $inactiveMatch['product']->status !== 'active') {
+            return [
+                'status' => 'inactive_match',
+                'product' => $inactiveMatch['product'],
+                'query' => $inactiveMatch['product']->name,
+                'match_type' => $inactiveMatch['match_type'],
+                'matched_query' => $query,
+            ];
+        }
+
+        return [
+            'status' => 'none',
+            'product' => null,
+            'query' => $query,
+            'match_type' => null,
+        ];
+    }
+
     public function lowStockProducts(int $limit = 4): Collection
     {
         return $this->activeProducts()
@@ -259,6 +330,38 @@ class ProductDiscoveryService
         ];
     }
 
+    public function sizeAvailabilityForProduct(Product $product, string $size): array
+    {
+        $normalizedSize = $this->normalizeSizeValue($size);
+        $matchingVariants = $product->variants->filter(function ($variant) use ($normalizedSize): bool {
+            return $this->normalizeSizeValue((string) data_get($variant->option_values, 'size')) === $normalizedSize;
+        })->values();
+
+        $availableQuantity = (int) $matchingVariants->sum(function ($variant): int {
+            return (int) ($variant->inventoryItem?->available_quantity ?? 0);
+        });
+
+        return [
+            'requested_size' => $normalizedSize,
+            'has_size' => $matchingVariants->isNotEmpty(),
+            'is_available' => $availableQuantity > 0,
+            'available_quantity' => $availableQuantity,
+            'available_sizes' => $this->availableSizesForProduct($product),
+        ];
+    }
+
+    public function availableSizesForProduct(Product $product): array
+    {
+        return $product->variants
+            ->filter(fn ($variant): bool => (int) ($variant->inventoryItem?->available_quantity ?? 0) > 0)
+            ->map(fn ($variant): ?string => $this->normalizeSizeValue((string) data_get($variant->option_values, 'size')))
+            ->filter()
+            ->unique()
+            ->sortBy(fn (string $size): float => (float) $size)
+            ->values()
+            ->all();
+    }
+
     private function rankMatches(array $criteria, int $limit, bool $strict, bool $respectBudget): Collection
     {
         $ranked = $this->activeProducts()
@@ -309,7 +412,7 @@ class ProductDiscoveryService
             }
         }
 
-        if ($criteria['color'] && ! $this->productMatchesText($product, $criteria['color'])) {
+        if ($criteria['color'] && ! $this->productMatchesColor($product, $criteria['color'])) {
             return false;
         }
 
@@ -347,7 +450,7 @@ class ProductDiscoveryService
             }
         }
 
-        if ($criteria['color'] && $this->productMatchesText($product, $criteria['color'])) {
+        if ($criteria['color'] && $this->productMatchesColor($product, $criteria['color'])) {
             $score += 18;
         }
 
@@ -379,6 +482,10 @@ class ProductDiscoveryService
             $score += 8;
         }
 
+        if (($criteria['affordable'] ?? false) === true) {
+            $score += max(0, 18 - (int) floor(((float) $product->base_price) / 500));
+        }
+
         $availability = $this->availabilityState($product);
 
         $score += match ($availability['state']) {
@@ -400,6 +507,8 @@ class ProductDiscoveryService
             || filled($criteria['color'])
             || filled($criteria['use_case'])
             || filled($criteria['size'])
+            || filled($criteria['product_name'])
+            || (($criteria['affordable'] ?? false) === true)
             || $criteria['max_price'] !== null
             || $criteria['min_price'] !== null;
     }
@@ -409,6 +518,12 @@ class ProductDiscoveryService
         return Product::query()
             ->with(['category', 'variants.inventoryItem'])
             ->active();
+    }
+
+    private function catalogProducts(): Builder
+    {
+        return Product::query()
+            ->with(['category', 'variants.inventoryItem']);
     }
 
     private function productMatchesName(Product $product, string $text): bool
@@ -421,10 +536,27 @@ class ProductDiscoveryService
         return str_contains($this->searchableText($product), Str::lower($text));
     }
 
+    private function productMatchesColor(Product $product, string $color): bool
+    {
+        $color = Str::lower($color);
+        $variantColors = $product->variants
+            ->map(fn ($variant): string => Str::lower((string) data_get($variant->option_values, 'color', '')))
+            ->filter()
+            ->values();
+
+        if ($variantColors->isNotEmpty()) {
+            return $variantColors->contains(function (string $variantColor) use ($color): bool {
+                return str_contains($variantColor, $color);
+            });
+        }
+
+        return $this->productMatchesText($product, $color);
+    }
+
     private function productHasSize(Product $product, string $size): bool
     {
         return $product->variants->contains(function ($variant) use ($size): bool {
-            return (string) data_get($variant->option_values, 'size') === (string) $size;
+            return $this->normalizeSizeValue((string) data_get($variant->option_values, 'size')) === $this->normalizeSizeValue((string) $size);
         });
     }
 
@@ -446,6 +578,247 @@ class ProductDiscoveryService
                 ])))
                 ->implode(' '),
         ])->filter()->implode(' '));
+    }
+
+    private function directLookupQuery(string $message, array $commerce = []): string
+    {
+        if (filled($commerce['entities']['product_name'] ?? null)) {
+            return $this->normalizeComparableText((string) $commerce['entities']['product_name']);
+        }
+
+        if (
+            filled($commerce['entities']['category'] ?? null)
+            || filled($commerce['entities']['color'] ?? null)
+            || filled($commerce['entities']['use_case'] ?? null)
+            || filled($commerce['entities']['size'] ?? null)
+            || filled($commerce['entities']['budget_min'] ?? null)
+            || filled($commerce['entities']['budget_max'] ?? null)
+            || (($commerce['flags']['affordable'] ?? false) === true)
+        ) {
+            return '';
+        }
+
+        if (($commerce['flags']['references_current_product'] ?? false) === true) {
+            return '';
+        }
+
+        $normalized = $this->normalizeComparableText($message);
+
+        if ($normalized === '' || $this->referencesCurrentProduct($normalized)) {
+            return '';
+        }
+
+        foreach ([
+            'can you find me ',
+            'could you find me ',
+            'can you show me ',
+            'could you show me ',
+            'do you have ',
+            'can i get ',
+            'please find ',
+            'please show ',
+            'looking for ',
+            'look for ',
+            'find me ',
+            'show me ',
+            'search for ',
+            'meron ba kayo ',
+            'meron ba ',
+            'meron bang ',
+            'hanap moko ',
+            'hanap mo ko ',
+            'hanap ako ',
+            'find ',
+            'show ',
+            'have ',
+            'get ',
+        ] as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                $normalized = trim(substr($normalized, strlen($prefix)));
+                break;
+            }
+        }
+
+        return trim($normalized);
+    }
+
+    private function referencesCurrentProduct(string $message): bool
+    {
+        $normalized = $this->normalizeComparableText($message);
+
+        foreach ([
+            'this product',
+            'this shoe',
+            'this pair',
+            'this item',
+            'find this',
+            'show this',
+            'the product im viewing',
+            'the product i m viewing',
+            'the product on this page',
+            'ito',
+            'nito',
+            'neto',
+            'yung item na to',
+            'itong item',
+            'itong product',
+            'itong shoe',
+        ] as $phrase) {
+            if (str_contains($normalized, $phrase)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function currentProductFromContext(array $pageContext): ?Product
+    {
+        $slug = trim((string) data_get($pageContext, 'current_product.slug', ''));
+
+        if ($slug === '') {
+            return null;
+        }
+
+        return $this->activeProducts()
+            ->where('slug', $slug)
+            ->first();
+    }
+
+    private function bestNamedProductMatchMeta(string $query, bool $activeOnly): ?array
+    {
+        $normalizedQuery = $this->normalizeComparableText($query);
+
+        if ($normalizedQuery === '' || mb_strlen($normalizedQuery) < 3) {
+            return null;
+        }
+
+        $products = ($activeOnly ? $this->activeProducts() : $this->catalogProducts())
+            ->get()
+            ->map(function (Product $product) use ($normalizedQuery): ?array {
+                $match = $this->namedMatchScore($product, $normalizedQuery);
+
+                if (($match['score'] ?? 0) <= 0) {
+                    return null;
+                }
+
+                return [
+                    'product' => $product,
+                    'score' => $match['score'],
+                    'match_type' => $match['match_type'],
+                    'available_quantity' => $this->availableQuantity($product),
+                ];
+            })
+            ->filter()
+            ->sort(function (array $left, array $right): int {
+                return [$right['score'], $right['available_quantity']]
+                    <=>
+                    [$left['score'], $left['available_quantity']];
+            })
+            ->values();
+
+        $best = $products->first();
+        $second = $products->skip(1)->first();
+
+        if (! is_array($best)) {
+            return null;
+        }
+
+        if (($best['score'] ?? 0) < 780) {
+            return null;
+        }
+
+        if (is_array($second) && ($best['score'] - $second['score']) < 18 && ($best['match_type'] ?? '') !== 'exact') {
+            return null;
+        }
+
+        return $best;
+    }
+
+    private function namedMatchScore(Product $product, string $query): array
+    {
+        $name = $this->normalizeComparableText($product->name);
+        $slug = $this->normalizeComparableText(str_replace('-', ' ', $product->slug));
+        $styleCode = $this->normalizeComparableText($product->style_code);
+
+        if ($query === $name) {
+            return ['score' => 1200, 'match_type' => 'exact'];
+        }
+
+        if ($query === $slug) {
+            return ['score' => 1180, 'match_type' => 'exact'];
+        }
+
+        if ($query === $styleCode) {
+            return ['score' => 1160, 'match_type' => 'exact'];
+        }
+
+        if (str_contains($name, $query)) {
+            return ['score' => 1040 - abs(strlen($name) - strlen($query)), 'match_type' => 'partial'];
+        }
+
+        if (str_contains($slug, $query) || str_contains($styleCode, $query)) {
+            return ['score' => 1010, 'match_type' => 'partial'];
+        }
+
+        $queryTokens = array_values(array_filter(explode(' ', $query)));
+
+        if (count($queryTokens) >= 2 && $this->containsOrderedTokens($name, $queryTokens)) {
+            return ['score' => 960, 'match_type' => 'partial'];
+        }
+
+        if (count($queryTokens) >= 2 && $this->containsAllTokens($name, $queryTokens)) {
+            return ['score' => 930, 'match_type' => 'partial'];
+        }
+
+        $distance = levenshtein($query, $name);
+        $maxLength = max(strlen($query), strlen($name));
+
+        if ($maxLength >= 5) {
+            $similarity = 1 - ($distance / $maxLength);
+
+            if ($distance <= 3 && $similarity >= 0.76) {
+                return [
+                    'score' => 900 - ($distance * 25),
+                    'match_type' => 'fuzzy',
+                ];
+            }
+        }
+
+        if ($this->tokensFuzzyMatch($name, $queryTokens)) {
+            return [
+                'score' => 860,
+                'match_type' => 'fuzzy',
+            ];
+        }
+
+        return ['score' => 0, 'match_type' => null];
+    }
+
+    private function containsOrderedTokens(string $haystack, array $tokens): bool
+    {
+        $pattern = '/'.implode('.*', array_map(fn (string $token): string => preg_quote($token, '/'), $tokens)).'/';
+
+        return preg_match($pattern, $haystack) === 1;
+    }
+
+    private function containsAllTokens(string $haystack, array $tokens): bool
+    {
+        foreach ($tokens as $token) {
+            if (! str_contains($haystack, $token)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeComparableText(?string $value): string
+    {
+        $value = Str::lower((string) $value);
+        $value = preg_replace('/[^a-z0-9]+/i', ' ', $value);
+
+        return trim((string) preg_replace('/\s+/', ' ', $value));
     }
 
     private function availabilityState(Product $product): array
@@ -553,6 +926,7 @@ class ProductDiscoveryService
         $normalized = Str::lower($text);
 
         return match (true) {
+            str_contains($normalized, 'hiking') || str_contains($normalized, 'trail') || str_contains($normalized, 'boot') => 'hiking',
             str_contains($normalized, 'daily') || str_contains($normalized, 'everyday') || str_contains($normalized, 'casual') => 'daily',
             str_contains($normalized, 'running') || str_contains($normalized, 'runner') || str_contains($normalized, 'jog') => 'running',
             str_contains($normalized, 'walking') || str_contains($normalized, 'walk') => 'walking',
@@ -564,7 +938,7 @@ class ProductDiscoveryService
 
     private function detectSize(string $text): ?string
     {
-        if (! preg_match('/(?:size\s*)?(6|7|8|9|10|11|12)\b/i', $text, $matches)) {
+        if (! preg_match('/(?:size|sz|us)?\s*(6|7|8|9|10|11|12)(?:\.5)?\b/i', $text, $matches)) {
             return null;
         }
 
@@ -596,5 +970,81 @@ class ProductDiscoveryService
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function tokensFuzzyMatch(string $name, array $queryTokens): bool
+    {
+        if ($queryTokens === []) {
+            return false;
+        }
+
+        $nameTokens = array_values(array_filter(explode(' ', $name)));
+
+        foreach ($queryTokens as $queryToken) {
+            $matched = false;
+
+            foreach ($nameTokens as $nameToken) {
+                if ($queryToken === $nameToken) {
+                    $matched = true;
+                    break;
+                }
+
+                if (strlen($queryToken) >= 3 && levenshtein($queryToken, $nameToken) <= 1) {
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (! $matched) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeSizeValue(string $size): string
+    {
+        $size = trim($size);
+
+        if (! str_contains($size, '.')) {
+            return $size;
+        }
+
+        return rtrim(rtrim($size, '0'), '.');
+    }
+
+    private function commerceMaxPrice(string $text): ?float
+    {
+        if (! preg_match('/(?:under|below|less than|max(?:imum)?|up to|within)\s*(?:php|p|â‚±)?\s*([\d,.]+(?:\s*k)?)/i', $text, $matches)) {
+            return null;
+        }
+
+        return $this->moneyValue($matches[1]);
+    }
+
+    private function commerceMinPrice(string $text): ?float
+    {
+        if (! preg_match('/(?:over|above|more than|min(?:imum)?|at least)\s*(?:php|p|â‚±)?\s*([\d,.]+(?:\s*k)?)/i', $text, $matches)) {
+            return null;
+        }
+
+        return $this->moneyValue($matches[1]);
+    }
+
+    private function moneyValue(string $value): ?float
+    {
+        $normalized = Str::lower(trim($value));
+        $isThousands = str_ends_with($normalized, 'k');
+        $normalized = str_replace([',', ' '], '', $normalized);
+        $normalized = rtrim($normalized, 'k');
+
+        if (! is_numeric($normalized)) {
+            return null;
+        }
+
+        $amount = (float) $normalized;
+
+        return $isThousands ? $amount * 1000 : $amount;
     }
 }

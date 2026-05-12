@@ -12,7 +12,7 @@ class AccountController extends Controller
     {
         $user = $request->user();
         $orders = $user->orders()
-            ->with('items')
+            ->with(['items.product', 'items.variant.product'])
             ->latest('placed_at')
             ->latest()
             ->get();

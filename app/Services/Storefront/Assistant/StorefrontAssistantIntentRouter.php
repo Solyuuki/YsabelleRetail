@@ -122,24 +122,28 @@ class StorefrontAssistantIntentRouter
         'weather',
     ];
 
-    public function classify(string $message, array $criteria): array
+    public function classify(string $message, array $criteria, array $commerce = []): array
     {
         $normalized = Str::lower(trim($message));
 
-        if ($this->isGreetingIntent($message, $normalized, $criteria)) {
-            return ['intent' => self::INTENT_GREETING];
-        }
-
-        if ($this->isSmallTalkIntent($message, $normalized, $criteria)) {
-            return ['intent' => self::INTENT_SMALL_TALK];
-        }
-
-        if ($this->isCartIntent($normalized)) {
+        if ($this->isCartIntent($normalized) || (($commerce['intent'] ?? null) === 'cart')) {
             return ['intent' => self::INTENT_CART];
         }
 
-        if ($intent = $this->supportIntent($normalized)) {
+        if ($intent = $this->supportIntent($normalized, $criteria, $commerce)) {
             return $intent;
+        }
+
+        if ($this->isGreetingIntent($message, $normalized, $criteria, $commerce)) {
+            return ['intent' => self::INTENT_GREETING];
+        }
+
+        if ($this->isSmallTalkIntent($message, $normalized, $criteria, $commerce)) {
+            return ['intent' => self::INTENT_SMALL_TALK];
+        }
+
+        if ($this->isOutOfScopeIntent($normalized, $criteria, $commerce)) {
+            return ['intent' => self::INTENT_OUT_OF_SCOPE];
         }
 
         if ($intent = $this->guidanceIntent($normalized)) {
@@ -154,18 +158,14 @@ class StorefrontAssistantIntentRouter
             return ['intent' => self::INTENT_VISUAL_SEARCH];
         }
 
-        if ($this->hasHighConfidenceProductIntent($normalized, $criteria)) {
+        if ($this->hasHighConfidenceProductIntent($normalized, $criteria, $commerce)) {
             return ['intent' => self::INTENT_PRODUCT_SEARCH];
-        }
-
-        if ($this->isOutOfScopeIntent($normalized, $criteria)) {
-            return ['intent' => self::INTENT_OUT_OF_SCOPE];
         }
 
         return ['intent' => self::INTENT_FALLBACK];
     }
 
-    private function supportIntent(string $message): ?array
+    private function supportIntent(string $message, array $criteria, array $commerce): ?array
     {
         return match (true) {
             $this->isQuickAuthIntent($message) => ['intent' => self::INTENT_SUPPORT_AUTH_QUICK_OPTIONS],
@@ -175,7 +175,9 @@ class StorefrontAssistantIntentRouter
             $this->containsAny($message, ['sign up', 'signup', 'register', 'create account']) => ['intent' => self::INTENT_SUPPORT_SIGNUP],
             $this->containsAny($message, ['shipping', 'delivery']) => ['intent' => self::INTENT_SUPPORT_SHIPPING],
             $this->containsAny($message, ['return', 'refund', 'exchange']) => ['intent' => self::INTENT_SUPPORT_RETURNS],
-            $this->containsAny($message, ['size guide', 'sizing', 'true to size', 'fit', 'size']) => ['intent' => self::INTENT_SUPPORT_SIZE_GUIDE],
+            $this->containsAny($message, ['size guide', 'sizing', 'true to size', 'fit guide', 'size chart']) => ['intent' => self::INTENT_SUPPORT_SIZE_GUIDE],
+            $this->containsAny($message, ['fit']) && ! $this->hasCommerceSizeSignal($criteria, $commerce) => ['intent' => self::INTENT_SUPPORT_SIZE_GUIDE],
+            $this->containsAny($message, ['size']) && ! $this->hasCommerceSizeSignal($criteria, $commerce) => ['intent' => self::INTENT_SUPPORT_SIZE_GUIDE],
             $this->containsAny($message, ['contact', 'support email', 'phone number', 'call', 'reach you', 'reach support']) => ['intent' => self::INTENT_SUPPORT_CONTACT],
             $this->containsAny($message, ['where is', 'where are', 'located', 'location', 'address', 'branch', 'branches']) => ['intent' => self::INTENT_SUPPORT_LOCATION],
             $this->containsAny($message, ['authentic', 'genuine']) => ['intent' => self::INTENT_SUPPORT, 'topic' => 'authenticity'],
@@ -194,12 +196,8 @@ class StorefrontAssistantIntentRouter
         };
     }
 
-    private function isGreetingIntent(string $message, string $normalized, array $criteria): bool
+    private function isGreetingIntent(string $message, string $normalized, array $criteria, array $commerce): bool
     {
-        if ($this->hasDomainSignal($normalized, $criteria)) {
-            return false;
-        }
-
         $simplified = $this->simplifyMessage($message);
 
         if (in_array($simplified, self::GREETING_PHRASES, true)) {
@@ -209,18 +207,31 @@ class StorefrontAssistantIntentRouter
         return $this->startsWithAny($simplified, ['hello ', 'hey ', 'hi ']) && $this->tokenCount($simplified) <= 3;
     }
 
-    private function isSmallTalkIntent(string $message, string $normalized, array $criteria): bool
+    private function isSmallTalkIntent(string $message, string $normalized, array $criteria, array $commerce): bool
     {
-        if ($this->hasDomainSignal($normalized, $criteria)) {
-            return false;
-        }
-
         return in_array($this->simplifyMessage($message), self::SMALL_TALK_PHRASES, true);
     }
 
-    private function hasHighConfidenceProductIntent(string $message, array $criteria): bool
+    private function hasHighConfidenceProductIntent(string $message, array $criteria, array $commerce): bool
     {
-        return $this->hasStructuredProductSignal($criteria) || $this->hasProductKeywordMatch($message);
+        if (($commerce['flags']['has_low_signal_text'] ?? false) === true && ($commerce['flags']['has_product_signal'] ?? false) !== true) {
+            return false;
+        }
+
+        if (in_array($commerce['intent'] ?? null, [
+            'budget_search',
+            'current_product',
+            'product_availability',
+            'product_exact_lookup',
+            'product_search',
+            'size_stock',
+        ], true)) {
+            return true;
+        }
+
+        return $this->hasStructuredProductSignal($criteria)
+            || $this->hasProductKeywordMatch($message)
+            || $this->hasDirectProductLookupSignal($message, $criteria, $commerce);
     }
 
     private function hasStructuredProductSignal(array $criteria): bool
@@ -238,9 +249,49 @@ class StorefrontAssistantIntentRouter
         return $this->containsAny($message, self::PRODUCT_KEYWORDS);
     }
 
-    private function isOutOfScopeIntent(string $message, array $criteria): bool
+    private function hasDirectProductLookupSignal(string $message, array $criteria, array $commerce): bool
     {
-        if ($this->hasDomainSignal($message, $criteria)) {
+        if (($commerce['flags']['explicit_lookup'] ?? false) && filled($commerce['entities']['product_name'] ?? null)) {
+            return true;
+        }
+
+        if (($commerce['flags']['references_current_product'] ?? false) === true) {
+            return true;
+        }
+
+        if (! $this->containsAny($message, [
+            'can you find',
+            'could you find',
+            'do you have',
+            'find me',
+            'find this',
+            'show me',
+            'show this',
+            'find ',
+            'show ',
+            'this item',
+            'this pair',
+            'this product',
+            'this shoe',
+        ])) {
+            return false;
+        }
+
+        return count($criteria['keywords'] ?? []) >= 2 || $this->containsAny($message, [
+            'this item',
+            'this pair',
+            'this product',
+            'this shoe',
+        ]);
+    }
+
+    private function isOutOfScopeIntent(string $message, array $criteria, array $commerce): bool
+    {
+        if (($commerce['flags']['has_product_signal'] ?? false) === true) {
+            return false;
+        }
+
+        if ($this->hasDomainSignal($message, $criteria, $commerce)) {
             return false;
         }
 
@@ -251,16 +302,36 @@ class StorefrontAssistantIntentRouter
         return (bool) preg_match('/^(what|who|when|where|why|how|tell|explain|solve|write)\b/i', $message);
     }
 
-    private function hasDomainSignal(string $message, array $criteria): bool
+    private function hasDomainSignal(string $message, array $criteria, array $commerce): bool
     {
         return $this->hasStructuredProductSignal($criteria)
+            || (($commerce['flags']['has_product_signal'] ?? false) === true)
             || $this->hasProductKeywordMatch($message)
             || $this->isCartIntent($message)
             || $this->isCheckoutIntent($message)
             || $this->isVisualSearchIntent($message)
             || $this->isAvailabilityIntent($message)
-            || $this->supportIntent($message) !== null
+            || $this->supportIntent($message, $criteria, $commerce) !== null
             || $this->guidanceIntent($message) !== null;
+    }
+
+    private function hasCommerceSizeSignal(array $criteria, array $commerce): bool
+    {
+        if (filled($criteria['size'] ?? null)) {
+            return true;
+        }
+
+        if (filled($commerce['entities']['size'] ?? null)) {
+            return true;
+        }
+
+        return in_array($commerce['intent'] ?? null, [
+            'current_product',
+            'product_availability',
+            'product_exact_lookup',
+            'product_search',
+            'size_stock',
+        ], true);
     }
 
     private function isVisualSearchIntent(string $message): bool

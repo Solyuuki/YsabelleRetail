@@ -1,11 +1,11 @@
 <?php
 
-namespace Database\Seeders\Users;
+namespace Database\Seeders\Auth;
 
 use App\Services\Auth\AuthSystemHealthService;
 use Illuminate\Database\Seeder;
 
-class AdminUserSeeder extends Seeder
+class RolesAndUsersSeeder extends Seeder
 {
     public function run(): void
     {

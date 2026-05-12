@@ -25,6 +25,10 @@
 
             <form action="{{ route('login.store') }}" method="POST" class="ys-auth-form" novalidate>
                 @csrf
+                <input type="hidden" name="portal" value="{{ $portalIntent }}">
+                @if (is_string($intendedUrl) && $intendedUrl !== '')
+                    <input type="hidden" name="intended" value="{{ $intendedUrl }}">
+                @endif
 
                 <label class="ys-auth-field">
                     <span class="ys-auth-field-label">Email address</span>

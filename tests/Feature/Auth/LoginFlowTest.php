@@ -174,3 +174,61 @@ test('customer accounts cannot use the hidden admin portal to gain admin access'
 
     $this->assertGuest();
 });
+
+test('social only accounts are rejected from manual password login with a dedicated message', function () {
+    $customer = makeUserWithRole('customer', [
+        'email' => 'social.login@example.com',
+        'password' => 'Password123x',
+        'has_local_password' => false,
+    ]);
+
+    $this->post(route('login.store'), [
+        'email' => $customer->email,
+        'password' => 'Password123x',
+    ])
+        ->assertSessionHasErrors([
+            'email' => 'This account uses social sign-in. Continue with Google, Microsoft, or GitHub, or set a password first.',
+        ]);
+
+    $this->assertGuest();
+});
+
+test('portal specific throttle buckets do not poison the other portal', function () {
+    $admin = makeUserWithRole('admin', [
+        'email' => 'admin.throttle@example.com',
+        'password' => 'Password123x',
+    ]);
+
+    foreach (range(1, 5) as $attempt) {
+        $this->from(route('login'))
+            ->post(route('login.store'), [
+                'email' => $admin->email,
+                'password' => 'wrong-password',
+                'portal' => 'storefront',
+            ])
+            ->assertSessionHasErrors(['email']);
+    }
+
+    $this->post(route('login.store'), [
+        'email' => $admin->email,
+        'password' => 'Password123x',
+        'portal' => 'admin',
+    ])->assertRedirect(route('admin.dashboard'));
+});
+
+test('users without roles are auto repaired during a successful storefront login', function () {
+    $user = User::factory()->create([
+        'email' => 'roleless.login@example.com',
+        'password' => 'Password123x',
+        'has_local_password' => true,
+        'status' => 'active',
+    ]);
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'Password123x',
+        'portal' => 'storefront',
+    ])->assertRedirect(route('storefront.account.index'));
+
+    expect($user->fresh()->hasRole('customer'))->toBeTrue();
+});

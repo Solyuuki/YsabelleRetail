@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Database\Seeders\Access\RoleSeeder;
+use Database\Seeders\Auth\RolesAndUsersSeeder;
 use Database\Seeders\Catalog\CatalogSeeder;
 use Database\Seeders\Demo\DemoCommerceSeeder;
-use Database\Seeders\Users\AdminUserSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -13,8 +12,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            RoleSeeder::class,
-            AdminUserSeeder::class,
+            RolesAndUsersSeeder::class,
             CatalogSeeder::class,
             DemoCommerceSeeder::class,
         ]);

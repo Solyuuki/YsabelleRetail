@@ -17,6 +17,7 @@ class StorefrontAssistantController extends Controller
         return response()->json($assistant->respond(
             $request->string('message')->toString(),
             $request->assistantContext(),
+            $request->pageContext(),
         ));
     }
 
@@ -26,10 +27,11 @@ class StorefrontAssistantController extends Controller
     ): StreamedResponse {
         $message = $request->string('message')->toString();
         $assistantContext = $request->assistantContext();
+        $pageContext = $request->pageContext();
 
-        return response()->stream(function () use ($assistant, $message, $assistantContext): void {
+        return response()->stream(function () use ($assistant, $message, $assistantContext, $pageContext): void {
             try {
-                foreach ($assistant->stream($message, $assistantContext) as $event) {
+                foreach ($assistant->stream($message, $assistantContext, $pageContext) as $event) {
                     echo 'event: '.$event['event']."\n";
                     echo 'data: '.json_encode($event['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n\n";
 

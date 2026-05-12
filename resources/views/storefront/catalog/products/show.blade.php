@@ -2,6 +2,18 @@
 
 @inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
 
+@section('assistant_page_context')
+    <script type="application/json" data-assistant-page-context>
+        {{ json_encode([
+            'current_product' => [
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'style_code' => $product->style_code,
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
+    </script>
+@endsection
+
 @section('content')
     @php
         $imageUrl = $media->imageUrlFor($product);

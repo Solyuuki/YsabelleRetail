@@ -31,6 +31,7 @@
             @if ($fetchpriority !== 'auto') fetchpriority="{{ $fetchpriority }}" @endif
             class="ys-product-media-image {{ $imageClass }}"
             data-product-media-image
+            onerror="this.closest('[data-product-media]')?.classList.add('is-fallback-visible'); this.remove();"
         >
     @endif
 

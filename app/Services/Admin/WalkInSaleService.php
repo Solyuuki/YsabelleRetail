@@ -24,6 +24,11 @@ class WalkInSaleService
     {
         $order = DB::transaction(function () use ($payload, $cashier): Order {
             $lines = collect($payload['lines']);
+            $notes = $payload['notes'] ?? null;
+            $customerName = $payload['customer_name'] ?? null;
+            $customerEmail = $payload['customer_email'] ?? null;
+            $customerPhone = $payload['customer_phone'] ?? null;
+            $paymentMethod = $payload['payment_method'];
             $variants = ProductVariant::query()
                 ->with(['product', 'inventoryItem'])
                 ->whereIn('id', $lines->pluck('variant_id'))
@@ -44,6 +49,7 @@ class WalkInSaleService
             );
             $grandTotal = max($subtotal - $discountAmount, 0);
             $paymentStatus = $payload['payment_status'];
+
             $order = Order::query()->create([
                 'user_id' => null,
                 'source' => 'walk_in',
@@ -59,14 +65,14 @@ class WalkInSaleService
                 'tax_amount' => 0,
                 'grand_total' => $grandTotal,
                 'placed_at' => now(),
-                'notes' => $payload['notes'] ?: null,
-                'customer_name' => $payload['customer_name'] ?: 'Walk-in Customer',
-                'customer_email' => $payload['customer_email'] ?: null,
-                'customer_phone' => $payload['customer_phone'] ?: null,
+                'notes' => $notes ?: null,
+                'customer_name' => $customerName ?: 'Walk-in Customer',
+                'customer_email' => $customerEmail ?: null,
+                'customer_phone' => $customerPhone ?: null,
                 'shipping_city' => null,
                 'shipping_address_line' => null,
                 'shipping_postal_code' => null,
-                'payment_method' => $payload['payment_method'],
+                'payment_method' => $paymentMethod,
                 'metadata' => [
                     'walk_in' => true,
                 ],
@@ -96,12 +102,12 @@ class WalkInSaleService
                     quantity: $line['quantity'],
                     order: $order,
                     actor: $cashier,
-                    metadata: ['payment_method' => $payload['payment_method']]
+                    metadata: ['payment_method' => $paymentMethod]
                 );
             }
 
             $order->payments()->create([
-                'provider' => $payload['payment_method'],
+                'provider' => $paymentMethod,
                 'provider_reference' => null,
                 'status' => $paymentStatus === 'paid' ? 'succeeded' : 'pending',
                 'amount' => $grandTotal,
@@ -110,7 +116,7 @@ class WalkInSaleService
                 'metadata' => [
                     'source' => 'walk_in',
                     'cashier' => $cashier->email,
-                    'method' => $payload['payment_method'],
+                    'method' => $paymentMethod,
                     'discount_amount' => $discountAmount,
                 ],
             ]);

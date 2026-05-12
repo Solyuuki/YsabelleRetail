@@ -299,6 +299,321 @@ test('assistant returns product matches for running shoe questions', function ()
         ->assertJsonPath('products.0.availability.state', 'in_stock');
 });
 
+test('assistant prioritizes an exact active product name over broader similar matches', function () {
+    $exact = makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+        'short_description' => 'Atlas Highstreet exact product.',
+    ], [
+        'sku' => 'YS-ATL-6200-9',
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Atlas Highstreet Runner',
+        'slug' => 'atlas-highstreet-runner',
+        'short_description' => 'Nearby Atlas-named running option.',
+    ], [
+        'sku' => 'YS-ATR-6200-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Can you find Atlas Highstreet',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $exact->slug)
+        ->assertJsonPath('answer', 'Yes — I found Atlas Highstreet.');
+});
+
+test('assistant returns Atlas Highstreet first for find me phrasing', function () {
+    $exact = makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+    ], [
+        'sku' => 'YS-ATL-6400-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'find me Atlas Highstreet',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $exact->slug)
+        ->assertJsonPath('answer', 'Yes — I found Atlas Highstreet.');
+});
+
+test('assistant returns exact product matches for direct availability and show-me requests', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Carbon Trace',
+        'slug' => 'carbon-trace',
+    ], [
+        'sku' => 'YS-CBT-6200-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'do you have Carbon Trace',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'Yes — I found Carbon Trace.');
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Show me Carbon Trace',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'Yes — I found Carbon Trace.');
+});
+
+test('assistant uses current product page context for this-product requests', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+    ], [
+        'sku' => 'YS-ATL-6210-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Show me this product',
+        'page_context' => [
+            'current_product' => [
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'style_code' => $product->style_code,
+            ],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'You are currently viewing Atlas Highstreet.');
+});
+
+test('assistant does not hallucinate an exact product when the requested name is absent', function () {
+    makeStorefrontProduct([
+        'name' => 'Night Runner',
+        'slug' => 'night-runner',
+    ], [
+        'sku' => 'YS-NGT-6100-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Do you have Moonlight Parade?',
+    ])
+        ->assertOk()
+        ->assertJsonMissing([
+            'slug' => 'moonlight-parade',
+        ])
+        ->assertJsonPath(
+            'answer',
+            'I did not find an exact match, but these are the closest real products I found.'
+        );
+});
+
+test('assistant handles taglish black shoe and running shoe buyer queries', function () {
+    $blackRunner = makeStorefrontProduct([
+        'name' => 'Shadow Stride',
+        'slug' => 'shadow-stride',
+        'description' => 'Black running shoes for daily training.',
+        'short_description' => 'Black running shoe.',
+    ], [
+        'sku' => 'YS-SHS-6200-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Black',
+        ],
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Ivory Street',
+        'slug' => 'ivory-street',
+        'category_name' => 'Sneakers',
+        'category_slug' => 'sneakers',
+        'description' => 'White sneaker for city wear.',
+    ], [
+        'sku' => 'YS-IVS-6200-8',
+        'option_values' => [
+            'size' => '8',
+            'color' => 'White',
+        ],
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'meron ba kayo black shoes',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $blackRunner->slug);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'hanap moko running shoes',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $blackRunner->slug);
+});
+
+test('ProductDiscovery parses budget color and category from under 5k na white sneakers', function () {
+    $service = app(\App\Services\Storefront\ProductDiscoveryService::class);
+    $criteria = $service->buildCriteriaFromText('under 5k na white sneakers');
+
+    expect($criteria['max_price'])->toBe(5000.0)
+        ->and($criteria['color'])->toBe('white')
+        ->and($criteria['category'])->toBe('sneakers');
+});
+
+test('assistant returns affordable products for mura buyer phrasing', function () {
+    $cheap = makeStorefrontProduct([
+        'name' => 'Budget Walker',
+        'slug' => 'budget-walker',
+        'base_price' => 2490,
+    ], [
+        'sku' => 'YS-BDW-2490-8',
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Premium Haze',
+        'slug' => 'premium-haze',
+        'base_price' => 6990,
+    ], [
+        'sku' => 'YS-PRH-6990-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'pre may mura ba kayo',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $cheap->slug)
+        ->assertJsonPath('answer', 'These are the most affordable active pairs I found right now.');
+});
+
+test('assistant uses current product context for size questions instead of the size guide', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+    ], [
+        'sku' => 'YS-ATL-6500-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Black',
+        ],
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'may size 9 ba nito',
+        'page_context' => [
+            'current_product' => [
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'style_code' => $product->style_code,
+            ],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'Yes, Atlas Highstreet is available in size 9 right now.')
+        ->assertJsonPath('assistant_context.last_intent', 'ecommerce_product_search');
+});
+
+test('assistant checks named product sizes truthfully for taglish availability questions', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+    ], [
+        'sku' => 'YS-ATL-6510-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Black',
+        ],
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'meron bang size 10 yung Atlas Highstreet',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'I could not find size 10 for Atlas Highstreet. Available sizes right now: 9.');
+});
+
+test('assistant uses current product context for find this shoe requests', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Dune Ascent',
+        'slug' => 'dune-ascent',
+    ], [
+        'sku' => 'YS-DNA-6200-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'find this shoe',
+        'page_context' => [
+            'current_product' => [
+                'slug' => $product->slug,
+                'name' => $product->name,
+                'style_code' => $product->style_code,
+            ],
+        ],
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'You are currently viewing Dune Ascent.');
+});
+
+test('assistant resolves typo and partial product-name queries when the match is unambiguous', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+    ], [
+        'sku' => 'YS-ATL-6520-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'find Atls Highstreet',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'I did not find an exact match, but Atlas Highstreet is the closest real product name match I found.');
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'find Highstreet',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug);
+});
+
+test('assistant answers hiking use-case searches with hiking-oriented results', function () {
+    $boot = makeStorefrontProduct([
+        'name' => 'Dune Ascent',
+        'slug' => 'dune-ascent',
+        'category_name' => 'Boots',
+        'category_slug' => 'boots-high-cut',
+        'description' => 'Trail and hiking boot for rough ground.',
+    ], [
+        'sku' => 'YS-DNA-6600-9',
+        'option_values' => [
+            'size' => '9',
+            'color' => 'Graphite',
+        ],
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'best shoes for hiking',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $boot->slug)
+        ->assertJsonPath('answer', 'These are the strongest hiking-oriented options I found in the active catalog.');
+});
+
+test('assistant is truthful about inactive exact products', function () {
+    makeStorefrontProduct([
+        'name' => 'Carbon Trace',
+        'slug' => 'carbon-trace',
+        'status' => 'inactive',
+    ], [
+        'sku' => 'YS-CBT-6700-9',
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'do you have Carbon Trace',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'Carbon Trace exists in the catalog, but it is not currently available in the active storefront.');
+});
+
 test('assistant treats greetings as conversational and returns no products', function () {
     makeStorefrontProduct();
 
@@ -691,6 +1006,24 @@ test('assistant asks for clarification when the request is unclear', function ()
 
     assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Maybe',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.')
+        ->assertJsonCount(0, 'products');
+});
+
+test('assistant keeps nonsense low-signal inputs in clarification mode with no products', function () {
+    makeStorefrontProduct();
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'bolbol',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.')
+        ->assertJsonCount(0, 'products');
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'asdasdasd',
     ])
         ->assertOk()
         ->assertJsonPath('answer', 'I can help with shoe recommendations, stock, sizing, cart, checkout, or image search. Tell me your preferred color, budget, size, or use case and I will guide you from there.')

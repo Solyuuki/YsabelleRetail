@@ -40,6 +40,7 @@
 
         <x-storefront.footer :footer-links="($storefrontFooter ?? config('storefront.footer', []))" />
         <x-storefront.toast-stack />
+        @yield('assistant_page_context')
         <x-storefront.chat-widget />
     </body>
 </html>

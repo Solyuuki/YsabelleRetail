@@ -53,6 +53,7 @@ export const initChatWidget = () => {
     const messageStreamEndpoint = root.dataset.messageStreamEndpoint;
     const visualSearchEndpoint = root.dataset.visualSearchEndpoint;
     const supportsStreaming = Boolean(messageStreamEndpoint && window.ReadableStream && window.TextDecoder);
+    const pageContextNode = document.querySelector('[data-assistant-page-context]');
 
     let currentPreviewUrl = null;
     let selectedVisualFile = null;
@@ -66,6 +67,7 @@ export const initChatWidget = () => {
     let csrfRefreshPromise = null;
     let visualThreadState = null;
     let assistantContext = null;
+    let pageContext = null;
 
     const setOpen = (isOpen) => {
         if (!panel) {
@@ -100,6 +102,18 @@ export const initChatWidget = () => {
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
+
+    const parseJsonText = (value) => {
+        if (typeof value !== 'string' || value.trim() === '') {
+            return null;
+        }
+
+        try {
+            return JSON.parse(value);
+        } catch {
+            return null;
+        }
+    };
 
     const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
@@ -1025,11 +1039,28 @@ export const initChatWidget = () => {
         assistantContext = nextContext;
     };
 
-    const messageRequestBody = (message) => JSON.stringify(
-        assistantContext
-            ? { message, assistant_context: assistantContext }
-            : { message },
-    );
+    const syncPageContext = (nextContext) => {
+        if (!nextContext || typeof nextContext !== 'object' || Array.isArray(nextContext)) {
+            pageContext = null;
+            return;
+        }
+
+        pageContext = nextContext;
+    };
+
+    const messageRequestBody = (message) => {
+        const payload = { message };
+
+        if (assistantContext) {
+            payload.assistant_context = assistantContext;
+        }
+
+        if (pageContext) {
+            payload.page_context = pageContext;
+        }
+
+        return JSON.stringify(payload);
+    };
 
     const postMessageJson = async (message) => {
         return await assistantFetch(messageEndpoint, {
@@ -1554,6 +1585,7 @@ export const initChatWidget = () => {
         field.addEventListener(field instanceof HTMLSelectElement ? 'change' : 'input', syncRefineSummary);
     });
 
+    syncPageContext(parseJsonText(pageContextNode?.textContent ?? ''));
     setToolDrawerOpen(false);
     applyVisualUiState('idle');
     syncRefineSummary();

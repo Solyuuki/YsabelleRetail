@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Services\Auth\SocialAuthService;
+use App\Services\Auth\AuthSystemHealthService;
 use App\Support\Auth\AuthenticatedRedirector;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -23,6 +24,8 @@ class LoginController extends Controller
 
         return view('auth.login', [
             'isAdminPortal' => $redirector->isAdminPortal($request),
+            'portalIntent' => $redirector->currentPortal($request),
+            'intendedUrl' => $request->session()->get('url.intended'),
             'socialProviders' => $socialAuth->providerButtons($request),
         ]);
     }
@@ -30,11 +33,22 @@ class LoginController extends Controller
     public function store(
         LoginRequest $request,
         AuthenticatedRedirector $redirector,
+        AuthSystemHealthService $authHealth,
     ): \Illuminate\Http\RedirectResponse
     {
+        $redirector->rememberLoginContext($request);
         $request->ensureIsNotRateLimited();
         $credentials = $request->only('email', 'password');
         $remember = $request->boolean('remember');
+        $candidateUser = $request->candidateUser();
+
+        if ($candidateUser && ! $candidateUser->hasLocalPassword()) {
+            $request->hitRateLimiter();
+
+            throw ValidationException::withMessages([
+                'email' => 'This account uses social sign-in. Continue with Google, Microsoft, or GitHub, or set a password first.',
+            ]);
+        }
 
         if (! Auth::attempt($credentials, $remember)) {
             $request->hitRateLimiter();
@@ -44,8 +58,8 @@ class LoginController extends Controller
             ]);
         }
 
-        $request->clearRateLimiter();
         $request->session()->regenerate();
+        $authHealth->reconcileUserRole($request->user());
 
         if (! $request->user()?->isActive()) {
             Auth::logout();
@@ -68,6 +82,8 @@ class LoginController extends Controller
                 'email' => $message,
             ]);
         }
+
+        $request->clearRateLimiter();
 
         return $redirector->redirectAfterLogin($request, $request->user());
     }

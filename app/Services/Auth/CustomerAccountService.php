@@ -2,13 +2,16 @@
 
 namespace App\Services\Auth;
 
-use App\Models\Access\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CustomerAccountService
 {
+    public function __construct(
+        private readonly AuthSystemHealthService $authHealth,
+    ) {}
+
     public function register(string $name, string $email, string $password): User
     {
         return DB::transaction(function () use ($name, $email, $password): User {
@@ -64,14 +67,6 @@ class CustomerAccountService
 
     public function ensureCustomerRole(User $user): void
     {
-        $customerRole = Role::query()
-            ->where('slug', 'customer')
-            ->first();
-
-        if (! $customerRole) {
-            return;
-        }
-
-        $user->roles()->syncWithoutDetaching([$customerRole->id]);
+        $this->authHealth->ensureCustomerRole($user);
     }
 }

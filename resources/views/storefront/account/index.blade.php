@@ -43,8 +43,8 @@
                                 @foreach ($order->items as $item)
                                     <div class="flex items-center gap-4">
                                         <x-storefront.product-media
-                                            :image-url="$item->metadata['product_image_url'] ?? null"
-                                            :alt="$item->metadata['product_image_alt'] ?? $item->product_name"
+                                            :image-url="$item->product_image_url"
+                                            :alt="$item->product_image_alt"
                                             :title="$item->product_name"
                                             eyebrow="Order Item"
                                             class="h-16 w-16 rounded-xl border border-white/6"
