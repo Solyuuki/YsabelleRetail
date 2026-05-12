@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Catalog;
 
+use App\Services\Catalog\ProductAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,6 +10,8 @@ class ProductVariantResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $availability = app(ProductAvailabilityService::class)->forVariant($this->resource);
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -19,6 +22,7 @@ class ProductVariantResource extends JsonResource
             'compare_at_price' => $this->compare_at_price,
             'weight_grams' => $this->weight_grams,
             'status' => $this->status,
+            'availability' => $availability,
             'inventory' => [
                 'quantity_on_hand' => $this->inventoryItem?->quantity_on_hand,
                 'reserved_quantity' => $this->inventoryItem?->reserved_quantity,

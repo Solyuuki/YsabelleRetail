@@ -1331,6 +1331,14 @@
         @apply bg-[#411415] text-[#ffb0b0];
     }
 
+    .ys-assistant-stock.is-available_for_backorder {
+        @apply bg-[#112a3f] text-[#9fd4ff];
+    }
+
+    .ys-assistant-stock.is-inactive {
+        @apply bg-[#2f2b36] text-[#ddd3f0];
+    }
+
     .ys-chat-actions {
         @apply flex flex-wrap gap-3;
     }

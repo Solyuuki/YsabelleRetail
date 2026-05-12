@@ -2,6 +2,8 @@
 
 namespace App\Services\Storefront;
 
+use App\Models\Catalog\Product;
+use App\Services\Catalog\ProductAvailabilityService;
 use App\Services\Storefront\Assistant\StorefrontAssistantGuidanceService;
 use App\Services\Storefront\Assistant\StorefrontAssistantContextResolver;
 use App\Services\Storefront\Assistant\StorefrontCommerceQueryParser;
@@ -15,6 +17,7 @@ class SmartShoppingAssistantService
 {
     public function __construct(
         private readonly ProductDiscoveryService $productDiscovery,
+        private readonly ProductAvailabilityService $availability,
         private readonly CartService $cartService,
         private readonly AuthFactory $auth,
         private readonly StorefrontAssistantGuidanceService $guidance,
@@ -119,12 +122,41 @@ class SmartShoppingAssistantService
     private function productIntentResponse(string $message, string $normalized, array $criteria, array $commerce, array $pageContext = []): array
     {
         $directLookup = $this->productDiscovery->findDirectProductMatch($message, $pageContext, $commerce);
+        $isQuantityIntent = $this->isQuantityIntent($normalized);
+
+        if (
+            ($directLookup['product'] ?? null) === null
+            && ($isQuantityIntent || $this->isAvailabilityIntent($normalized))
+            && ! filled($commerce['entities']['product_name'] ?? null)
+        ) {
+            $currentProduct = $this->productDiscovery->currentProductFromContext($pageContext);
+
+            if ($currentProduct) {
+                $directLookup = [
+                    'status' => 'current_product',
+                    'product' => $currentProduct,
+                    'query' => $currentProduct->name,
+                    'match_type' => 'current_product',
+                ];
+            }
+        }
 
         if (($commerce['intent'] ?? null) === 'size_stock' && filled($commerce['entities']['size'] ?? null)) {
             return $this->sizeStockResponse($commerce, $directLookup);
         }
 
         if (($directLookup['status'] ?? null) === 'current_product' && ($directLookup['product'] ?? null)) {
+            if ($isQuantityIntent || $this->isAvailabilityIntent($normalized)) {
+                return $this->response(
+                    answer: $this->stockTruthAnswer($directLookup['product'], $isQuantityIntent),
+                    products: [$this->productDiscovery->formatProduct($directLookup['product'])],
+                    actions: [
+                        ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                        ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                    ],
+                );
+            }
+
             return $this->response(
                 answer: 'You are currently viewing '.$directLookup['product']->name.'.',
                 products: [$this->productDiscovery->formatProduct($directLookup['product'])],
@@ -137,7 +169,7 @@ class SmartShoppingAssistantService
 
         if (($directLookup['status'] ?? null) === 'active_match' && ($directLookup['product'] ?? null)) {
             return $this->response(
-                answer: $this->exactProductAnswer($message, $directLookup['product']->name),
+                answer: $this->stockTruthAnswer($directLookup['product'], $isQuantityIntent),
                 products: [$this->productDiscovery->formatProduct($directLookup['product'])],
                 actions: [
                     ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -215,7 +247,7 @@ class SmartShoppingAssistantService
             ->all();
 
         return $this->response(
-            answer: $query.' exists in the catalog, but it is not currently available in the active storefront.',
+            answer: $query.' is currently unavailable.',
             products: $suggestions,
             actions: [
                 ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -227,7 +259,7 @@ class SmartShoppingAssistantService
     private function closeProductMatchResponse(string $productName, $product): array
     {
         return $this->response(
-            answer: 'I did not find an exact match, but '.$productName.' is the closest real product name match I found.',
+            answer: 'I did not find an exact match, but '.$productName.' is the closest real product name match I found. '.$this->stockTruthAnswer($product),
             products: [$this->productDiscovery->formatProduct($product)],
             actions: [
                 ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -239,6 +271,7 @@ class SmartShoppingAssistantService
     private function sizeStockResponse(array $commerce, array $directLookup): array
     {
         $size = (string) ($commerce['entities']['size'] ?? '');
+        $color = $commerce['entities']['color'] ?? null;
         $product = $directLookup['product'] ?? null;
 
         if (! $product) {
@@ -250,7 +283,7 @@ class SmartShoppingAssistantService
 
         if (($directLookup['status'] ?? null) === 'inactive_match') {
             return $this->response(
-                answer: $product->name.' exists in the catalog, but it is not currently available in the active storefront.',
+                answer: $product->name.' is currently unavailable.',
                 products: [$this->productDiscovery->formatProduct($product)],
                 actions: [
                     ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -259,15 +292,22 @@ class SmartShoppingAssistantService
             );
         }
 
-        $availability = $this->productDiscovery->sizeAvailabilityForProduct($product, $size);
+        $availability = $this->productDiscovery->sizeAvailabilityForProduct($product, $size, $color);
         $availableSizes = $availability['available_sizes'];
         $availableLabel = $availableSizes === []
             ? 'No sizes are currently available.'
             : 'Available sizes right now: '.implode(', ', $availableSizes).'.';
+        $sizeDescriptor = $product->name.' size '.$availability['requested_size'];
+
+        if (filled($color)) {
+            $sizeDescriptor .= ' in '.Str::title((string) $color);
+        }
 
         $answer = match (true) {
-            $availability['is_available'] => 'Yes, '.$product->name.' is available in size '.$availability['requested_size'].' right now.',
-            $availability['has_size'] => $product->name.' has size '.$availability['requested_size'].', but it is currently sold out. '.$availableLabel,
+            $availability['is_available'] => $sizeDescriptor.' is available with '.$this->pairLabel((int) $availability['available_quantity']).' left.',
+            $availability['is_backorder'] => $sizeDescriptor.' is available for backorder right now.',
+            ($availability['has_variant'] ?? false) === true => $sizeDescriptor.' is currently out of stock. '.$availableLabel,
+            ($availability['has_size'] ?? false) === true && filled($color) => $product->name.' has size '.$availability['requested_size'].', but not in '.Str::title((string) $color).'. '.$availableLabel,
             default => 'I could not find size '.$availability['requested_size'].' for '.$product->name.'. '.$availableLabel,
         };
 
@@ -433,6 +473,18 @@ class SmartShoppingAssistantService
         ]);
     }
 
+    private function isQuantityIntent(string $message): bool
+    {
+        return $this->containsAny($message, [
+            'how many',
+            'ilan',
+            'pairs left',
+            'pair left',
+            'stocks left',
+            'stock left',
+        ]);
+    }
+
     private function hasStructuredProductSignal(array $criteria): bool
     {
         return filled($criteria['category'])
@@ -457,6 +509,29 @@ class SmartShoppingAssistantService
     private function exactProductAnswer(string $message, string $productName): string
     {
         return 'Yes — I found '.$productName.'.';
+    }
+
+    private function stockTruthAnswer(Product $product, bool $quantityIntent = false): string
+    {
+        $availability = $this->availability->forProduct($product);
+
+        return match ($availability['state'] ?? null) {
+            ProductAvailabilityService::STATE_INACTIVE => $product->name.' is currently unavailable.',
+            ProductAvailabilityService::STATE_BACKORDER => $product->name.' is available for backorder right now.',
+            ProductAvailabilityService::STATE_SOLD_OUT => $product->name.' is currently sold out.',
+            ProductAvailabilityService::STATE_LOW_STOCK => $product->name.' is still available, but only '.$this->pairLabel((int) ($availability['available_quantity'] ?? 0)).' left.',
+            ProductAvailabilityService::STATE_IN_STOCK => $quantityIntent
+                ? $product->name.' currently has '.$this->pairLabel((int) ($availability['available_quantity'] ?? 0)).' in stock.'
+                : $product->name.' is available with '.$this->pairLabel((int) ($availability['available_quantity'] ?? 0)).' currently in stock.',
+            default => $quantityIntent
+                ? $product->name.' is available, but exact stock is not tracked for this product.'
+                : $product->name.' is available right now.',
+        };
+    }
+
+    private function pairLabel(int $quantity): string
+    {
+        return $quantity.' '.Str::plural('pair', $quantity);
     }
 
     private function displayLookupQuery(string $query): string

@@ -113,6 +113,15 @@ class StorefrontCommerceQueryParser
         'have',
     ];
 
+    private const QUANTITY_KEYWORDS = [
+        'how many',
+        'ilan',
+        'pairs left',
+        'pair left',
+        'stocks left',
+        'stock left',
+    ];
+
     private const SUPPORT_SIZE_GUIDE_PHRASES = [
         'size guide',
         'sizing guide',
@@ -162,6 +171,7 @@ class StorefrontCommerceQueryParser
         $referencesCurrentProduct = $this->referencesCurrentProduct($stripped);
         $explicitLookup = $this->hasSearchOpener($stripped);
         $availabilityIntent = $this->containsAny($stripped, self::AVAILABILITY_KEYWORDS);
+        $quantityIntent = $this->containsAny($stripped, self::QUANTITY_KEYWORDS);
         $supportSizeGuide = $this->containsAny($stripped, self::SUPPORT_SIZE_GUIDE_PHRASES);
         $affordable = $this->containsAny($stripped, ['affordable', 'budget', 'cheap', 'mura']);
         $premium = $this->containsAny($stripped, ['premium', 'expensive', 'mahal']);
@@ -184,6 +194,8 @@ class StorefrontCommerceQueryParser
             budgetMax: $budgetMax,
             affordable: $affordable,
             premium: $premium,
+            availabilityIntent: $availabilityIntent,
+            quantityIntent: $quantityIntent,
         );
 
         $query = $productName ?: $this->extractSearchQuery(
@@ -222,6 +234,7 @@ class StorefrontCommerceQueryParser
             productName: $productName,
             size: $size,
             availabilityIntent: $availabilityIntent,
+            quantityIntent: $quantityIntent,
             budgetMin: $budgetMin,
             budgetMax: $budgetMax,
             affordable: $affordable,
@@ -251,6 +264,7 @@ class StorefrontCommerceQueryParser
                 'support_size_guide' => $supportSizeGuide,
                 'affordable' => $affordable,
                 'premium' => $premium,
+                'quantity_intent' => $quantityIntent,
                 'has_product_signal' => $hasProductSignal,
                 'has_low_signal_text' => $hasLowSignalText,
             ],
@@ -268,6 +282,7 @@ class StorefrontCommerceQueryParser
         ?string $productName,
         ?string $size,
         bool $availabilityIntent,
+        bool $quantityIntent,
         ?float $budgetMin,
         ?float $budgetMax,
         bool $affordable,
@@ -288,7 +303,7 @@ class StorefrontCommerceQueryParser
             return 'fallback';
         }
 
-        if ($size !== null && ($referencesCurrentProduct || $hasCurrentProductContext || $productName !== null || $availabilityIntent)) {
+        if ($size !== null && ($referencesCurrentProduct || $hasCurrentProductContext || $productName !== null || $availabilityIntent || $quantityIntent)) {
             return 'size_stock';
         }
 
@@ -296,7 +311,7 @@ class StorefrontCommerceQueryParser
             return 'current_product';
         }
 
-        if ($productName !== null && ($explicitLookup || $availabilityIntent)) {
+        if ($productName !== null && ($explicitLookup || $availabilityIntent || $quantityIntent)) {
             return $availabilityIntent ? 'product_availability' : 'product_exact_lookup';
         }
 
@@ -324,26 +339,39 @@ class StorefrontCommerceQueryParser
         ?float $budgetMax,
         bool $affordable,
         bool $premium,
+        bool $availabilityIntent,
+        bool $quantityIntent,
     ): ?string {
         if ($referencesCurrentProduct) {
             return null;
         }
 
-        if (! $explicitLookup) {
+        if (! $explicitLookup && ! $availabilityIntent && ! $quantityIntent && $size === null) {
             return null;
         }
 
         $candidate = $this->removeSearchOpeners($normalized);
-        $candidate = preg_replace('/\b(available|availability|in stock|stock|sold out|please|pls|na|ba|kayo|yung|ang)\b/u', ' ', $candidate) ?? $candidate;
+        $candidate = preg_replace('/\b(available|availability|in stock|stock|stocks|sold out|please|pls|na|ba|kayo|yung|ang|may|pa|for|does|do|have|nalang)\b/u', ' ', $candidate) ?? $candidate;
+        $candidate = preg_replace('/\b(how many|ilan|pairs left|pair left|stocks left|stock left|left)\b/u', ' ', $candidate) ?? $candidate;
         $candidate = preg_replace('/\b(?:size|sz|us)\s*\d{1,2}(?:\.\d)?\b/u', ' ', $candidate) ?? $candidate;
         $candidate = preg_replace('/\b(?:under|below|less than|up to|within|over|above|more than|at least)\b.*$/u', ' ', $candidate) ?? $candidate;
+
+        if ($color !== null) {
+            $candidate = preg_replace('/\b'.preg_quote($color, '/').'\b/u', ' ', $candidate) ?? $candidate;
+        }
+
         $candidate = trim((string) preg_replace('/\s+/u', ' ', $candidate));
 
         if ($candidate === '') {
             return null;
         }
 
-        if ($category !== null || $color !== null || $useCase !== null || $size !== null || $budgetMin !== null || $budgetMax !== null || $affordable || $premium) {
+        if (
+            ($category !== null || $color !== null || $useCase !== null || $size !== null || $budgetMin !== null || $budgetMax !== null || $affordable || $premium)
+            && ! $availabilityIntent
+            && ! $quantityIntent
+            && $size === null
+        ) {
             if ($this->containsAny($candidate, self::PRODUCT_TERMS)) {
                 return null;
             }
@@ -535,7 +563,11 @@ class StorefrontCommerceQueryParser
     private function extractSize(string $text): ?string
     {
         if (! preg_match('/(?:size|sz|us)\s*(\d{1,2}(?:\.\d)?)\b/i', $text, $matches)
-            && ! preg_match('/\bmay size\s*(\d{1,2}(?:\.\d)?)\b/i', $text, $matches)) {
+            && ! preg_match('/\bmay size\s*(\d{1,2}(?:\.\d)?)\b/i', $text, $matches)
+            && ! (
+                $this->containsAny($text, array_merge(self::AVAILABILITY_KEYWORDS, self::QUANTITY_KEYWORDS))
+                && preg_match('/\b(6|7|8|9|10|11|12)(?:\.5)?\b/i', $text, $matches)
+            )) {
             return null;
         }
 

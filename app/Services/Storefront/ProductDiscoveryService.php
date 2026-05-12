@@ -3,6 +3,7 @@
 namespace App\Services\Storefront;
 
 use App\Models\Catalog\Product;
+use App\Services\Catalog\ProductAvailabilityService;
 use App\Services\Storefront\Assistant\StorefrontCommerceQueryParser;
 use App\Support\Storefront\ProductMediaResolver;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,6 +52,7 @@ class ProductDiscoveryService
     public function __construct(
         private readonly ProductMediaResolver $productMedia,
         private readonly StorefrontCommerceQueryParser $commerceQueryParser,
+        private readonly ProductAvailabilityService $availability,
     ) {}
 
     public function buildCriteriaFromText(string $text, array $commerce = []): array
@@ -282,22 +284,26 @@ class ProductDiscoveryService
     {
         return $this->activeProducts()
             ->get()
-            ->filter(fn (Product $product): bool => $this->availabilityState($product)['state'] === 'low_stock')
-            ->sortBy(fn (Product $product): int => $this->lowestVariantAvailability($product))
+            ->filter(
+                fn (Product $product): bool => $this->availability->forProduct($product)['state'] === ProductAvailabilityService::STATE_LOW_STOCK
+            )
+            ->sortBy(fn (Product $product): int => (int) ($this->availability->forProduct($product)['available_quantity'] ?? PHP_INT_MAX))
             ->take($limit)
             ->values();
     }
 
     public function formatProduct(Product $product): array
     {
-        $availability = $this->availabilityState($product);
+        $availability = $this->availability->forProduct($product);
         $colors = $product->variants
+            ->filter(fn ($variant): bool => $variant->status === 'active')
             ->map(fn ($variant): ?string => data_get($variant->option_values, 'color'))
             ->filter()
             ->unique()
             ->values();
 
         $sizes = $product->variants
+            ->filter(fn ($variant): bool => $variant->status === 'active')
             ->map(fn ($variant): ?string => data_get($variant->option_values, 'size'))
             ->filter()
             ->unique()
@@ -326,40 +332,22 @@ class ProductDiscoveryService
             'image_alt' => $this->productMedia->altTextFor($product),
             'colors' => $colors->all(),
             'sizes' => $sizes->all(),
-            'availability' => $availability,
+            'availability' => [
+                ...$availability,
+                'quantity' => $availability['available_quantity'],
+                'stock_label' => $availability['label'],
+            ],
         ];
     }
 
-    public function sizeAvailabilityForProduct(Product $product, string $size): array
+    public function sizeAvailabilityForProduct(Product $product, string $size, ?string $color = null): array
     {
-        $normalizedSize = $this->normalizeSizeValue($size);
-        $matchingVariants = $product->variants->filter(function ($variant) use ($normalizedSize): bool {
-            return $this->normalizeSizeValue((string) data_get($variant->option_values, 'size')) === $normalizedSize;
-        })->values();
-
-        $availableQuantity = (int) $matchingVariants->sum(function ($variant): int {
-            return (int) ($variant->inventoryItem?->available_quantity ?? 0);
-        });
-
-        return [
-            'requested_size' => $normalizedSize,
-            'has_size' => $matchingVariants->isNotEmpty(),
-            'is_available' => $availableQuantity > 0,
-            'available_quantity' => $availableQuantity,
-            'available_sizes' => $this->availableSizesForProduct($product),
-        ];
+        return $this->availability->forProductSize($product, $size, $color);
     }
 
     public function availableSizesForProduct(Product $product): array
     {
-        return $product->variants
-            ->filter(fn ($variant): bool => (int) ($variant->inventoryItem?->available_quantity ?? 0) > 0)
-            ->map(fn ($variant): ?string => $this->normalizeSizeValue((string) data_get($variant->option_values, 'size')))
-            ->filter()
-            ->unique()
-            ->sortBy(fn (string $size): float => (float) $size)
-            ->values()
-            ->all();
+        return $this->availability->forProduct($product)['available_sizes'];
     }
 
     private function rankMatches(array $criteria, int $limit, bool $strict, bool $respectBudget): Collection
@@ -367,11 +355,17 @@ class ProductDiscoveryService
         $ranked = $this->activeProducts()
             ->get()
             ->map(function (Product $product) use ($criteria, $strict, $respectBudget): ?array {
+                $availability = $this->availability->forProduct($product);
+
+                if (! ($availability['is_discoverable'] ?? false)) {
+                    return null;
+                }
+
                 if ($strict && ! $this->passesStrictFilters($product, $criteria, $respectBudget)) {
                     return null;
                 }
 
-                $score = $this->scoreProduct($product, $criteria, $respectBudget);
+                $score = $this->scoreProduct($product, $criteria, $respectBudget, $availability);
 
                 if (! $strict && $score <= 0) {
                     return null;
@@ -381,7 +375,7 @@ class ProductDiscoveryService
                     'product' => $product,
                     'score' => $score,
                     'price_distance' => $this->priceDistance($product, $criteria),
-                    'available_quantity' => $this->availableQuantity($product),
+                    'available_quantity' => (int) ($availability['available_quantity'] ?? 0),
                 ];
             })
             ->filter()
@@ -436,7 +430,7 @@ class ProductDiscoveryService
         return true;
     }
 
-    private function scoreProduct(Product $product, array $criteria, bool $respectBudget): int
+    private function scoreProduct(Product $product, array $criteria, bool $respectBudget, ?array $availability = null): int
     {
         $score = 0;
 
@@ -486,11 +480,12 @@ class ProductDiscoveryService
             $score += max(0, 18 - (int) floor(((float) $product->base_price) / 500));
         }
 
-        $availability = $this->availabilityState($product);
+        $availability ??= $this->availability->forProduct($product);
 
         $score += match ($availability['state']) {
-            'in_stock' => 8,
-            'low_stock' => 5,
+            ProductAvailabilityService::STATE_IN_STOCK => 8,
+            ProductAvailabilityService::STATE_LOW_STOCK => 5,
+            ProductAvailabilityService::STATE_BACKORDER => 2,
             default => -6,
         };
 
@@ -539,8 +534,8 @@ class ProductDiscoveryService
     private function productMatchesColor(Product $product, string $color): bool
     {
         $color = Str::lower($color);
-        $variantColors = $product->variants
-            ->map(fn ($variant): string => Str::lower((string) data_get($variant->option_values, 'color', '')))
+        $variantColors = collect($this->availability->forProduct($product)['available_colors'] ?? [])
+            ->map(fn (mixed $variantColor): string => Str::lower((string) $variantColor))
             ->filter()
             ->values();
 
@@ -555,9 +550,14 @@ class ProductDiscoveryService
 
     private function productHasSize(Product $product, string $size): bool
     {
-        return $product->variants->contains(function ($variant) use ($size): bool {
-            return $this->normalizeSizeValue((string) data_get($variant->option_values, 'size')) === $this->normalizeSizeValue((string) $size);
-        });
+        $availability = $this->availability->forProductSize($product, $size);
+
+        return ($availability['has_variant'] ?? false) === true
+            && in_array($availability['state'] ?? null, [
+                ProductAvailabilityService::STATE_IN_STOCK,
+                ProductAvailabilityService::STATE_LOW_STOCK,
+                ProductAvailabilityService::STATE_BACKORDER,
+            ], true);
     }
 
     private function searchableText(Product $product): string
@@ -697,6 +697,7 @@ class ProductDiscoveryService
             ->get()
             ->map(function (Product $product) use ($normalizedQuery): ?array {
                 $match = $this->namedMatchScore($product, $normalizedQuery);
+                $availability = $this->availability->forProduct($product);
 
                 if (($match['score'] ?? 0) <= 0) {
                     return null;
@@ -706,7 +707,7 @@ class ProductDiscoveryService
                     'product' => $product,
                     'score' => $match['score'],
                     'match_type' => $match['match_type'],
-                    'available_quantity' => $this->availableQuantity($product),
+                    'available_quantity' => (int) ($availability['available_quantity'] ?? 0),
                 ];
             })
             ->filter()
@@ -821,58 +822,16 @@ class ProductDiscoveryService
         return trim((string) preg_replace('/\s+/', ' ', $value));
     }
 
-    private function availabilityState(Product $product): array
-    {
-        $available = $this->availableQuantity($product);
-        $variantSnapshots = $product->variants
-            ->map(function ($variant): array {
-                $availableQuantity = (int) ($variant->inventoryItem?->available_quantity ?? 0);
-                $reorderLevel = max((int) ($variant->inventoryItem?->reorder_level ?? 0), 3);
-
-                return [
-                    'available' => $availableQuantity,
-                    'reorder_level' => $reorderLevel,
-                ];
-            });
-
-        if ($available <= 0) {
-            return [
-                'state' => 'sold_out',
-                'label' => 'Sold out',
-                'quantity' => 0,
-            ];
-        }
-
-        $limitedSizes = $variantSnapshots->contains(function (array $snapshot): bool {
-            return $snapshot['available'] <= $snapshot['reorder_level'];
-        });
-
-        if ($limitedSizes) {
-            return [
-                'state' => 'low_stock',
-                'label' => 'Low stock on select sizes',
-                'quantity' => $available,
-            ];
-        }
-
-        return [
-            'state' => 'in_stock',
-            'label' => 'In stock',
-            'quantity' => $available,
-        ];
-    }
-
     private function availableQuantity(Product $product): int
     {
-        return (int) $product->variants->sum(function ($variant): int {
-            return (int) ($variant->inventoryItem?->available_quantity ?? 0);
-        });
+        return (int) ($this->availability->forProduct($product)['available_quantity'] ?? 0);
     }
 
     private function lowestVariantAvailability(Product $product): int
     {
         return (int) $product->variants
-            ->map(fn ($variant): int => (int) ($variant->inventoryItem?->available_quantity ?? PHP_INT_MAX))
+            ->filter(fn ($variant): bool => $variant->status === 'active')
+            ->map(fn ($variant): int => (int) ($this->availability->forVariant($variant)['available_quantity'] ?? PHP_INT_MAX))
             ->min();
     }
 

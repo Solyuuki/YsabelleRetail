@@ -18,6 +18,23 @@
     @php
         $imageUrl = $media->imageUrlFor($product);
         $imageAlt = $media->altTextFor($product);
+        $availability = $productAvailability ?? [
+            'state' => 'sold_out',
+            'label' => 'Sold Out',
+            'available_quantity' => 0,
+            'inventory_tracked' => true,
+        ];
+        $availabilityCopy = match ($availability['state'] ?? 'sold_out') {
+            'in_stock' => ($availability['available_quantity'] ?? null) !== null
+                ? number_format((int) $availability['available_quantity']).' in stock'
+                : 'In stock',
+            'low_stock' => ($availability['available_quantity'] ?? null) !== null
+                ? 'Low stock - '.number_format((int) $availability['available_quantity']).' left'
+                : 'Low stock',
+            'available_for_backorder' => 'Available for backorder',
+            'inactive' => 'Currently unavailable',
+            default => 'Sold out',
+        };
         $trustMarks = collect(($storefrontTrustMarks ?? config('storefront.trust_marks')) ?: [
             [
                 'label' => 'Secure Checkout',
@@ -93,7 +110,7 @@
                         <span class="font-medium uppercase tracking-[0.18em] text-ys-ivory/38">No reviews yet</span>
                     @endif
                     <span>&middot;</span>
-                    <span>{{ $product->variants->sum(fn ($variant) => $variant->inventoryItem?->available_quantity ?? 0) }} in stock</span>
+                    <span>{{ $availabilityCopy }}</span>
                 </div>
 
                 <div class="mt-6 flex items-center gap-3">

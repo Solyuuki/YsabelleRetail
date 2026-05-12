@@ -3,6 +3,7 @@
 namespace App\Services\Storefront;
 
 use App\Models\Catalog\Product;
+use App\Services\Catalog\ProductAvailabilityService;
 use App\Models\Storefront\VisualSearchIndexEntry;
 use App\Support\Storefront\ColorFamilyNormalizer;
 use Illuminate\Http\UploadedFile;
@@ -31,6 +32,7 @@ class VisualProductSearchService
 
     public function __construct(
         private readonly ProductDiscoveryService $productDiscovery,
+        private readonly ProductAvailabilityService $availability,
         private readonly ImageFeatureExtractor $featureExtractor,
         private readonly VisualSearchImageSource $imageSource,
         private readonly VisualSearchIndexService $indexService,
@@ -471,6 +473,7 @@ class VisualProductSearchService
 
                 return $best;
             })
+            ->filter(fn (array $candidate): bool => $this->availability->isDiscoverable($candidate['product']))
             ->sortByDesc('score')
             ->values();
     }
@@ -896,11 +899,12 @@ class VisualProductSearchService
 
     private function availabilityBoost(Product $product): float
     {
-        $availability = $this->productDiscovery->formatProduct($product)['availability']['state'] ?? null;
+        $availability = $this->availability->forProduct($product)['state'] ?? null;
 
         return match ($availability) {
-            'in_stock' => 0.015,
-            'low_stock' => 0.008,
+            ProductAvailabilityService::STATE_IN_STOCK => 0.015,
+            ProductAvailabilityService::STATE_LOW_STOCK => 0.008,
+            ProductAvailabilityService::STATE_BACKORDER => 0.004,
             default => 0.0,
         };
     }

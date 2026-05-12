@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Catalog;
 
+use App\Services\Catalog\ProductAvailabilityService;
 use App\Support\Storefront\ProductMediaResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -11,6 +12,7 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         $media = app(ProductMediaResolver::class);
+        $availability = app(ProductAvailabilityService::class)->forProduct($this->resource);
 
         return [
             'id' => $this->id,
@@ -35,6 +37,7 @@ class ProductResource extends JsonResource
             'is_featured' => $this->is_featured,
             'featured_rank' => $this->featured_rank,
             'track_inventory' => $this->track_inventory,
+            'availability' => $availability,
             'variants_count' => $this->whenCounted('variants'),
             'variants' => ProductVariantResource::collection($this->whenLoaded('variants')),
             'created_at' => $this->created_at,

@@ -4,10 +4,19 @@
 ])
 
 @inject('media', 'App\\Support\\Storefront\\ProductMediaResolver')
+@inject('availabilityService', 'App\\Services\\Catalog\\ProductAvailabilityService')
 
 @php
     $imageUrl = $media->imageUrlFor($product);
     $imageAlt = $media->altTextFor($product);
+    $availability = $availabilityService->forProduct($product);
+    $availabilityClasses = match ($availability['state'] ?? 'sold_out') {
+        'in_stock' => 'bg-[#11311f] text-[#9fe1b1]',
+        'low_stock' => 'bg-[#38260c] text-[#f0c36f]',
+        'available_for_backorder' => 'bg-[#112a3f] text-[#9fd4ff]',
+        'inactive' => 'bg-[#2f2b36] text-[#ddd3f0]',
+        default => 'bg-[#411415] text-[#ffb0b0]',
+    };
 @endphp
 
 <article class="group overflow-hidden rounded-[1.75rem] border border-white/7 bg-ys-panel/90 shadow-[0_10px_60px_rgba(0,0,0,0.35)] transition duration-500 hover:-translate-y-1 hover:border-ys-gold/30 hover:shadow-[0_18px_75px_rgba(0,0,0,0.55)]" data-reveal>
@@ -29,6 +38,12 @@
                 @if ($product->shows_sale_badge)
                     <span class="ys-status-pill bg-[#e44040] text-white">Sale</span>
                 @endif
+            </div>
+
+            <div class="absolute bottom-5 left-5">
+                <span class="rounded-full px-3 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.18em] {{ $availabilityClasses }}">
+                    {{ $availability['label'] ?? 'Sold Out' }}
+                </span>
             </div>
         </div>
 
