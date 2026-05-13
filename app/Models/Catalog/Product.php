@@ -3,13 +3,15 @@
 namespace App\Models\Catalog;
 
 use App\Models\Orders\OrderItem;
+use App\Models\Storefront\VisualSearchIndexEntry;
 use Database\Factories\Catalog\ProductFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 
 class Product extends Model
 {
@@ -32,6 +34,7 @@ class Product extends Model
         'review_count',
         'status',
         'is_featured',
+        'force_new_badge',
         'featured_rank',
         'track_inventory',
     ];
@@ -43,10 +46,38 @@ class Product extends Model
             'compare_at_price' => 'decimal:2',
             'rating_average' => 'decimal:1',
             'is_featured' => 'boolean',
+            'force_new_badge' => 'boolean',
             'image_gallery' => 'array',
             'featured_rank' => 'integer',
+            'primary_image_updated_at' => 'datetime',
             'track_inventory' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product): void {
+            if (! $product->isDirty('primary_image_url')) {
+                return;
+            }
+
+            $product->primary_image_updated_at = filled($product->primary_image_url)
+                || filled($product->getOriginal('primary_image_url'))
+                ? now()
+                : null;
+        });
+
+        static::saved(function (Product $product): void {
+            if (! $product->wasChanged('primary_image_url') || ! self::visualSearchIndexTableExists()) {
+                return;
+            }
+
+            VisualSearchIndexEntry::query()
+                ->where('product_id', $product->id)
+                ->update([
+                    'source_updated_at' => $product->primary_image_updated_at ?? now(),
+                ]);
+        });
     }
 
     public function getRouteKeyName(): string
@@ -95,7 +126,7 @@ class Product extends Model
     protected function showsNewBadge(): Attribute
     {
         return Attribute::make(
-            get: fn (): bool => $this->is_new_arrival,
+            get: fn (): bool => (bool) $this->force_new_badge || $this->is_new_arrival,
         );
     }
 
@@ -126,5 +157,14 @@ class Product extends Model
         return Attribute::make(
             get: fn (): string => $this->has_reviews ? 'rated' : 'no_reviews',
         );
+    }
+
+    private static function visualSearchIndexTableExists(): bool
+    {
+        try {
+            return Schema::hasTable('visual_search_index_entries');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

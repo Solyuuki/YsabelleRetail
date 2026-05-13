@@ -109,7 +109,7 @@ class VisualSearchIndexService
                         'shoe_confidence' => $embeddingOk ? ($embedding['shoe_probability'] ?? null) : null,
                         'blur_score' => $embeddingOk ? data_get($embedding, 'metadata.blur_score') : null,
                         'embedding_generated_at' => $embeddingOk ? now() : null,
-                        'source_updated_at' => $entry['product']->updated_at,
+                        'source_updated_at' => $entry['product']->primary_image_updated_at ?? $entry['product']->updated_at,
                         'indexed_at' => now(),
                     ],
                 );

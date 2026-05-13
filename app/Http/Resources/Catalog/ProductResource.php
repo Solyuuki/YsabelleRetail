@@ -35,6 +35,7 @@ class ProductResource extends JsonResource
             'shows_sale_badge' => $this->shows_sale_badge,
             'status' => $this->status,
             'is_featured' => $this->is_featured,
+            'force_new_badge' => $this->force_new_badge,
             'featured_rank' => $this->featured_rank,
             'track_inventory' => $this->track_inventory,
             'availability' => $availability,

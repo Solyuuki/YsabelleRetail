@@ -36,6 +36,7 @@ class ProductFactory extends Factory
             'review_count' => 0,
             'status' => 'active',
             'is_featured' => fake()->boolean(30),
+            'force_new_badge' => false,
             'featured_rank' => fake()->optional()->numberBetween(1, 20),
             'track_inventory' => true,
         ];

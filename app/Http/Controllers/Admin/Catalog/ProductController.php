@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Catalog\SaveProductRequest;
 use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
+use App\Services\Admin\ProductLifecycleService;
 use App\Services\Admin\ProductUpsertService;
+use App\Services\Admin\ProductVisibilityDiagnosticsService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use LogicException;
 
 class ProductController extends Controller
 {
@@ -51,30 +54,46 @@ class ProductController extends Controller
         return view('admin.catalog.products.create', [
             'product' => new Product([
                 'status' => 'active',
+                'force_new_badge' => false,
                 'track_inventory' => true,
             ]),
             'categories' => Category::query()->orderBy('name')->get(),
         ]);
     }
 
-    public function store(SaveProductRequest $request, ProductUpsertService $products): RedirectResponse
+    public function store(
+        SaveProductRequest $request,
+        ProductUpsertService $products,
+        ProductVisibilityDiagnosticsService $diagnostics,
+    ): RedirectResponse
     {
-        $product = $products->store($request->validated(), $request->user());
+        $payload = $request->validated();
+        $product = $products->store($payload, $request->user());
+        $imageChanged = filled($product->primary_image_url);
+        $visibility = $diagnostics->inspect($product);
 
         return redirect()
             ->route('admin.catalog.products.edit', $product)
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Product saved',
-                'message' => "{$product->name} is now available in the admin catalog.",
+                'message' => $this->buildSaveMessage($product, $imageChanged, $visibility),
             ]);
     }
 
-    public function edit(Product $product): View
+    public function edit(
+        Product $product,
+        ProductVisibilityDiagnosticsService $diagnostics,
+        ProductLifecycleService $lifecycle,
+    ): View
     {
+        $product = $product->load(['category', 'variants.inventoryItem']);
+
         return view('admin.catalog.products.edit', [
-            'product' => $product->load(['variants.inventoryItem']),
+            'product' => $product,
             'categories' => Category::query()->orderBy('name')->get(),
+            'visibilityDiagnostics' => $diagnostics->inspect($product),
+            'deletionAssessment' => $lifecycle->deletionAssessment($product),
         ]);
     }
 
@@ -82,21 +101,25 @@ class ProductController extends Controller
         SaveProductRequest $request,
         Product $product,
         ProductUpsertService $products,
+        ProductVisibilityDiagnosticsService $diagnostics,
     ): RedirectResponse {
+        $previousImage = (string) ($product->primary_image_url ?? '');
         $product = $products->update($product, $request->validated(), $request->user());
+        $imageChanged = $previousImage !== (string) ($product->primary_image_url ?? '');
+        $visibility = $diagnostics->inspect($product);
 
         return redirect()
             ->route('admin.catalog.products.edit', $product)
             ->with('toast', [
                 'type' => 'success',
                 'title' => 'Product updated',
-                'message' => "{$product->name} was updated successfully.",
+                'message' => $this->buildSaveMessage($product, $imageChanged, $visibility),
             ]);
     }
 
-    public function destroy(Product $product): RedirectResponse
+    public function destroy(Product $product, ProductLifecycleService $lifecycle): RedirectResponse
     {
-        $product->update(['status' => 'archived']);
+        $lifecycle->archive($product);
 
         return redirect()
             ->route('admin.catalog.products.index')
@@ -105,5 +128,60 @@ class ProductController extends Controller
                 'title' => 'Product archived',
                 'message' => "{$product->name} was archived safely.",
             ]);
+    }
+
+    public function purge(Product $product, ProductLifecycleService $lifecycle): RedirectResponse
+    {
+        $assessment = $lifecycle->deletionAssessment($product);
+
+        if (! $assessment['can_delete']) {
+            return redirect()
+                ->route('admin.catalog.products.edit', $product)
+                ->with('toast', [
+                    'type' => 'warning',
+                    'title' => 'Delete unavailable',
+                    'message' => $assessment['message'],
+                ]);
+        }
+
+        $productName = $product->name;
+
+        try {
+            $lifecycle->delete($product);
+        } catch (LogicException) {
+            return redirect()
+                ->route('admin.catalog.products.edit', $product)
+                ->with('toast', [
+                    'type' => 'warning',
+                    'title' => 'Delete unavailable',
+                    'message' => $assessment['message'],
+                ]);
+        }
+
+        return redirect()
+            ->route('admin.catalog.products.index')
+            ->with('toast', [
+                'type' => 'success',
+                'title' => 'Product deleted',
+                'message' => "{$productName} was deleted permanently.",
+            ]);
+    }
+
+    private function buildSaveMessage(Product $product, bool $imageChanged, array $visibility): string
+    {
+        $messages = ['Product saved.'];
+
+        if ($imageChanged) {
+            $messages[] = 'Rebuild visual search index to include this image.';
+        }
+
+        if (! ($visibility['storefront_visible'] ?? false)) {
+            $issue = $visibility['primary_issue'] ?? null;
+            $messages[] = $issue
+                ? 'Not yet visible on the storefront: '.$issue.'.'
+                : 'Not yet visible on the storefront. Review the visibility checklist below.';
+        }
+
+        return implode(' ', $messages);
     }
 }

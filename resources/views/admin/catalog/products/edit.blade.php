@@ -6,16 +6,16 @@
         :title="'Edit '.$product->name"
         description="Refine storefront presentation, stock behavior, and variant data without leaving the admin workspace."
     >
-        <form action="{{ route('admin.catalog.products.destroy', $product) }}" method="POST" data-confirm-message="Archive this product?">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="ys-admin-button-danger">Archive product</button>
-        </form>
+        <span class="ys-admin-pill {{ ($deletionAssessment['can_delete'] ?? false) ? 'ys-admin-pill-success' : 'ys-admin-pill-warning' }}">
+            {{ ($deletionAssessment['can_delete'] ?? false) ? 'Delete available' : 'Archive recommended' }}
+        </span>
     </x-admin.page-header>
 
     @include('admin.catalog.products._form', [
         'action' => route('admin.catalog.products.update', $product),
         'method' => 'PUT',
         'submitLabel' => 'Save changes',
+        'visibilityDiagnostics' => $visibilityDiagnostics,
+        'deletionAssessment' => $deletionAssessment,
     ])
 @endsection

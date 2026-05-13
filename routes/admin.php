@@ -23,6 +23,7 @@ Route::prefix('admin')
         Route::prefix('catalog')
             ->as('catalog.')
             ->group(function (): void {
+                Route::delete('products/{product}/purge', [ProductController::class, 'purge'])->name('products.purge');
                 Route::resource('products', ProductController::class)->except(['show']);
                 Route::resource('categories', CategoryController::class)->except(['show']);
             });

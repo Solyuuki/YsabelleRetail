@@ -5,11 +5,21 @@ namespace App\Http\Requests\Admin\Catalog;
 use App\Models\Catalog\ProductVariant;
 use App\Support\Storefront\ProductMediaPath;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class SaveProductRequest extends FormRequest
 {
+    private const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+    private const ALLOWED_IMAGE_MIME_TYPES = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+    ];
+
     public function authorize(): bool
     {
         return $this->user()?->isAdmin() ?? false;
@@ -45,6 +55,8 @@ class SaveProductRequest extends FormRequest
             'primary_image_url' => trim((string) $this->input('primary_image_url', '')),
             'variants' => $variants,
             'is_featured' => $this->boolean('is_featured'),
+            'force_new_badge' => $this->boolean('force_new_badge'),
+            'remove_primary_image' => $this->boolean('remove_primary_image'),
             'track_inventory' => $this->boolean('track_inventory', true),
         ]);
     }
@@ -60,12 +72,30 @@ class SaveProductRequest extends FormRequest
             'style_code' => ['nullable', 'string', 'max:255', Rule::unique('products', 'style_code')->ignore($productId)],
             'short_description' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
+            'primary_image_upload' => [
+                'nullable',
+                'file',
+                'max:5120',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null) {
+                        return;
+                    }
+
+                    if (! $value instanceof UploadedFile || ! $this->isSupportedImage($value)) {
+                        $fail('Please upload a JPG, JPEG, PNG, or WEBP image up to 5 MB.');
+                    }
+                },
+            ],
             'primary_image_url' => [
                 'nullable',
                 'string',
                 'max:2048',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null || $value === '') {
+                        return;
+                    }
+
+                    if ($this->hasFile('primary_image_upload')) {
                         return;
                     }
 
@@ -79,6 +109,8 @@ class SaveProductRequest extends FormRequest
             'image_alt' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['draft', 'active', 'archived'])],
             'is_featured' => ['required', 'boolean'],
+            'force_new_badge' => ['required', 'boolean'],
+            'remove_primary_image' => ['required', 'boolean'],
             'featured_rank' => ['nullable', 'integer', 'min:1', 'max:999'],
             'track_inventory' => ['required', 'boolean'],
             'variants' => ['required', 'array', 'min:1'],
@@ -125,5 +157,61 @@ class SaveProductRequest extends FormRequest
                 }
             },
         ];
+    }
+
+    private function isSupportedImage(UploadedFile $image): bool
+    {
+        $detectedMime = Str::lower((string) $image->getMimeType());
+        $clientMime = Str::lower((string) $image->getClientMimeType());
+        $extension = Str::lower((string) $image->getClientOriginalExtension());
+        $contentMime = $this->contentMimeType($image);
+
+        if (! $this->isAllowedMime($contentMime, $detectedMime, $clientMime, $extension)) {
+            return false;
+        }
+
+        $dimensions = @getimagesize($this->inspectablePath($image) ?: '');
+
+        return is_array($dimensions) && str_starts_with(Str::lower((string) ($dimensions['mime'] ?? '')), 'image/');
+    }
+
+    private function contentMimeType(UploadedFile $image): ?string
+    {
+        $path = $this->inspectablePath($image);
+
+        if (! is_string($path) || $path === '' || ! is_file($path) || ! is_readable($path)) {
+            return null;
+        }
+
+        $mime = @mime_content_type($path);
+
+        return is_string($mime) && $mime !== '' ? Str::lower($mime) : null;
+    }
+
+    private function inspectablePath(UploadedFile $image): ?string
+    {
+        $candidates = array_unique(array_filter([
+            $image->getRealPath(),
+            $image->getPathname(),
+        ]));
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && $candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function isAllowedMime(?string $contentMime, string $detectedMime, string $clientMime, string $extension): bool
+    {
+        foreach (array_filter([$contentMime, $detectedMime, $clientMime]) as $mime) {
+            if (in_array($mime, self::ALLOWED_IMAGE_MIME_TYPES, true)) {
+                return true;
+            }
+        }
+
+        return in_array($extension, self::ALLOWED_IMAGE_EXTENSIONS, true);
     }
 }

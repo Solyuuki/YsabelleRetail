@@ -9,7 +9,9 @@ use App\Services\Inventory\InventoryManager;
 use App\Support\Admin\InventoryMovementType;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Http\UploadedFile;
 
 class ProductUpsertService
 {
@@ -30,7 +32,17 @@ class ProductUpsertService
     private function persist(Product $product, array $payload, User $actor): Product
     {
         $productData = Arr::except($payload, ['variants']);
+        $primaryImageUpload = $productData['primary_image_upload'] ?? null;
+        $removePrimaryImage = (bool) ($productData['remove_primary_image'] ?? false);
+        unset($productData['primary_image_upload']);
         $productData['slug'] = $productData['slug'] ?: Str::slug($productData['name']);
+        $productData['primary_image_url'] = filled($productData['primary_image_url'] ?? null)
+            ? trim((string) $productData['primary_image_url'])
+            : null;
+
+        if ($removePrimaryImage && ! $primaryImageUpload instanceof UploadedFile) {
+            $productData['primary_image_url'] = null;
+        }
 
         $variants = collect($payload['variants'])
             ->map(function (array $variant): array {
@@ -48,6 +60,12 @@ class ProductUpsertService
 
         $product->fill($productData);
         $product->save();
+
+        if ($primaryImageUpload instanceof UploadedFile) {
+            $product->forceFill([
+                'primary_image_url' => $this->storePrimaryImage($product, $primaryImageUpload),
+            ])->save();
+        }
 
         $existingIds = [];
 
@@ -115,6 +133,18 @@ class ProductUpsertService
             });
 
         return $product->fresh(['category', 'variants.inventoryItem']);
+    }
+
+    private function storePrimaryImage(Product $product, UploadedFile $image): string
+    {
+        $directory = 'products/'.$product->getKey();
+        $extension = Str::lower((string) ($image->guessExtension() ?: $image->getClientOriginalExtension() ?: 'jpg'));
+        $extension = $extension === 'jpeg' ? 'jpg' : $extension;
+        $filename = 'primary-'.Str::lower((string) Str::uuid()).'.'.$extension;
+
+        Storage::disk('public')->putFileAs($directory, $image, $filename);
+
+        return 'storage/'.$directory.'/'.$filename;
     }
 
     private function syncAuditedInventoryLevel(
