@@ -33,6 +33,83 @@ class VisualSearchIndexService
         return Cache::rememberForever($this->cacheKey(), fn (): Collection => $this->queryIndexedEntries());
     }
 
+    public function syncProduct(Product $product): array
+    {
+        if (! $this->indexTableExists()) {
+            return [
+                'synced' => false,
+                'status' => 'index_unavailable',
+                'entries_indexed' => 0,
+                'entries_deleted' => 0,
+            ];
+        }
+
+        $product->loadMissing(['category', 'variants.inventoryItem']);
+
+        if ($product->status !== 'active') {
+            $deleted = VisualSearchIndexEntry::query()
+                ->where('product_id', $product->id)
+                ->delete();
+
+            Cache::forget($this->cacheKey());
+
+            return [
+                'synced' => true,
+                'status' => 'removed_inactive_product',
+                'entries_indexed' => 0,
+                'entries_deleted' => $deleted,
+            ];
+        }
+
+        $stats = $this->baseStats();
+        $discoveredKeys = [];
+        $preparedEntries = [];
+        $successfulKeys = [];
+
+        $this->prepareEntriesFromProducts(collect([$product]), $stats, $discoveredKeys, $preparedEntries);
+
+        if ($preparedEntries === []) {
+            $deleted = VisualSearchIndexEntry::query()
+                ->where('product_id', $product->id)
+                ->delete();
+
+            Cache::forget($this->cacheKey());
+
+            return [
+                'synced' => false,
+                'status' => 'no_image',
+                'entries_indexed' => 0,
+                'entries_deleted' => $deleted,
+            ];
+        }
+
+        $embeddingResults = $this->embedPreparedEntries($preparedEntries, $stats);
+
+        foreach ($preparedEntries as $entry) {
+            try {
+                $embedding = $embeddingResults[$entry['id']] ?? null;
+
+                $this->upsertPreparedEntry($entry, $embedding);
+                $successfulKeys[$this->entryKey($entry['product']->id, $entry['image_url'])] = true;
+                $stats['images_indexed']++;
+            } finally {
+                if ($entry['temporary_path'] && is_string($entry['materialized_path'])) {
+                    @unlink($entry['materialized_path']);
+                }
+            }
+        }
+
+        $stats['entries_deleted'] = $this->deleteStaleProductEntries($product, $successfulKeys);
+        Cache::forget($this->cacheKey());
+
+        return [
+            'synced' => true,
+            'status' => 'synced',
+            'entries_indexed' => $stats['images_indexed'],
+            'entries_deleted' => $stats['entries_deleted'],
+        ];
+    }
+
     public function rebuildIndex(bool $fresh = false, ?int $limit = null): array
     {
         if (! $this->indexTableExists()) {
@@ -72,47 +149,7 @@ class VisualSearchIndexService
         foreach ($preparedEntries as $entry) {
             try {
                 $embedding = $embeddingResults[$entry['id']] ?? null;
-                $embeddingOk = is_array($embedding)
-                    && ($embedding['ok'] ?? false) === true
-                    && is_array($embedding['embedding'] ?? null);
-
-                VisualSearchIndexEntry::query()->updateOrCreate(
-                    [
-                        'product_id' => $entry['product']->id,
-                        'image_url_hash' => hash('sha256', $entry['image_url']),
-                    ],
-                    [
-                        'image_url' => $entry['image_url'],
-                        'image_path' => $entry['image_path'],
-                        'product_variant_id' => $entry['product']->variants->first()?->id,
-                        'image_role' => $entry['image_index'] === 0 ? 'primary' : 'gallery',
-                        'feature_version' => $entry['features']['feature_version'],
-                        'source_checksum' => $entry['source_checksum'],
-                        'perceptual_hash' => $entry['features']['perceptual_hash'],
-                        'color_histogram' => $entry['features']['color_histogram'],
-                        'shape_profile_x' => $entry['features']['shape_profile_x'],
-                        'shape_profile_y' => $entry['features']['shape_profile_y'],
-                        'dominant_colors' => $entry['features']['dominant_colors'],
-                        'mean_red' => $entry['features']['mean_red'],
-                        'mean_green' => $entry['features']['mean_green'],
-                        'mean_blue' => $entry['features']['mean_blue'],
-                        'edge_density' => $entry['features']['edge_density'],
-                        'foreground_ratio' => $entry['features']['foreground_ratio'],
-                        'aspect_ratio' => $entry['features']['aspect_ratio'],
-                        'width' => $entry['features']['width'],
-                        'height' => $entry['features']['height'],
-                        'embedding_vector' => $embeddingOk ? $embedding['embedding'] : null,
-                        'embedding_crops' => $embeddingOk ? ($embedding['crop_embeddings'] ?? null) : null,
-                        'embedding_model' => $embeddingOk ? $this->embeddingService->model() : null,
-                        'embedding_version' => $embeddingOk ? $this->embeddingService->embeddingVersion() : null,
-                        'index_version_key' => $this->indexVersionKey($entry, $embeddingOk),
-                        'shoe_confidence' => $embeddingOk ? ($embedding['shoe_probability'] ?? null) : null,
-                        'blur_score' => $embeddingOk ? data_get($embedding, 'metadata.blur_score') : null,
-                        'embedding_generated_at' => $embeddingOk ? now() : null,
-                        'source_updated_at' => $entry['product']->primary_image_updated_at ?? $entry['product']->updated_at,
-                        'indexed_at' => now(),
-                    ],
-                );
+                $this->upsertPreparedEntry($entry, $embedding);
 
                 $successfulKeys[$this->entryKey($entry['product']->id, $entry['image_url'])] = true;
                 $stats['images_indexed']++;
@@ -462,6 +499,71 @@ class VisualSearchIndexService
         }
 
         return $query->get();
+    }
+
+    private function upsertPreparedEntry(array $entry, mixed $embedding): void
+    {
+        $embeddingOk = is_array($embedding)
+            && ($embedding['ok'] ?? false) === true
+            && is_array($embedding['embedding'] ?? null);
+
+        VisualSearchIndexEntry::query()->updateOrCreate(
+            [
+                'product_id' => $entry['product']->id,
+                'image_url_hash' => hash('sha256', $entry['image_url']),
+            ],
+            [
+                'image_url' => $entry['image_url'],
+                'image_path' => $entry['image_path'],
+                'product_variant_id' => $entry['product']->variants->first()?->id,
+                'image_role' => $entry['image_index'] === 0 ? 'primary' : 'gallery',
+                'feature_version' => $entry['features']['feature_version'],
+                'source_checksum' => $entry['source_checksum'],
+                'perceptual_hash' => $entry['features']['perceptual_hash'],
+                'color_histogram' => $entry['features']['color_histogram'],
+                'shape_profile_x' => $entry['features']['shape_profile_x'],
+                'shape_profile_y' => $entry['features']['shape_profile_y'],
+                'dominant_colors' => $entry['features']['dominant_colors'],
+                'mean_red' => $entry['features']['mean_red'],
+                'mean_green' => $entry['features']['mean_green'],
+                'mean_blue' => $entry['features']['mean_blue'],
+                'edge_density' => $entry['features']['edge_density'],
+                'foreground_ratio' => $entry['features']['foreground_ratio'],
+                'aspect_ratio' => $entry['features']['aspect_ratio'],
+                'width' => $entry['features']['width'],
+                'height' => $entry['features']['height'],
+                'embedding_vector' => $embeddingOk ? $embedding['embedding'] : null,
+                'embedding_crops' => $embeddingOk ? ($embedding['crop_embeddings'] ?? null) : null,
+                'embedding_model' => $embeddingOk ? $this->embeddingService->model() : null,
+                'embedding_version' => $embeddingOk ? $this->embeddingService->embeddingVersion() : null,
+                'index_version_key' => $this->indexVersionKey($entry, $embeddingOk),
+                'shoe_confidence' => $embeddingOk ? ($embedding['shoe_probability'] ?? null) : null,
+                'blur_score' => $embeddingOk ? data_get($embedding, 'metadata.blur_score') : null,
+                'embedding_generated_at' => $embeddingOk ? now() : null,
+                'source_updated_at' => $entry['product']->primary_image_updated_at ?? $entry['product']->updated_at,
+                'indexed_at' => now(),
+            ],
+        );
+    }
+
+    private function deleteStaleProductEntries(Product $product, array $successfulKeys): int
+    {
+        $staleIds = VisualSearchIndexEntry::query()
+            ->where('product_id', $product->id)
+            ->get(['id', 'product_id', 'image_url'])
+            ->reject(function (VisualSearchIndexEntry $entry) use ($successfulKeys): bool {
+                return isset($successfulKeys[$this->entryKey($entry->product_id, $entry->image_url)]);
+            })
+            ->pluck('id')
+            ->values();
+
+        $deleted = 0;
+
+        foreach ($staleIds->chunk(100) as $chunk) {
+            $deleted += VisualSearchIndexEntry::query()->whereIn('id', $chunk)->delete();
+        }
+
+        return $deleted;
     }
 
     private function cacheKey(): string

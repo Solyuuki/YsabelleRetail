@@ -6,6 +6,7 @@
     $newBadgeWindowDays = (int) config('storefront.catalog.new_badge_window_days', 60);
     $visibilityDiagnostics = $visibilityDiagnostics ?? null;
     $deletionAssessment = $deletionAssessment ?? null;
+    $productSystemHealth = $productSystemHealth ?? null;
     $hasOldInput = session()->hasOldInput();
     $variantDefaults = old('variants', $product->variants->map(function ($variant) {
         return [
@@ -548,6 +549,63 @@
         </div>
 
         <aside class="ys-admin-product-builder-sidebar space-y-6">
+            @if ($productSystemHealth)
+                <section class="ys-admin-panel ys-admin-builder-preview" data-admin-panel>
+                    <div class="ys-admin-panel-heading">
+                        <div>
+                            <h2 class="ys-admin-panel-title">Catalog Write Health</h2>
+                            <p class="ys-admin-subtle">Normal product creation should stay available. These checks explain whether the system can safely save products right now.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 space-y-3">
+                        <div class="ys-admin-detail-panel">
+                            <p class="ys-admin-detail-kicker">Current status</p>
+                            <div class="mt-3 flex items-center justify-between gap-3">
+                                <h3 class="ys-admin-detail-heading">
+                                    {{ ($productSystemHealth['ready'] ?? false) ? 'Ready for product changes' : 'Product changes are blocked' }}
+                                </h3>
+                                <span class="ys-admin-pill {{ ($productSystemHealth['ready'] ?? false) ? 'ys-admin-pill-success' : 'ys-admin-pill-danger' }}">
+                                    {{ ($productSystemHealth['ready'] ?? false) ? 'Healthy' : 'Blocked' }}
+                                </span>
+                            </div>
+                            <p class="ys-admin-detail-copy">
+                                {{ ($productSystemHealth['ready'] ?? false)
+                                    ? 'Critical product, inventory, and catalog dependencies are available.'
+                                    : ($productSystemHealth['blocking_message'] ?? 'Product creation is temporarily unavailable until system health is restored.') }}
+                            </p>
+                        </div>
+
+                        @if (! empty($productSystemHealth['warnings']))
+                            <div class="ys-admin-detail-panel">
+                                <p class="ys-admin-detail-kicker">Warnings</p>
+                                <h3 class="ys-admin-detail-heading">Create can continue with caution</h3>
+                                <p class="ys-admin-detail-copy">Non-critical systems may lag behind a successful save, especially image search.</p>
+                            </div>
+                        @endif
+
+                        <div class="ys-admin-diagnostic-list">
+                            @foreach (($productSystemHealth['checks'] ?? []) as $check)
+                                <article class="ys-admin-diagnostic-item">
+                                    <div class="ys-admin-diagnostic-topline">
+                                        <h3 class="ys-admin-live-title">{{ $check['label'] }}</h3>
+                                        <span class="ys-admin-pill {{ match ($check['state']) {
+                                            'pass' => 'ys-admin-pill-success',
+                                            'warning' => 'ys-admin-pill-warning',
+                                            default => 'ys-admin-pill-danger',
+                                        } }}">
+                                            {{ ucfirst($check['state']) }}
+                                        </span>
+                                    </div>
+                                    <p class="ys-admin-live-copy">{{ $check['reason'] }}</p>
+                                    <p class="ys-admin-diagnostic-fix">{{ $check['recommendation'] }}</p>
+                                </article>
+                            @endforeach
+                        </div>
+                    </div>
+                </section>
+            @endif
+
             <section class="ys-admin-panel ys-admin-builder-preview" data-admin-panel>
                 <div class="ys-admin-panel-heading">
                     <div>

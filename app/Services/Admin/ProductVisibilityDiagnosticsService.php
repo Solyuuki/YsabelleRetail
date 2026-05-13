@@ -163,7 +163,7 @@ class ProductVisibilityDiagnosticsService
                     : 'This product does not have a visual search index entry yet.',
                 recommendation: $visualEntries->isNotEmpty()
                     ? 'No action needed unless the image has changed.'
-                    : 'Run php artisan visual-search:index --fresh after saving product images.',
+                    : 'Save or update the product image again after visual search health is restored so the targeted image sync can retry automatically.',
             ),
             $this->check(
                 key: 'visual_search_stale',
@@ -173,7 +173,7 @@ class ProductVisibilityDiagnosticsService
                     ? 'The indexed visual search image is older than the current product image.'
                     : 'The visual search image index is up to date for this product.',
                 recommendation: $staleVisualEntries > 0
-                    ? 'Rebuild visual search with php artisan visual-search:index --fresh.'
+                    ? 'Save the product image again or restore visual search health so the targeted sync can refresh this product entry.'
                     : 'No action needed.',
             ),
             $this->check(
