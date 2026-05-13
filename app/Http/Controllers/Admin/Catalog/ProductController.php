@@ -183,6 +183,19 @@ class ProductController extends Controller
             ]);
     }
 
+    public function restore(Product $product, ProductLifecycleService $lifecycle): RedirectResponse
+    {
+        $lifecycle->restore($product);
+
+        return redirect()
+            ->route('admin.catalog.products.index')
+            ->with('toast', [
+                'type' => 'success',
+                'title' => 'Product restored',
+                'message' => "{$product->name} was restored as a draft.",
+            ]);
+    }
+
     public function purge(Product $product, ProductLifecycleService $lifecycle): RedirectResponse
     {
         $assessment = $lifecycle->deletionAssessment($product);

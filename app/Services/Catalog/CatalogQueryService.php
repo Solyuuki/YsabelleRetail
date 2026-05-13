@@ -43,28 +43,7 @@ class CatalogQueryService
             ->limit($limit)
             ->get();
 
-        if ($featured->count() >= $limit) {
-            return $featured->values();
-        }
-
-        $excludedIds = $featured->pluck('id');
-
-        if ($heroId) {
-            $excludedIds->push($heroId);
-        }
-
-        $fallback = Product::query()
-            ->with(['category', 'variants.inventoryItem'])
-            ->active()
-            ->whereNotIn('id', $excludedIds->unique()->values()->all())
-            ->orderByDesc('is_featured')
-            ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('featured_rank')
-            ->latest()
-            ->limit($limit - $featured->count())
-            ->get();
-
-        $showcase = $featured->concat($fallback)->values();
+        $showcase = $featured->values();
 
         if ($heroProduct && ! $showcase->contains(fn (Product $product) => $product->is($heroProduct))) {
             $showcase->push($heroProduct);
@@ -161,13 +140,18 @@ class CatalogQueryService
 
     private function featuredProductsQuery(): Builder
     {
-        return Product::query()
+        $query = Product::query()
             ->with(['category', 'variants.inventoryItem'])
             ->active()
-            ->where('is_featured', true)
+            ->where('is_featured', true);
+
+        $this->applyStorefrontVisibility($query);
+
+        return $query
             ->orderByRaw('CASE WHEN featured_rank IS NULL THEN 1 ELSE 0 END')
             ->orderBy('featured_rank')
-            ->latest();
+            ->orderByRaw('CASE WHEN featured_rank IS NULL THEN updated_at END DESC')
+            ->orderByDesc('created_at');
     }
 
     private function applyBrowseSort(Builder $query, string $sort): void
@@ -230,6 +214,23 @@ class CatalogQueryService
             'CASE WHEN is_featured = 1 THEN 5000 ELSE 0 END',
             'CASE WHEN featured_rank IS NULL THEN 0 ELSE (1000 - featured_rank) END',
         ]);
+    }
+
+    private function applyStorefrontVisibility(Builder $query): void
+    {
+        $query->where(function (Builder $builder): void {
+            $builder
+                ->where('track_inventory', false)
+                ->orWhereHas('variants', function (Builder $variantQuery): void {
+                    $variantQuery
+                        ->where('status', 'active')
+                        ->whereHas('inventoryItem', function (Builder $itemQuery): void {
+                            $itemQuery
+                                ->whereColumn('quantity_on_hand', '>', 'reserved_quantity')
+                                ->orWhere('allow_backorder', true);
+                        });
+                });
+        });
     }
 
 }

@@ -7,7 +7,7 @@
         description="Refine storefront presentation, stock behavior, and variant data without leaving the admin workspace."
     >
         <span class="ys-admin-pill {{ ($deletionAssessment['can_delete'] ?? false) ? 'ys-admin-pill-success' : 'ys-admin-pill-warning' }}">
-            {{ ($deletionAssessment['can_delete'] ?? false) ? 'Delete available' : 'Archive recommended' }}
+            {{ ($deletionAssessment['can_delete'] ?? false) ? 'Delete available' : (($deletionAssessment['recommended_action'] ?? 'Archive').' recommended') }}
         </span>
     </x-admin.page-header>
 

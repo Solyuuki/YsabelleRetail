@@ -12,6 +12,22 @@ test('the storefront hero renders the isolated Polycam shoe capture and matching
         'slug' => 'running',
         'is_active' => true,
     ]);
+    $makeDiscoverable = function (Product $product): void {
+        $variant = $product->variants()->create([
+            'name' => 'Default Variant',
+            'sku' => strtoupper($product->slug).'-SKU',
+            'option_values' => ['size' => '38', 'color' => 'Black'],
+            'price' => 2499,
+            'status' => 'active',
+        ]);
+
+        $variant->inventoryItem()->create([
+            'quantity_on_hand' => 8,
+            'reserved_quantity' => 0,
+            'reorder_level' => 2,
+            'allow_backorder' => false,
+        ]);
+    };
 
     $heroProduct = Product::factory()->for($category)->create([
         'name' => 'Aurum Runner',
@@ -21,12 +37,14 @@ test('the storefront hero renders the isolated Polycam shoe capture and matching
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/aurum-runner.jpg',
         'image_alt' => 'Aurum Runner sneaker image',
     ]);
+    $makeDiscoverable($heroProduct);
 
-    Product::factory()->for($category)->create([
+    $secondaryProduct = Product::factory()->for($category)->create([
         'is_featured' => true,
         'featured_rank' => 2,
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/secondary.jpg',
     ]);
+    $makeDiscoverable($secondaryProduct);
 
     $this->get(route('storefront.home'))
         ->assertOk()
@@ -50,8 +68,24 @@ test('the featured showcase renders four cards even when the hero comes from the
         'slug' => 'running',
         'is_active' => true,
     ]);
+    $makeDiscoverable = function (Product $product): void {
+        $variant = $product->variants()->create([
+            'name' => 'Default Variant',
+            'sku' => strtoupper($product->slug).'-SKU',
+            'option_values' => ['size' => '38', 'color' => 'Black'],
+            'price' => 2499,
+            'status' => 'active',
+        ]);
 
-    Product::factory()->for($category)->create([
+        $variant->inventoryItem()->create([
+            'quantity_on_hand' => 8,
+            'reserved_quantity' => 0,
+            'reorder_level' => 2,
+            'allow_backorder' => false,
+        ]);
+    };
+
+    $heroProduct = Product::factory()->for($category)->create([
         'name' => 'Aurum Runner',
         'slug' => 'aurum-runner',
         'is_featured' => true,
@@ -59,43 +93,51 @@ test('the featured showcase renders four cards even when the hero comes from the
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/aurum-runner.jpg',
         'image_alt' => 'Aurum Runner sneaker image',
     ]);
+    $makeDiscoverable($heroProduct);
 
-    Product::factory()->for($category)->create([
+    $shadowStride = Product::factory()->for($category)->create([
         'name' => 'Shadow Stride',
         'slug' => 'shadow-stride',
         'is_featured' => true,
         'featured_rank' => 2,
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/shadow-stride.jpg',
     ]);
+    $makeDiscoverable($shadowStride);
 
-    Product::factory()->for($category)->create([
+    $ivoryPrestige = Product::factory()->for($category)->create([
         'name' => 'Ivory Prestige',
         'slug' => 'ivory-prestige',
         'is_featured' => true,
         'featured_rank' => 3,
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/ivory-prestige.jpg',
     ]);
+    $makeDiscoverable($ivoryPrestige);
 
-    Product::factory()->for($category)->create([
+    $ranklessFresh = Product::factory()->for($category)->create([
         'name' => 'Volt Edge',
         'slug' => 'volt-edge',
-        'is_featured' => false,
+        'is_featured' => true,
+        'featured_rank' => null,
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/volt-edge.jpg',
     ]);
+    $makeDiscoverable($ranklessFresh);
 
-    Product::factory()->for($category)->create([
+    $ranklessSecond = Product::factory()->for($category)->create([
         'name' => 'Onyx Vector',
         'slug' => 'onyx-vector',
-        'is_featured' => false,
+        'is_featured' => true,
+        'featured_rank' => null,
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/onyx-vector.jpg',
     ]);
+    $makeDiscoverable($ranklessSecond);
 
     $response = $this->get(route('storefront.home'))
         ->assertOk()
         ->assertSee('https://cdn.ysabelle.test/catalog/shadow-stride.jpg', escape: false)
         ->assertSee('https://cdn.ysabelle.test/catalog/ivory-prestige.jpg', escape: false)
         ->assertSee('https://cdn.ysabelle.test/catalog/volt-edge.jpg', escape: false)
-        ->assertSee('https://cdn.ysabelle.test/catalog/onyx-vector.jpg', escape: false);
+        ->assertSee('https://cdn.ysabelle.test/catalog/onyx-vector.jpg', escape: false)
+        ->assertDontSee('https://cdn.ysabelle.test/catalog/aurum-runner.jpg', escape: false);
 
     expect(substr_count($response->getContent(), 'class="ys-featured-card group"'))->toBe(4);
     expect($response->getContent())
@@ -109,8 +151,24 @@ test('the featured showcase falls back to the hero product when it is the only a
         'slug' => 'running',
         'is_active' => true,
     ]);
+    $makeDiscoverable = function (Product $product): void {
+        $variant = $product->variants()->create([
+            'name' => 'Default Variant',
+            'sku' => strtoupper($product->slug).'-SKU',
+            'option_values' => ['size' => '38', 'color' => 'Black'],
+            'price' => 2499,
+            'status' => 'active',
+        ]);
 
-    Product::factory()->for($category)->create([
+        $variant->inventoryItem()->create([
+            'quantity_on_hand' => 8,
+            'reserved_quantity' => 0,
+            'reorder_level' => 2,
+            'allow_backorder' => false,
+        ]);
+    };
+
+    $heroProduct = Product::factory()->for($category)->create([
         'name' => 'Aurum Runner',
         'slug' => 'aurum-runner',
         'is_featured' => true,
@@ -118,6 +176,7 @@ test('the featured showcase falls back to the hero product when it is the only a
         'primary_image_url' => 'https://cdn.ysabelle.test/catalog/aurum-runner.jpg',
         'image_alt' => 'Aurum Runner sneaker image',
     ]);
+    $makeDiscoverable($heroProduct);
 
     $response = $this->get(route('storefront.home'))
         ->assertOk()

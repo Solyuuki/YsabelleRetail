@@ -49,10 +49,10 @@
 
         <div class="space-y-4.5 p-6">
             <div class="flex items-start justify-between gap-5">
-                <div>
+                <div class="ys-storefront-product-card-copy">
                     <h3 class="text-[1.18rem] font-semibold leading-6 text-ys-ivory transition group-hover:text-ys-gold">{{ $product->name }}</h3>
                     @if ($showCategory)
-                        <p class="mt-1.5 text-[0.72rem] uppercase tracking-[0.3em] text-ys-ivory/42">{{ $product->category?->name ?? 'Collection' }}</p>
+                        <p class="ys-storefront-product-card-category">{{ $product->category?->name ?? 'Collection' }}</p>
                     @endif
                 </div>
 

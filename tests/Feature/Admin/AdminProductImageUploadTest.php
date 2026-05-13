@@ -110,7 +110,7 @@ test('admin product create stores an uploaded primary image on the public disk',
             'primary_image_upload' => fakeCatalogUpload('hero-shot.png'),
         ]))
         ->assertRedirect()
-        ->assertSessionHas('toast.message', fn (string $message): bool => str_contains($message, 'Rebuild visual search index to include this image.'));
+        ->assertSessionHas('toast.message', 'Product saved. Product created, but image search sync is pending or failed. Please check system health.');
 
     $product = Product::query()->where('slug', 'uploaded-catalog-runner')->firstOrFail();
     $storedRelativePath = Str::after((string) $product->primary_image_url, 'storage/');
@@ -159,7 +159,7 @@ test('admin product edit replaces the primary image with an uploaded file and gi
     $this->actingAs($admin)
         ->put(route('admin.catalog.products.update', $product), $payload)
         ->assertRedirect()
-        ->assertSessionHas('toast.message', fn (string $message): bool => str_contains($message, 'Rebuild visual search index to include this image.'));
+        ->assertSessionHas('toast.message', 'Product saved. Product updated, but image search sync is pending or failed. Please check system health.');
 
     $product->refresh();
 
@@ -235,7 +235,7 @@ test('admin product edit can remove the existing primary image safely', function
     $this->actingAs($admin)
         ->put(route('admin.catalog.products.update', $product), $payload)
         ->assertRedirect()
-        ->assertSessionHas('toast.message', fn (string $message): bool => str_contains($message, 'Rebuild visual search index to include this image.'));
+        ->assertSessionHas('toast.message', 'Product saved. Product updated, but image search sync is pending or failed. Please check system health.');
 
     expect($product->fresh()->primary_image_url)->toBeNull();
 });

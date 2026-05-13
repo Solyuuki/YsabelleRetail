@@ -143,6 +143,7 @@
         'primary_image_url',
         'image_alt',
     ]);
+    $deleteRecommendation = $deletionAssessment['recommended_action'] ?? ($product->status === 'archived' ? 'Restore' : 'Archive');
     $variantErrorIndexes = collect(array_keys($errors->messages()))
         ->map(function (string $key): ?string {
             if (preg_match('/^variants\.(\d+)\./', $key, $matches) !== 1) {
@@ -508,16 +509,23 @@
                     <div class="ys-admin-panel-heading">
                         <div>
                             <h2 class="ys-admin-panel-title">Danger Zone</h2>
-                            <p class="ys-admin-subtle">Archive keeps history intact. Permanent delete is only available when this product has no historical dependencies.</p>
+                            <p class="ys-admin-subtle">Archive keeps history intact. Permanent delete is only available when this product has no business history or audit-linked dependencies.</p>
                         </div>
                     </div>
 
                     <div class="ys-admin-danger-grid mt-5">
                         <div class="ys-admin-detail-panel">
-                            <p class="ys-admin-detail-kicker">Archive Product</p>
-                            <h3 class="ys-admin-detail-heading">Hide safely without losing history</h3>
-                            <p class="ys-admin-detail-copy">Archived products stay out of normal storefront, chatbot, and visual-search discovery while preserving stock records, audits, and historical references.</p>
-                            <button type="submit" class="ys-admin-button-danger mt-4" form="archive-product-form">Archive product</button>
+                            @if ($product->status === 'archived')
+                                <p class="ys-admin-detail-kicker">Restore Product</p>
+                                <h3 class="ys-admin-detail-heading">Bring this item back in draft mode</h3>
+                                <p class="ys-admin-detail-copy">Restore moves the product back to Draft so your team can edit it safely before it becomes storefront-visible again.</p>
+                                <button type="submit" class="ys-admin-button-primary mt-4" form="restore-product-form">Restore product</button>
+                            @else
+                                <p class="ys-admin-detail-kicker">Archive Product</p>
+                                <h3 class="ys-admin-detail-heading">Hide safely without losing history</h3>
+                                <p class="ys-admin-detail-copy">Archived products stay out of normal storefront, chatbot, and visual-search discovery while preserving stock records, audits, and historical references.</p>
+                                <button type="submit" class="ys-admin-button-danger mt-4" form="archive-product-form">Archive product</button>
+                            @endif
                         </div>
 
                         <div class="ys-admin-detail-panel is-danger">
@@ -525,10 +533,26 @@
                             <h3 class="ys-admin-detail-heading">Permanent cleanup for safe test records</h3>
                             <p class="ys-admin-detail-copy">{{ $deletionAssessment['message'] ?? 'Delete remains disabled whenever this product has historical dependencies.' }}</p>
 
+                            <div class="mt-4 space-y-2 text-sm text-ys-ivory/58">
+                                <p>Orders count: {{ $deletionAssessment['counts']['orders'] ?? 0 }}</p>
+                                <p>Reviews count: {{ $deletionAssessment['counts']['reviews'] ?? 0 }}</p>
+                                <p>Stock movements count: {{ $deletionAssessment['counts']['stock_movements'] ?? 0 }}</p>
+                                <p>Inventory history: {{ ($deletionAssessment['inventory_history'] ?? false) ? 'Yes' : 'No' }}</p>
+                                <p>Can delete: {{ ($deletionAssessment['can_delete'] ?? false) ? 'Yes' : 'No' }}</p>
+                                <p>Recommended action: {{ $deleteRecommendation }}</p>
+                            </div>
+
                             @if (($deletionAssessment['can_delete'] ?? false) === true)
                                 <button type="submit" class="ys-admin-button-danger mt-4" form="delete-product-form">Delete product permanently</button>
                             @else
-                                <button type="button" class="ys-admin-button-danger mt-4 opacity-55" disabled>Delete product unavailable</button>
+                                <button
+                                    type="button"
+                                    class="ys-admin-button-danger mt-4 opacity-55"
+                                    disabled
+                                    title="{{ $deletionAssessment['message'] ?? 'Delete is unavailable.' }}"
+                                >
+                                    Delete product unavailable
+                                </button>
                                 @if (! empty($deletionAssessment['reasons']))
                                     <ul class="mt-4 space-y-2 text-sm text-ys-ivory/52">
                                         @foreach ($deletionAssessment['reasons'] as $reason)
@@ -733,10 +757,17 @@
 </form>
 
 @if ($product->exists)
-    <form id="archive-product-form" action="{{ route('admin.catalog.products.destroy', $product) }}" method="POST" data-confirm-message="Archive this product?">
-        @csrf
-        @method('DELETE')
-    </form>
+    @if ($product->status === 'archived')
+        <form id="restore-product-form" action="{{ route('admin.catalog.products.restore', $product) }}" method="POST" data-confirm-message="Restore this product as a draft?">
+            @csrf
+            @method('PATCH')
+        </form>
+    @else
+        <form id="archive-product-form" action="{{ route('admin.catalog.products.destroy', $product) }}" method="POST" data-confirm-message="Archive this product?">
+            @csrf
+            @method('DELETE')
+        </form>
+    @endif
 
     @if (($deletionAssessment['can_delete'] ?? false) === true)
         <form id="delete-product-form" action="{{ route('admin.catalog.products.purge', $product) }}" method="POST" data-confirm-message="Delete this product permanently? This cannot be undone.">

@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\Inventory\ManualStockImportController;
 use App\Http\Controllers\Admin\Inventory\WalkInSaleController;
 use App\Http\Controllers\Admin\Orders\OrderController;
 use App\Http\Controllers\Admin\Realtime\ActivityFeedController;
+use App\Http\Controllers\Admin\Reports\AuditLogController;
 use App\Http\Controllers\Admin\Reports\ReportController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +25,7 @@ Route::prefix('admin')
             ->as('catalog.')
             ->group(function (): void {
                 Route::delete('products/{product}/purge', [ProductController::class, 'purge'])->name('products.purge');
+                Route::patch('products/{product}/restore', [ProductController::class, 'restore'])->name('products.restore');
                 Route::resource('products', ProductController::class)->except(['show']);
                 Route::resource('categories', CategoryController::class)->except(['show']);
             });
@@ -65,5 +67,7 @@ Route::prefix('admin')
             ->group(function (): void {
                 Route::get('/', [ReportController::class, 'index'])->name('index');
                 Route::get('/export', [ReportController::class, 'export'])->name('export');
+                Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+                Route::get('/audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
             });
     });
