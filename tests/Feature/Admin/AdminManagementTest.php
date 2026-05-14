@@ -306,6 +306,41 @@ test('batch stock import previews commits and records inventory movements', func
     ]);
 });
 
+test('batch stock import rejects duplicate sku rows and blocks commit', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(4, ['sku' => 'YSV-IMPORT-DUP-001']);
+
+    $file = UploadedFile::fake()->createWithContent(
+        'stock-import.csv',
+        "sku,product_name,variant,quantity,cost_price,supplier,notes\n".
+        "YSV-IMPORT-DUP-001,{$variant->product->name},{$variant->name},2,1750.00,Import Supplier,First row\n".
+        "YSV-IMPORT-DUP-001,{$variant->product->name},{$variant->name},3,1750.00,Import Supplier,Second row\n",
+    );
+
+    $this->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.preview'), [
+            'file' => $file,
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']));
+
+    $preview = session('inventory_import_preview');
+
+    expect($preview['summary']['valid_rows'])->toBe(0)
+        ->and($preview['summary']['invalid_rows'])->toBe(2)
+        ->and($preview['rows'][0]['errors'])->toContain('SKU is duplicated in this file. Each SKU can only appear once per import.')
+        ->and($preview['rows'][1]['errors'])->toContain('SKU is duplicated in this file. Each SKU can only appear once per import.');
+
+    $this->from(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']))
+        ->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.store'), [
+            'preview_token' => $preview['token'],
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']))
+        ->assertSessionHasErrors(['file']);
+
+    expect(InventoryImportBatch::count())->toBe(0);
+});
+
 test('batch stock import rejects files with missing required columns', function () {
     $admin = createAdminUser();
     $file = UploadedFile::fake()->createWithContent(
@@ -320,6 +355,39 @@ test('batch stock import rejects files with missing required columns', function 
         ])
         ->assertRedirect(route('admin.inventory.batch-imports.create'))
         ->assertSessionHasErrors(['file']);
+});
+
+test('failed batch stock preview clears any stale preview data', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(4, ['sku' => 'YSV-IMPORT-STALE-001']);
+
+    $validFile = UploadedFile::fake()->createWithContent(
+        'stock-import.csv',
+        "sku,product_name,variant,quantity,cost_price,supplier,notes\nYSV-IMPORT-STALE-001,{$variant->product->name},{$variant->name},6,1750.00,Import Supplier,Delivery batch\n",
+    );
+
+    $this->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.preview'), [
+            'file' => $validFile,
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']));
+
+    expect(session('inventory_import_preview'))->not->toBeNull();
+
+    $invalidFile = UploadedFile::fake()->createWithContent(
+        'stock-import.csv',
+        "sku,product_name,variant,quantity\nYSV-001,Item,Default,5\n",
+    );
+
+    $this->from(route('admin.inventory.batch-imports.create'))
+        ->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.preview'), [
+            'file' => $invalidFile,
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create'))
+        ->assertSessionHasErrors(['file']);
+
+    expect(session('inventory_import_preview'))->toBeNull();
 });
 
 test('batch stock import rejects non numeric quantity and cost values without coercing them', function () {
@@ -343,6 +411,55 @@ test('batch stock import rejects non numeric quantity and cost values without co
         ->and($preview['summary']['invalid_rows'])->toBe(1)
         ->and($preview['rows'][0]['errors'])->toContain('Quantity must be a whole number.')
         ->and($preview['rows'][0]['errors'])->toContain('Cost price must be numeric.');
+});
+
+test('batch stock import rejects commit when previewed variant is missing before import', function () {
+    $admin = createAdminUser();
+    $variant = createInventoryVariant(4, ['sku' => 'YSV-IMPORT-MISSING-001']);
+
+    $file = UploadedFile::fake()->createWithContent(
+        'stock-import.csv',
+        "sku,product_name,variant,quantity,cost_price,supplier,notes\nYSV-IMPORT-MISSING-001,{$variant->product->name},{$variant->name},6,1750.00,Import Supplier,Delivery batch\n",
+    );
+
+    $this->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.preview'), [
+            'file' => $file,
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']));
+
+    $preview = session('inventory_import_preview');
+
+    $variant->delete();
+
+    $this->from(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']))
+        ->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.store'), [
+            'preview_token' => $preview['token'],
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create', ['tab' => 'batch-import']))
+        ->assertSessionHasErrors(['file']);
+
+    expect(InventoryImportBatch::count())->toBe(0);
+});
+
+test('batch stock import returns a friendly validation error for malformed spreadsheet files', function () {
+    $admin = createAdminUser();
+
+    $file = UploadedFile::fake()->createWithContent(
+        'stock-import.xlsx',
+        'not-a-real-spreadsheet',
+    );
+
+    $this->from(route('admin.inventory.batch-imports.create'))
+        ->actingAs($admin)
+        ->post(route('admin.inventory.batch-imports.preview'), [
+            'file' => $file,
+        ])
+        ->assertRedirect(route('admin.inventory.batch-imports.create'))
+        ->assertSessionHasErrors(['file']);
+
+    expect(session('inventory_import_preview'))->toBeNull();
 });
 
 test('batch stock template downloads successfully', function () {

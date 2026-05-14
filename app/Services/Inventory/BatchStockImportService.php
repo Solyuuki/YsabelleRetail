@@ -7,10 +7,12 @@ use App\Models\Inventory\InventoryImportBatch;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Throwable;
 
 class BatchStockImportService
 {
@@ -47,10 +49,20 @@ class BatchStockImportService
             ]);
         }
 
-        $normalizedRows = collect($rows)
+        $normalizedSourceRows = collect($rows)
             ->values()
-            ->map(function (array $row, int $index): array {
-                $normalized = $this->normalizeRow($row);
+            ->map(fn (array $row): array => $this->normalizeRow($row));
+
+        $duplicateSkus = $normalizedSourceRows
+            ->pluck('sku')
+            ->filter(fn (string $sku): bool => $sku !== '')
+            ->map(fn (string $sku): string => mb_strtolower($sku))
+            ->countBy()
+            ->filter(fn (int $count): bool => $count > 1);
+
+        $normalizedRows = $normalizedSourceRows
+            ->values()
+            ->map(function (array $normalized, int $index) use ($duplicateSkus): array {
                 $errors = [];
                 $quantity = $this->parseInteger($normalized['quantity']);
                 $costPrice = $this->parseDecimal($normalized['cost_price']);
@@ -59,6 +71,10 @@ class BatchStockImportService
 
                 if (! $variant) {
                     $errors[] = 'SKU not found.';
+                }
+
+                if ($normalized['sku'] !== '' && $duplicateSkus->has(mb_strtolower($normalized['sku']))) {
+                    $errors[] = 'SKU is duplicated in this file. Each SKU can only appear once per import.';
                 }
 
                 if ($quantity === null) {
@@ -121,7 +137,9 @@ class BatchStockImportService
             ]);
         }
 
-        return DB::transaction(function () use ($previewPayload, $rows, $actor): InventoryImportBatch {
+        $variants = $this->resolveCommittedVariants($rows);
+
+        return DB::transaction(function () use ($previewPayload, $rows, $variants, $actor): InventoryImportBatch {
             $batch = InventoryImportBatch::query()->create([
                 'reference_number' => 'IMP-'.now()->format('ymdHis').'-'.Str::upper(Str::random(4)),
                 'uploaded_by_user_id' => $actor->id,
@@ -134,12 +152,6 @@ class BatchStockImportService
                     'preview_token' => $previewPayload['token'] ?? null,
                 ],
             ]);
-
-            $variants = ProductVariant::query()
-                ->with('inventoryItem')
-                ->whereIn('id', $rows->pluck('variant_id'))
-                ->get()
-                ->keyBy('id');
 
             foreach ($rows as $row) {
                 $values = $row['values'];
@@ -166,32 +178,42 @@ class BatchStockImportService
 
     private function readRows(UploadedFile $file): array
     {
-        $extension = strtolower($file->getClientOriginalExtension());
+        try {
+            $extension = strtolower($file->getClientOriginalExtension());
 
-        if ($extension === 'csv') {
-            return $this->readCsv($file);
+            if ($extension === 'csv') {
+                return $this->readCsv($file);
+            }
+
+            $spreadsheet = IOFactory::load($file->getRealPath());
+            $sheetRows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+
+            if ($sheetRows === []) {
+                return [];
+            }
+
+            $headers = array_map([$this, 'normalizeHeader'], array_values(array_shift($sheetRows)));
+
+            return collect($sheetRows)
+                ->filter(fn (array $row): bool => collect($row)->filter(fn ($value) => $value !== null && trim((string) $value) !== '')->isNotEmpty())
+                ->map(function (array $row) use ($headers): array {
+                    $values = array_values($row);
+
+                    return collect($headers)
+                        ->mapWithKeys(fn (string $header, int $index): array => [$header => trim((string) ($values[$index] ?? ''))])
+                        ->all();
+                })
+                ->values()
+                ->all();
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'file' => 'We could not parse the uploaded file. Please upload a valid CSV or Excel file using the stock import template.',
+            ]);
         }
-
-        $spreadsheet = IOFactory::load($file->getRealPath());
-        $sheetRows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
-
-        if ($sheetRows === []) {
-            return [];
-        }
-
-        $headers = array_map([$this, 'normalizeHeader'], array_values(array_shift($sheetRows)));
-
-        return collect($sheetRows)
-            ->filter(fn (array $row): bool => collect($row)->filter(fn ($value) => $value !== null && trim((string) $value) !== '')->isNotEmpty())
-            ->map(function (array $row) use ($headers): array {
-                $values = array_values($row);
-
-                return collect($headers)
-                    ->mapWithKeys(fn (string $header, int $index): array => [$header => trim((string) ($values[$index] ?? ''))])
-                    ->all();
-            })
-            ->values()
-            ->all();
     }
 
     private function readCsv(UploadedFile $file): array
@@ -251,6 +273,44 @@ class BatchStockImportService
             'supplier' => trim((string) Arr::get($row, 'supplier')),
             'notes' => trim((string) Arr::get($row, 'notes')),
         ];
+    }
+
+    private function resolveCommittedVariants(Collection $rows): Collection
+    {
+        $variants = ProductVariant::query()
+            ->with('inventoryItem')
+            ->whereIn('id', $rows->pluck('variant_id')->filter()->unique()->values())
+            ->get()
+            ->keyBy('id');
+
+        $staleRows = $rows
+            ->filter(function (array $row) use ($variants): bool {
+                $variant = $variants->get($row['variant_id']);
+
+                if (! $variant) {
+                    return true;
+                }
+
+                $sku = trim((string) Arr::get($row, 'values.sku'));
+                $variantName = trim((string) Arr::get($row, 'values.variant'));
+
+                if ($sku === '' || mb_strtolower((string) $variant->sku) !== mb_strtolower($sku)) {
+                    return true;
+                }
+
+                return $variantName !== ''
+                    && mb_strtolower((string) $variant->name) !== mb_strtolower($variantName);
+            })
+            ->pluck('row_number')
+            ->all();
+
+        if ($staleRows !== []) {
+            throw ValidationException::withMessages([
+                'file' => 'Import preview is out of date. Row(s) '.implode(', ', $staleRows).' reference variants that were deleted or changed. Please upload the file again.',
+            ]);
+        }
+
+        return $variants;
     }
 
     private function parseInteger(string $value): ?int
