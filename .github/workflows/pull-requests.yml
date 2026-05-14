@@ -1,12 +1,206 @@
-name: Pull Requests
+name: Deployment Readiness
 
 on:
-  pull_request_target:
-    types: [opened]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
-  uneditable:
-    uses: laravel/.github/.github/workflows/pull-requests.yml@main
+  branch-name:
+    name: Branch Name Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate branch name
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$BRANCH_NAME" =~ ^Feat\/v6\.0\-[a-z0-9\-]+$ ]]; then
+            echo "Invalid branch name: $BRANCH_NAME"
+            echo "Expected format: Feat/v6.0-description"
+            exit 1
+          fi
+
+  merge-safety:
+    name: Merge Safety Check
+    needs: branch-name
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check merge conflicts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}"
+          mergeable="null"
+
+          for attempt in 1 2 3 4 5 6; do
+            response="$(curl -fsSL \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${api_url}")"
+
+            mergeable="$(printf '%s' "${response}" | node -e "const fs = require('fs'); const data = JSON.parse(fs.readFileSync(0, 'utf8')); process.stdout.write(String(data.mergeable));")"
+
+            if [[ "${mergeable}" == "true" ]]; then
+              echo "Mergeable status confirmed."
+              break
+            fi
+
+            if [[ "${mergeable}" == "false" ]]; then
+              echo "Pull request has merge conflicts."
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          if [[ "${mergeable}" != "true" ]]; then
+            echo "Unable to confirm mergeable status safely."
+            exit 1
+          fi
+
+      - name: Check dangerous destructive changes
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MAX_DELETED_FILES: 20
+          MAX_TOTAL_DELETED_LINES: 1200
+          MAX_CORE_DELETED_LINES: 400
+          MAX_SINGLE_CORE_FILE_DELETIONS: 200
+        run: |
+          set -euo pipefail
+
+          git fetch origin "${BASE_REF}" --depth=1
+
+          diff_range="origin/${BASE_REF}...HEAD"
+          shortstat="$(git diff --shortstat "${diff_range}" || true)"
+
+          mapfile -t deleted_files < <(git diff --diff-filter=D --name-only "${diff_range}")
+          deleted_file_count="${#deleted_files[@]}"
+
+          total_deleted_lines="$(git diff --numstat "${diff_range}" | awk -F '\t' '$2 ~ /^[0-9]+$/ { total += $2 } END { print total + 0 }')"
+          core_deleted_lines="$(git diff --numstat "${diff_range}" -- app routes config database | awk -F '\t' '$2 ~ /^[0-9]+$/ { total += $2 } END { print total + 0 }')"
+          large_core_deletions="$(git diff --numstat "${diff_range}" -- app routes config database | awk -F '\t' '$2 ~ /^[0-9]+$/ && $2 > limit { print $3 " (" $2 " deleted lines)" }' limit="${MAX_SINGLE_CORE_FILE_DELETIONS}")"
+
+          echo "Diff summary: ${shortstat:-no file changes detected}"
+          echo "Deleted files: ${deleted_file_count}"
+          echo "Total deleted lines: ${total_deleted_lines}"
+          echo "Core deleted lines: ${core_deleted_lines}"
+
+          if (( deleted_file_count > MAX_DELETED_FILES )); then
+            echo "Too many deleted files detected: ${deleted_file_count}"
+            exit 1
+          fi
+
+          critical_files=(
+            ".env.example"
+            "artisan"
+            "bootstrap/app.php"
+            "composer.json"
+            "composer.lock"
+            "package.json"
+            "package-lock.json"
+            "phpunit.xml"
+            "routes/web.php"
+            "routes/channels.php"
+            "config/app.php"
+          )
+
+          critical_removed=()
+
+          for file in "${critical_files[@]}"; do
+            if printf '%s\n' "${deleted_files[@]}" | grep -Fxq "${file}"; then
+              critical_removed+=("${file}")
+            fi
+          done
+
+          if (( ${#critical_removed[@]} > 0 )); then
+            echo "Critical core file removals detected:"
+            printf '%s\n' "${critical_removed[@]}"
+            exit 1
+          fi
+
+          if (( total_deleted_lines > MAX_TOTAL_DELETED_LINES )); then
+            echo "Too many deleted lines detected: ${total_deleted_lines}"
+            exit 1
+          fi
+
+          if (( core_deleted_lines > MAX_CORE_DELETED_LINES )); then
+            echo "Too many deleted lines inside app/, routes/, config/, or database/: ${core_deleted_lines}"
+            exit 1
+          fi
+
+          if [[ -n "${large_core_deletions}" ]]; then
+            echo "Suspicious large destructive chunks detected in core directories:"
+            echo "${large_core_deletions}"
+            exit 1
+          fi
+
+  tests:
+    name: Test Validation
+    needs: merge-safety
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Copy environment file
+        run: cp .env.example .env
+
+      - name: Generate app key
+        run: php artisan key:generate
+
+      - name: Run blocking project tests
+        run: php artisan test
+
+  deployment-ready:
+    name: Deployment Ready
+    if: always()
+    needs: [branch-name, merge-safety, tests]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Confirm final readiness
+        env:
+          BRANCH_NAME_RESULT: ${{ needs.branch-name.result }}
+          MERGE_SAFETY_RESULT: ${{ needs.merge-safety.result }}
+          TEST_RESULT: ${{ needs.tests.result }}
+        run: |
+          set -euo pipefail
+
+          echo "Branch Name Check: ${BRANCH_NAME_RESULT}"
+          echo "Merge Safety Check: ${MERGE_SAFETY_RESULT}"
+          echo "Test Validation: ${TEST_RESULT}"
+
+          if [[ "${BRANCH_NAME_RESULT}" == "success" && "${MERGE_SAFETY_RESULT}" == "success" && "${TEST_RESULT}" == "success" ]]; then
+            echo "Deployment Ready"
+            exit 0
+          fi
+
+          echo "Not Deployment Ready"
+          exit 1
