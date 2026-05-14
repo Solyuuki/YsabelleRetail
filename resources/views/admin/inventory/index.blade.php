@@ -8,6 +8,12 @@
             'batch-import' => ['label' => 'Batch Import', 'route' => route('admin.inventory.index', ['tab' => 'batch-import'])],
             'movements' => ['label' => 'Movements', 'route' => route('admin.inventory.index', ['tab' => 'movements'])],
         ];
+        $inventoryHealthCards = [
+            ['label' => 'Active Variants', 'value' => number_format($inventoryOverview['active_variants']), 'meta' => 'Ready to sell'],
+            ['label' => 'Units on Hand', 'value' => number_format($inventoryOverview['units_on_hand']), 'meta' => 'Current stock'],
+            ['label' => 'Low Stock', 'value' => number_format($inventoryOverview['low_stock_items']), 'meta' => 'Needs replenishment'],
+            ['label' => 'Out of Stock', 'value' => number_format($inventoryOverview['out_of_stock_items']), 'meta' => 'Urgent'],
+        ];
     @endphp
 
     <x-admin.page-header
@@ -31,19 +37,27 @@
     @endif
 
     <section class="ys-admin-stat-grid">
-        @foreach ([
-            ['label' => 'Active Variants', 'value' => number_format($inventoryOverview['active_variants']), 'meta' => 'Ready to sell'],
-            ['label' => 'Units on Hand', 'value' => number_format($inventoryOverview['units_on_hand']), 'meta' => 'Current stock'],
-            ['label' => 'Low Stock', 'value' => number_format($inventoryOverview['low_stock_items']), 'meta' => 'Needs replenishment'],
-            ['label' => 'Out of Stock', 'value' => number_format($inventoryOverview['out_of_stock_items']), 'meta' => 'Urgent'],
-            ['label' => 'Import Batches', 'value' => number_format($inventoryOverview['batch_imports']), 'meta' => 'Completed uploads'],
-        ] as $card)
+        @foreach ($inventoryHealthCards as $card)
             <article class="ys-admin-stat-card" data-admin-panel>
                 <p class="ys-admin-stat-label">{{ $card['label'] }}</p>
                 <p class="ys-admin-stat-value">{{ $card['value'] }}</p>
                 <p class="ys-admin-stat-meta">{{ $card['meta'] }}</p>
             </article>
         @endforeach
+    </section>
+
+    <section class="ys-admin-inventory-secondary">
+        <article class="ys-admin-inventory-secondary-card" data-admin-panel>
+            <div>
+                <p class="ys-admin-stat-label">Import Batches</p>
+                <p class="ys-admin-inventory-secondary-value">{{ number_format($inventoryOverview['batch_imports']) }}</p>
+                <p class="ys-admin-stat-meta">Completed uploads tracked separately from the live inventory health metrics.</p>
+            </div>
+            <div class="ys-admin-inventory-secondary-actions">
+                <p class="ys-admin-subtle">Operational import summary</p>
+                <a href="{{ route('admin.inventory.index', ['tab' => 'batch-import']) }}" class="ys-admin-button-secondary">Open batch import</a>
+            </div>
+        </article>
     </section>
 
     <section class="ys-admin-panel" data-admin-panel>

@@ -1048,15 +1048,54 @@ export const initChatWidget = () => {
         pageContext = nextContext;
     };
 
-    const messageRequestBody = (message) => {
-        const payload = { message };
-
-        if (assistantContext) {
-            payload.assistant_context = assistantContext;
+    const liveProductPageContext = () => {
+        if (!pageContext?.current_product) {
+            return pageContext;
         }
 
-        if (pageContext) {
-            payload.page_context = pageContext;
+        const productForm = document.querySelector('[data-product-form]');
+        const availabilityNode = productForm?.querySelector('[data-product-availability]');
+        const selectedColorInput = productForm?.querySelector('[data-selected-color-input]');
+        const selectedVariantInput = productForm?.querySelector('input[name="variant_id"]');
+        const availabilityPayload = parseJsonText(availabilityNode?.textContent ?? '');
+        const colorOptions = Array.isArray(availabilityPayload?.color_options) ? availabilityPayload.color_options : [];
+        const selectedColorKey = String(selectedColorInput?.value ?? '').trim();
+        const selectedVariantId = String(selectedVariantInput?.value ?? '').trim();
+        const selectedColor = colorOptions.find((option) => String(option?.color_key ?? '') === selectedColorKey) ?? null;
+        const selectedVariant = Array.isArray(selectedColor?.size_options)
+            ? selectedColor.size_options.find((option) => String(option?.variant_id ?? '') === selectedVariantId) ?? null
+            : null;
+
+        return {
+            ...pageContext,
+            current_product: {
+                ...pageContext.current_product,
+                selected_color: selectedColorKey || undefined,
+                selected_color_label: selectedColor?.color_label || undefined,
+                selected_size: selectedVariant?.size || undefined,
+                variant_id: selectedVariantId ? Number(selectedVariantId) : undefined,
+            },
+        };
+    };
+
+    const messageRequestBody = (message) => {
+        const payload = { message };
+        const currentPageContext = liveProductPageContext();
+
+        if (assistantContext) {
+            payload.assistant_context = currentPageContext?.current_product
+                ? {
+                    ...assistantContext,
+                    current_product: {
+                        ...(assistantContext.current_product ?? {}),
+                        ...currentPageContext.current_product,
+                    },
+                }
+                : assistantContext;
+        }
+
+        if (currentPageContext) {
+            payload.page_context = currentPageContext;
         }
 
         return JSON.stringify(payload);

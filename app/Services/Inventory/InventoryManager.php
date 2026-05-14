@@ -7,6 +7,7 @@ use App\Models\Catalog\ProductVariant;
 use App\Models\Inventory\InventoryImportBatch;
 use App\Models\Inventory\InventoryItem;
 use App\Models\Inventory\StockMovement;
+use App\Services\Catalog\ProductAvailabilityService;
 use App\Models\Orders\Order;
 use App\Models\User;
 use App\Support\Admin\InventoryMovementType;
@@ -15,25 +16,23 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryManager
 {
+    public function __construct(
+        private readonly ProductAvailabilityService $availability,
+    ) {}
+
     public function ensureSufficientStock(ProductVariant $variant, int $quantity): void
     {
-        if ($quantity <= 0) {
-            throw ValidationException::withMessages([
-                'quantity' => 'Quantity must be greater than zero.',
-            ]);
-        }
+        $decision = $this->availability->forRequestedQuantity($variant, $quantity);
 
-        if (! $variant->product?->track_inventory) {
+        if (($decision['can_purchase'] ?? false) === true) {
             return;
         }
 
-        $inventoryItem = $this->inventoryItemFor($variant);
+        $field = ($decision['reason'] ?? null) === 'invalid_quantity' ? 'quantity' : 'inventory';
 
-        if ($inventoryItem->available_quantity < $quantity && ! $inventoryItem->allow_backorder) {
-            throw ValidationException::withMessages([
-                'inventory' => "Insufficient stock for {$variant->product->name} ({$variant->name}).",
-            ]);
-        }
+        throw ValidationException::withMessages([
+            $field => $decision['message'] ?? 'The requested quantity is no longer available.',
+        ]);
     }
 
     public function deductForOnlineSale(

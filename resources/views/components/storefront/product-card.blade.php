@@ -10,10 +10,10 @@
     $imageUrl = $media->imageUrlFor($product);
     $imageAlt = $media->altTextFor($product);
     $availability = $availabilityService->forProduct($product);
-    $availabilityClasses = match ($availability['state'] ?? 'sold_out') {
+    $availabilityClasses = match ($availability['state'] ?? 'out_of_stock') {
         'in_stock' => 'bg-[#11311f] text-[#9fe1b1]',
         'low_stock' => 'bg-[#38260c] text-[#f0c36f]',
-        'available_for_backorder' => 'bg-[#112a3f] text-[#9fd4ff]',
+        'backorder_available' => 'bg-[#112a3f] text-[#9fd4ff]',
         'inactive' => 'bg-[#2f2b36] text-[#ddd3f0]',
         default => 'bg-[#411415] text-[#ffb0b0]',
     };

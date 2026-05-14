@@ -107,8 +107,17 @@ class StorefrontCommerceQueryParser
         'available',
         'in stock',
         'low stock',
+        'limited stock',
+        'out of stock',
         'sold out',
         'stock',
+        'stocks',
+        'unavailable',
+        'left',
+        'remaining',
+        'natitira',
+        'may stock',
+        'meron pa',
         'meron',
         'have',
     ];
@@ -120,6 +129,16 @@ class StorefrontCommerceQueryParser
         'pair left',
         'stocks left',
         'stock left',
+        'remaining',
+        'natitira',
+    ];
+
+    private const STOCK_CONTEXT_KEYWORDS = [
+        'color',
+        'size',
+        'stock',
+        'stocks',
+        'variant',
     ];
 
     private const SUPPORT_SIZE_GUIDE_PHRASES = [
@@ -212,6 +231,15 @@ class StorefrontCommerceQueryParser
 
         $keywords = $this->keywordsFromText($query ?: $stripped);
         $hasLowSignalText = $this->isLowSignalText($stripped);
+        $hasCurrentProductContext = filled(data_get($pageContext, 'current_product.slug'))
+            || (int) data_get($pageContext, 'current_product.id', 0) > 0;
+        $hasStockContextSignal = $this->hasStockContextSignal(
+            $stripped,
+            $referencesCurrentProduct,
+            $hasCurrentProductContext,
+            $productName,
+            $size,
+        );
         $hasProductSignal = $productName !== null
             || $category !== null
             || $color !== null
@@ -221,11 +249,12 @@ class StorefrontCommerceQueryParser
             || $budgetMax !== null
             || $affordable
             || $premium
-            || $referencesCurrentProduct;
+            || $referencesCurrentProduct
+            || $hasStockContextSignal;
 
         $intent = $this->determineIntent(
             normalized: $stripped,
-            hasCurrentProductContext: filled(data_get($pageContext, 'current_product.slug')),
+            hasCurrentProductContext: $hasCurrentProductContext,
             referencesCurrentProduct: $referencesCurrentProduct,
             hasProductSignal: $hasProductSignal,
             hasLowSignalText: $hasLowSignalText,
@@ -235,6 +264,7 @@ class StorefrontCommerceQueryParser
             size: $size,
             availabilityIntent: $availabilityIntent,
             quantityIntent: $quantityIntent,
+            hasStockContextSignal: $hasStockContextSignal,
             budgetMin: $budgetMin,
             budgetMax: $budgetMax,
             affordable: $affordable,
@@ -265,8 +295,10 @@ class StorefrontCommerceQueryParser
                 'affordable' => $affordable,
                 'premium' => $premium,
                 'quantity_intent' => $quantityIntent,
+                'stock_intent' => $availabilityIntent || $quantityIntent || $hasStockContextSignal,
                 'has_product_signal' => $hasProductSignal,
                 'has_low_signal_text' => $hasLowSignalText,
+                'has_current_product_context' => $hasCurrentProductContext,
             ],
         ];
     }
@@ -283,6 +315,7 @@ class StorefrontCommerceQueryParser
         ?string $size,
         bool $availabilityIntent,
         bool $quantityIntent,
+        bool $hasStockContextSignal,
         ?float $budgetMin,
         ?float $budgetMax,
         bool $affordable,
@@ -303,15 +336,15 @@ class StorefrontCommerceQueryParser
             return 'fallback';
         }
 
-        if ($size !== null && ($referencesCurrentProduct || $hasCurrentProductContext || $productName !== null || $availabilityIntent || $quantityIntent)) {
+        if ($size !== null && ($referencesCurrentProduct || $hasCurrentProductContext || $productName !== null || $availabilityIntent || $quantityIntent || $hasStockContextSignal)) {
             return 'size_stock';
         }
 
-        if ($referencesCurrentProduct && $hasCurrentProductContext) {
+        if (($referencesCurrentProduct && $hasCurrentProductContext) || ($hasCurrentProductContext && ($availabilityIntent || $quantityIntent || $hasStockContextSignal))) {
             return 'current_product';
         }
 
-        if ($productName !== null && ($explicitLookup || $availabilityIntent || $quantityIntent)) {
+        if ($productName !== null && ($explicitLookup || $availabilityIntent || $quantityIntent || $hasStockContextSignal)) {
             return $availabilityIntent ? 'product_availability' : 'product_exact_lookup';
         }
 
@@ -363,6 +396,10 @@ class StorefrontCommerceQueryParser
         $candidate = trim((string) preg_replace('/\s+/u', ' ', $candidate));
 
         if ($candidate === '') {
+            return null;
+        }
+
+        if (! $explicitLookup && $this->isGenericAvailabilityListingCandidate($candidate)) {
             return null;
         }
 
@@ -420,6 +457,57 @@ class StorefrontCommerceQueryParser
             ->replaceMatches('/\s+/', ' ')
             ->trim()
             ->value();
+    }
+
+    private function isGenericAvailabilityListingCandidate(string $candidate): bool
+    {
+        $normalized = Str::lower(trim($candidate));
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        return $this->containsAny($normalized, [
+            'ano unavailable',
+            'ano available',
+            'ano low',
+            'what products are',
+            'what shoes are',
+            'which products are',
+            'which shoes are',
+        ]) || (
+            $this->containsAny($normalized, ['what', 'which', 'ano'])
+            && $this->containsAny($normalized, ['shoe', 'shoes', 'product', 'products', 'pair', 'pairs'])
+            && $this->containsAny($normalized, ['available', 'unavailable', 'low', 'stock'])
+        );
+    }
+
+    private function hasStockContextSignal(
+        string $message,
+        bool $referencesCurrentProduct,
+        bool $hasCurrentProductContext,
+        ?string $productName,
+        ?string $size,
+    ): bool {
+        if ($this->containsAny($message, [
+            'im talking about stocks',
+            'i m talking about stocks',
+            'sabi ko stock',
+            'stock nga',
+            'stock tanong ko',
+        ])) {
+            return true;
+        }
+
+        if ($size !== null) {
+            return true;
+        }
+
+        if (! $referencesCurrentProduct && ! $hasCurrentProductContext && $productName === null) {
+            return false;
+        }
+
+        return $this->containsAny($message, self::STOCK_CONTEXT_KEYWORDS);
     }
 
     private function normalizeCommerceLanguage(string $message): string

@@ -27,6 +27,13 @@
                         : "Shipping details save automatically on this account for {$checkoutDraftTtlDays} days. Payment details are never saved." }}
                 </p>
 
+                @if ($summary['has_inventory_issues'] ?? false)
+                    <div class="mt-6 rounded-[1.4rem] border border-[#7c2727] bg-[#361010] px-5 py-4 text-sm text-[#ffd8d8]">
+                        <p class="font-semibold">Your cart changed before checkout.</p>
+                        <p class="mt-2 text-[#ffdddd]/85">Update the flagged item quantities in your shopping bag before placing this order.</p>
+                    </div>
+                @endif
+
                 <form
                     action="{{ route('storefront.checkout.store') }}"
                     method="POST"
@@ -210,6 +217,12 @@
                                 </div>
                                 <p class="text-sm font-semibold text-ys-ivory">&#8369;{{ number_format((float) $item->line_total, 0) }}</p>
                             </div>
+
+                            @if (($item->inventory_status['message'] ?? null) && ($item->inventory_status['has_issue'] ?? false))
+                                <div class="rounded-2xl border border-[#7c2727] bg-[#361010] px-4 py-3 text-sm text-[#ffd8d8]">
+                                    {{ $item->inventory_status['message'] }}
+                                </div>
+                            @endif
                         @endforeach
                     </div>
 
@@ -231,13 +244,14 @@
                     <button
                         type="submit"
                         form="checkout-form"
-                        class="ys-button-primary mt-8 w-full justify-center"
+                        class="ys-button-primary mt-8 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
                         data-checkout-submit
                         data-default-label="Place order"
                         data-card-label="Pay Now"
                         data-total-label="&#8369;{{ number_format($summary['total'], 0) }}"
+                        @disabled($summary['has_inventory_issues'] ?? false)
                     >
-                        {{ $usesSimulatedCard ? 'Pay Now' : 'Place order' }} &middot; &#8369;{{ number_format($summary['total'], 0) }}
+                        {{ ($summary['has_inventory_issues'] ?? false) ? 'Update cart to continue' : (($usesSimulatedCard ? 'Pay Now' : 'Place order').' · ₱'.number_format($summary['total'], 0)) }}
                     </button>
                 </div>
             </aside>

@@ -285,11 +285,25 @@ class ProductDiscoveryService
         return $this->activeProducts()
             ->get()
             ->filter(
-                fn (Product $product): bool => $this->availability->forProduct($product)['state'] === ProductAvailabilityService::STATE_LOW_STOCK
+                fn (Product $product): bool => ($this->availability->forProduct($product)['has_low_stock_variants'] ?? false) === true
             )
-            ->sortBy(fn (Product $product): int => (int) ($this->availability->forProduct($product)['available_quantity'] ?? PHP_INT_MAX))
+            ->sortBy(fn (Product $product): int => (int) ($this->lowestMatchingVariantQuantity($product, ProductAvailabilityService::STATE_LOW_STOCK) ?? PHP_INT_MAX))
             ->take($limit)
             ->values();
+    }
+
+    public function lowStockVariantOptions(int $limit = 4): Collection
+    {
+        return $this->inventoryVariantOptionsByState([
+            ProductAvailabilityService::STATE_LOW_STOCK,
+        ], $limit)->values();
+    }
+
+    public function outOfStockVariantOptions(int $limit = 4): Collection
+    {
+        return $this->inventoryVariantOptionsByState([
+            ProductAvailabilityService::STATE_OUT_OF_STOCK,
+        ], $limit)->values();
     }
 
     public function formatProduct(Product $product): array
@@ -343,6 +357,56 @@ class ProductDiscoveryService
     public function sizeAvailabilityForProduct(Product $product, string $size, ?string $color = null): array
     {
         return $this->availability->forProductSize($product, $size, $color);
+    }
+
+    public function inferNamedProductFromMessage(string $message): ?Product
+    {
+        $normalized = $this->normalizeComparableText($message);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $matches = $this->activeProducts()
+            ->get()
+            ->map(function (Product $product) use ($normalized): ?array {
+                $name = $this->normalizeComparableText($product->name);
+                $tokens = array_values(array_filter(explode(' ', $name)));
+
+                if (count($tokens) < 2 || ! $this->containsOrderedTokens($normalized, $tokens)) {
+                    return null;
+                }
+
+                return [
+                    'product' => $product,
+                    'token_count' => count($tokens),
+                    'name_length' => strlen($name),
+                ];
+            })
+            ->filter()
+            ->sort(function (array $left, array $right): int {
+                return [$right['token_count'], $right['name_length']]
+                    <=>
+                    [$left['token_count'], $left['name_length']];
+            })
+            ->values();
+
+        $best = $matches->first();
+        $second = $matches->skip(1)->first();
+
+        if (! is_array($best)) {
+            return null;
+        }
+
+        if (
+            is_array($second)
+            && ($best['token_count'] ?? 0) === ($second['token_count'] ?? 0)
+            && ($best['name_length'] ?? 0) === ($second['name_length'] ?? 0)
+        ) {
+            return null;
+        }
+
+        return $best['product'];
     }
 
     public function availableSizesForProduct(Product $product): array
@@ -674,15 +738,22 @@ class ProductDiscoveryService
 
     public function currentProductFromContext(array $pageContext): ?Product
     {
+        $id = (int) data_get($pageContext, 'current_product.id', 0);
         $slug = trim((string) data_get($pageContext, 'current_product.slug', ''));
 
-        if ($slug === '') {
+        if ($id <= 0 && $slug === '') {
             return null;
         }
 
-        return $this->activeProducts()
-            ->where('slug', $slug)
-            ->first();
+        $query = $this->activeProducts();
+
+        if ($id > 0) {
+            $query->where('id', $id);
+        } else {
+            $query->where('slug', $slug);
+        }
+
+        return $query->first();
     }
 
     private function bestNamedProductMatchMeta(string $query, bool $activeOnly): ?array
@@ -848,6 +919,43 @@ class ProductDiscoveryService
         }
 
         return 0.0;
+    }
+
+    private function inventoryVariantOptionsByState(array $states, int $limit): Collection
+    {
+        return $this->activeProducts()
+            ->get()
+            ->flatMap(function (Product $product): Collection {
+                return collect($this->availability->variantOptionsForProduct($product))
+                    ->map(fn (array $option): array => [
+                        'product' => $product,
+                        'option' => $option,
+                    ]);
+            })
+            ->filter(fn (array $entry): bool => in_array($entry['option']['state'] ?? null, $states, true))
+            ->sort(function (array $left, array $right): int {
+                return [
+                    (int) ($left['option']['available_quantity'] ?? PHP_INT_MAX),
+                    Str::lower((string) $left['product']->name),
+                    (float) ($left['option']['size'] ?? PHP_FLOAT_MAX),
+                ]
+                    <=>
+                    [
+                        (int) ($right['option']['available_quantity'] ?? PHP_INT_MAX),
+                        Str::lower((string) $right['product']->name),
+                        (float) ($right['option']['size'] ?? PHP_FLOAT_MAX),
+                    ];
+            })
+            ->take($limit)
+            ->values();
+    }
+
+    private function lowestMatchingVariantQuantity(Product $product, string $state): ?int
+    {
+        return collect($this->availability->variantOptionsForProduct($product))
+            ->filter(fn (array $option): bool => ($option['state'] ?? null) === $state)
+            ->map(fn (array $option): int => (int) ($option['available_quantity'] ?? PHP_INT_MAX))
+            ->min();
     }
 
     private function detectCategory(string $text): ?string

@@ -828,6 +828,10 @@
         @apply border-ys-gold/55 bg-ys-gold text-[#17110a] hover:text-[#17110a];
     }
 
+    .ys-size-option-unavailable {
+        @apply cursor-not-allowed border-white/5 bg-white/[0.02] text-ys-ivory/24 line-through hover:border-white/5 hover:text-ys-ivory/24;
+    }
+
     .ys-quantity-button {
         @apply inline-flex h-11 w-11 items-center justify-center rounded-xl text-[1.2rem] font-semibold text-ys-ivory/70 transition duration-300 hover:bg-white/[0.05] hover:text-ys-gold;
     }
@@ -1355,11 +1359,11 @@
         @apply bg-[#38260c] text-[#f0c36f];
     }
 
-    .ys-assistant-stock.is-sold_out {
+    .ys-assistant-stock.is-out_of_stock {
         @apply bg-[#411415] text-[#ffb0b0];
     }
 
-    .ys-assistant-stock.is-available_for_backorder {
+    .ys-assistant-stock.is-backorder_available {
         @apply bg-[#112a3f] text-[#9fd4ff];
     }
 

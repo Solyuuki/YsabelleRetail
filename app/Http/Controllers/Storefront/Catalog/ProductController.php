@@ -40,6 +40,25 @@ class ProductController extends Controller
     {
         $product->load(['category', 'variants.inventoryItem']);
         $viewerReview = $reviews->viewerReview($request->user(), $product);
+        $relatedProducts = Product::query()
+            ->with(['category', 'variants.inventoryItem'])
+            ->active()
+            ->where('id', '!=', $product->id)
+            ->where('category_id', $product->category_id)
+            ->get()
+            ->filter(fn (Product $relatedProduct): bool => $availability->isDiscoverable($relatedProduct))
+            ->sortBy(function (Product $relatedProduct) use ($availability): array {
+                $relatedAvailability = $availability->forProduct($relatedProduct);
+
+                return match ($relatedAvailability['state'] ?? null) {
+                    ProductAvailabilityService::STATE_IN_STOCK => [0, $relatedProduct->name],
+                    ProductAvailabilityService::STATE_LOW_STOCK => [1, $relatedProduct->name],
+                    ProductAvailabilityService::STATE_BACKORDER_AVAILABLE => [2, $relatedProduct->name],
+                    default => [3, $relatedProduct->name],
+                };
+            })
+            ->take(4)
+            ->values();
 
         return view('storefront.catalog.products.show', [
             'product' => $product,
@@ -49,13 +68,7 @@ class ProductController extends Controller
             'reviewEligibility' => $reviews->eligibilityFor($request->user(), $product, $viewerReview),
             'viewerReview' => $viewerReview,
             'storefrontTrustMarks' => $this->storefrontTrustMarks(),
-            'relatedProducts' => Product::query()
-                ->with(['category', 'variants.inventoryItem'])
-                ->active()
-                ->where('id', '!=', $product->id)
-                ->where('category_id', $product->category_id)
-                ->limit(4)
-                ->get(),
+            'relatedProducts' => $relatedProducts,
         ]);
     }
 

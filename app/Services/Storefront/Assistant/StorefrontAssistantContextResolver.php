@@ -79,6 +79,7 @@ class StorefrontAssistantContextResolver
         $answerType = $this->sanitizeAnswerType($input['last_answer_type'] ?? null);
         $turnCount = $this->sanitizeTurnCount($input['turn_count_in_domain'] ?? null);
         $actions = $this->sanitizeActionLabels($input['last_actions'] ?? []);
+        $currentProduct = $this->sanitizeCurrentProduct($input['current_product'] ?? null);
 
         return array_filter([
             'last_intent' => $intent,
@@ -87,6 +88,7 @@ class StorefrontAssistantContextResolver
             'last_actions' => $actions,
             'last_answer_type' => $answerType,
             'turn_count_in_domain' => $turnCount,
+            'current_product' => $currentProduct,
         ], fn (mixed $value): bool => ! in_array($value, [null, []], true));
     }
 
@@ -145,7 +147,19 @@ class StorefrontAssistantContextResolver
             || ($assistantContext !== [] && $this->isSupportLikeContext($assistantContext));
     }
 
-    public function buildResponseContext(array $intent, array $response, array $previousContext): array
+    public function conversationProductContext(array $assistantContext, array $pageContext = []): array
+    {
+        $assistantProduct = $this->sanitizeCurrentProduct($assistantContext['current_product'] ?? null) ?? [];
+        $pageProduct = $this->sanitizeCurrentProduct(data_get($pageContext, 'current_product')) ?? [];
+        $currentProduct = array_filter([
+            ...$assistantProduct,
+            ...$pageProduct,
+        ], fn (mixed $value): bool => ! in_array($value, [null, ''], true));
+
+        return $currentProduct === [] ? [] : ['current_product' => $currentProduct];
+    }
+
+    public function buildResponseContext(array $intent, array $response, array $previousContext, array $pageContext = []): array
     {
         $effectiveIntent = $this->contextIntent($intent, $previousContext);
         $domain = $this->domainForIntent($effectiveIntent);
@@ -153,6 +167,7 @@ class StorefrontAssistantContextResolver
         $turnCount = $domain !== null && $domain === ($previousContext['last_domain'] ?? null)
             ? min(((int) ($previousContext['turn_count_in_domain'] ?? 0)) + 1, 12)
             : ($domain === null ? null : 1);
+        $currentProductContext = $this->conversationProductContext($previousContext, $pageContext);
 
         return array_filter([
             'last_intent' => $effectiveIntent,
@@ -161,7 +176,28 @@ class StorefrontAssistantContextResolver
             'last_actions' => $this->sanitizeOutgoingActions($response['actions'] ?? []),
             'last_answer_type' => $answerType,
             'turn_count_in_domain' => $turnCount,
+            'current_product' => $currentProductContext['current_product'] ?? null,
         ], fn (mixed $value): bool => ! in_array($value, [null, []], true));
+    }
+
+    private function sanitizeCurrentProduct(mixed $value): ?array
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $product = array_filter([
+            'id' => ($id = (int) ($value['id'] ?? 0)) > 0 ? $id : null,
+            'slug' => $this->trimmedString($value['slug'] ?? null),
+            'name' => $this->trimmedString($value['name'] ?? null),
+            'style_code' => $this->trimmedString($value['style_code'] ?? null),
+            'selected_color' => $this->trimmedString($value['selected_color'] ?? null),
+            'selected_color_label' => $this->trimmedString($value['selected_color_label'] ?? null),
+            'selected_size' => $this->trimmedString($value['selected_size'] ?? null),
+            'variant_id' => ($variantId = (int) ($value['variant_id'] ?? 0)) > 0 ? $variantId : null,
+        ], fn (mixed $field): bool => ! in_array($field, [null, ''], true));
+
+        return $product === [] ? null : $product;
     }
 
     private function sanitizeIntent(mixed $value): ?string
@@ -248,6 +284,13 @@ class StorefrontAssistantContextResolver
             ->take(5)
             ->values()
             ->all();
+    }
+
+    private function trimmedString(mixed $value): ?string
+    {
+        $trimmed = is_string($value) ? trim($value) : '';
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 
     private function isAuthContext(array $assistantContext): bool

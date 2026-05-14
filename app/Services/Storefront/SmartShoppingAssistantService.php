@@ -56,6 +56,7 @@ class SmartShoppingAssistantService
     {
         $message = trim($message);
         $assistantContext = $this->assistantContextResolver->sanitize($assistantContext);
+        $pageContext = $this->assistantContextResolver->conversationProductContext($assistantContext, $pageContext);
         $normalizedMessage = $this->messageNormalizer->normalize($message, $assistantContext);
         $commerce = $this->commerceQueryParser->parse($message, $pageContext);
         $criteria = $this->productDiscovery->buildCriteriaFromText($message, $commerce);
@@ -104,6 +105,7 @@ class SmartShoppingAssistantService
             $intent,
             $response,
             $assistantContext,
+            $pageContext,
         );
 
         return [
@@ -122,12 +124,11 @@ class SmartShoppingAssistantService
     private function productIntentResponse(string $message, string $normalized, array $criteria, array $commerce, array $pageContext = []): array
     {
         $directLookup = $this->productDiscovery->findDirectProductMatch($message, $pageContext, $commerce);
-        $isQuantityIntent = $this->isQuantityIntent($normalized);
+        $isStockIntent = $this->isStockIntent($normalized, $commerce);
 
         if (
             ($directLookup['product'] ?? null) === null
-            && ($isQuantityIntent || $this->isAvailabilityIntent($normalized))
-            && ! filled($commerce['entities']['product_name'] ?? null)
+            && $isStockIntent
         ) {
             $currentProduct = $this->productDiscovery->currentProductFromContext($pageContext);
 
@@ -141,22 +142,20 @@ class SmartShoppingAssistantService
             }
         }
 
+        if (($directLookup['status'] ?? null) === 'current_product' && ($directLookup['product'] ?? null) && $isStockIntent) {
+            return $this->currentProductStockResponse(
+                $message,
+                $commerce,
+                $pageContext,
+                $directLookup['product'],
+            );
+        }
+
         if (($commerce['intent'] ?? null) === 'size_stock' && filled($commerce['entities']['size'] ?? null)) {
-            return $this->sizeStockResponse($commerce, $directLookup);
+            return $this->sizeStockResponse($message, $commerce, $directLookup);
         }
 
         if (($directLookup['status'] ?? null) === 'current_product' && ($directLookup['product'] ?? null)) {
-            if ($isQuantityIntent || $this->isAvailabilityIntent($normalized)) {
-                return $this->response(
-                    answer: $this->stockTruthAnswer($directLookup['product'], $isQuantityIntent),
-                    products: [$this->productDiscovery->formatProduct($directLookup['product'])],
-                    actions: [
-                        ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
-                        ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
-                    ],
-                );
-            }
-
             return $this->response(
                 answer: 'You are currently viewing '.$directLookup['product']->name.'.',
                 products: [$this->productDiscovery->formatProduct($directLookup['product'])],
@@ -168,8 +167,28 @@ class SmartShoppingAssistantService
         }
 
         if (($directLookup['status'] ?? null) === 'active_match' && ($directLookup['product'] ?? null)) {
+            if ($isStockIntent) {
+                $requestedColor = $this->resolveProductColorFromMessage(
+                    $directLookup['product'],
+                    $commerce['entities']['color'] ?? null,
+                    $message,
+                );
+                $requestedSize = trim((string) ($commerce['entities']['size'] ?? ''));
+
+                if ($requestedSize !== '') {
+                    return $this->response(
+                        answer: $this->currentProductSizeStockAnswer($directLookup['product'], $requestedSize, $requestedColor),
+                        products: [$this->productDiscovery->formatProduct($directLookup['product'])],
+                        actions: [
+                            ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                            ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                        ],
+                    );
+                }
+            }
+
             return $this->response(
-                answer: $this->stockTruthAnswer($directLookup['product'], $isQuantityIntent),
+                answer: $this->stockTruthAnswer($directLookup['product']),
                 products: [$this->productDiscovery->formatProduct($directLookup['product'])],
                 actions: [
                     ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -183,11 +202,70 @@ class SmartShoppingAssistantService
         }
 
         if (($directLookup['status'] ?? null) === 'inactive_match') {
+            if ($isStockIntent) {
+                return $this->response(
+                    answer: ((string) ($directLookup['query'] ?? $directLookup['product']?->name ?? 'That product')).' is currently unavailable.',
+                    actions: [
+                        ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                        ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                    ],
+                );
+            }
+
             return $this->inactiveExactProductResponse($criteria, $directLookup);
         }
 
-        if ($this->isAvailabilityIntent($normalized) && ! $this->hasStructuredProductSignal($criteria)) {
+        if (
+            ($directLookup['product'] ?? null) === null
+            && $this->isLowStockListingIntent($normalized)
+            && ! $this->hasStructuredProductSignal($criteria)
+        ) {
             return $this->lowStockResponse();
+        }
+
+        if (
+            ($directLookup['product'] ?? null) === null
+            && $this->isOutOfStockListingIntent($normalized)
+            && ! $this->hasStructuredProductSignal($criteria)
+        ) {
+            return $this->outOfStockResponse();
+        }
+
+        if (
+            ($directLookup['product'] ?? null) === null
+            && $isStockIntent
+            && $this->isGenericStockLookupQuery($directLookup['query'] ?? null)
+        ) {
+            return $this->response(
+                answer: 'Tell me which product you want to check, and I will verify the stock for you.',
+                actions: $this->defaultActions(),
+            );
+        }
+
+        if (
+            ($directLookup['product'] ?? null) === null
+            && $isStockIntent
+            && ! filled($criteria['product_name'] ?? null)
+            && filled($directLookup['query'] ?? null)
+        ) {
+            return $this->response(
+                answer: 'I could not find that product in the active catalog. Tell me the exact product name or open its product page and I will check the stock for you.',
+                actions: [
+                    ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                    ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                ],
+            );
+        }
+
+        if (
+            ($directLookup['product'] ?? null) === null
+            && $isStockIntent
+            && ! $this->hasStructuredProductSignal($criteria)
+        ) {
+            return $this->response(
+                answer: 'Tell me which product you want to check, and I will verify the stock for you.',
+                actions: $this->defaultActions(),
+            );
         }
 
         return $this->productResponse($message, $criteria, $commerce, $directLookup);
@@ -268,11 +346,64 @@ class SmartShoppingAssistantService
         );
     }
 
-    private function sizeStockResponse(array $commerce, array $directLookup): array
+    private function currentProductStockResponse(string $message, array $commerce, array $pageContext, Product $product): array
+    {
+        $currentProductContext = data_get($pageContext, 'current_product', []);
+        $requestedColor = $this->resolveCurrentProductColor($product, $commerce, $currentProductContext, $message);
+        $requestedSize = $this->resolveCurrentProductSize($commerce, $currentProductContext);
+
+        if ($requestedSize !== null) {
+            if ($requestedColor === null) {
+                return $this->response(
+                    answer: $this->currentProductSizeAvailabilityAnswer($product, $requestedSize),
+                    products: [$this->productDiscovery->formatProduct($product)],
+                    actions: [
+                        ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                        ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                    ],
+                );
+            }
+
+            return $this->response(
+                answer: $this->currentProductSizeStockAnswer($product, $requestedSize, $requestedColor),
+                products: [$this->productDiscovery->formatProduct($product)],
+                actions: [
+                    ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                    ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                ],
+            );
+        }
+
+        if ($requestedColor !== null) {
+            return $this->response(
+                answer: $product->name.' '.$requestedColor['color_label'].' is selected. Please choose a size so I can check the exact stock.',
+                products: [$this->productDiscovery->formatProduct($product)],
+                actions: [
+                    ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                    ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+                ],
+            );
+        }
+
+        $availability = $this->availability->forProduct($product);
+        $quantity = max(0, (int) ($availability['available_quantity'] ?? 0));
+
+        return $this->response(
+            answer: $quantity > 0
+                ? $product->name.' has '.$quantity.' '.Str::plural('pair', $quantity).' across variants. Select a size for exact availability.'
+                : $product->name.' is currently unavailable.',
+            products: [$this->productDiscovery->formatProduct($product)],
+            actions: [
+                ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+            ],
+        );
+    }
+
+    private function sizeStockResponse(string $message, array $commerce, array $directLookup): array
     {
         $size = (string) ($commerce['entities']['size'] ?? '');
-        $color = $commerce['entities']['color'] ?? null;
-        $product = $directLookup['product'] ?? null;
+        $product = $directLookup['product'] ?? $this->productDiscovery->inferNamedProductFromMessage($message);
 
         if (! $product) {
             return $this->response(
@@ -292,22 +423,25 @@ class SmartShoppingAssistantService
             );
         }
 
-        $availability = $this->productDiscovery->sizeAvailabilityForProduct($product, $size, $color);
+        $resolvedColor = $this->resolveProductColorFromMessage($product, $commerce['entities']['color'] ?? null, $message);
+        $resolvedColorLabel = $resolvedColor['color_label'] ?? null;
+        $availability = $this->productDiscovery->sizeAvailabilityForProduct($product, $size, $resolvedColorLabel);
         $availableSizes = $availability['available_sizes'];
         $availableLabel = $availableSizes === []
             ? 'No sizes are currently available.'
             : 'Available sizes right now: '.implode(', ', $availableSizes).'.';
         $sizeDescriptor = $product->name.' size '.$availability['requested_size'];
 
-        if (filled($color)) {
-            $sizeDescriptor .= ' in '.Str::title((string) $color);
+        if (filled($availability['requested_color_label'] ?? null)) {
+            $sizeDescriptor .= ' in '.$availability['requested_color_label'];
         }
 
         $answer = match (true) {
-            $availability['is_available'] => $sizeDescriptor.' is available with '.$this->pairLabel((int) $availability['available_quantity']).' left.',
+            ($availability['state'] ?? null) === ProductAvailabilityService::STATE_IN_STOCK => $sizeDescriptor.' is in stock.',
+            ($availability['state'] ?? null) === ProductAvailabilityService::STATE_LOW_STOCK => $sizeDescriptor.' is available in limited stock.',
             $availability['is_backorder'] => $sizeDescriptor.' is available for backorder right now.',
-            ($availability['has_variant'] ?? false) === true => $sizeDescriptor.' is currently out of stock. '.$availableLabel,
-            ($availability['has_size'] ?? false) === true && filled($color) => $product->name.' has size '.$availability['requested_size'].', but not in '.Str::title((string) $color).'. '.$availableLabel,
+            ($availability['has_variant'] ?? false) === true => $sizeDescriptor.' is currently unavailable. '.$availableLabel,
+            ($availability['has_size'] ?? false) === true && filled($resolvedColorLabel) => $product->name.' has size '.$availability['requested_size'].', but not in '.$resolvedColorLabel.'. '.$availableLabel,
             default => 'I could not find size '.$availability['requested_size'].' for '.$product->name.'. '.$availableLabel,
         };
 
@@ -321,15 +455,106 @@ class SmartShoppingAssistantService
         );
     }
 
+    private function currentProductSizeStockAnswer(Product $product, string $size, ?array $requestedColor = null): string
+    {
+        $availability = $this->productDiscovery->sizeAvailabilityForProduct(
+            $product,
+            $size,
+            $requestedColor['color_label'] ?? null,
+        );
+
+        $variantOption = $this->currentProductVariantOption($product, $availability, $requestedColor);
+        $requestedSize = (string) ($availability['requested_size'] ?? $size);
+        $availableQuantity = max(0, (int) ($variantOption['available_quantity'] ?? $availability['available_quantity'] ?? 0));
+        $colorLabel = $requestedColor['color_label'] ?? $availability['requested_color_label'] ?? null;
+        $descriptor = $product->name;
+
+        if (filled($colorLabel)) {
+            $descriptor .= ' '.$colorLabel;
+        }
+
+        $descriptor .= ' size '.$requestedSize;
+
+        if (($variantOption['has_variant'] ?? $availability['has_variant'] ?? false) !== true) {
+            if (($availability['has_size'] ?? false) === true && filled($colorLabel)) {
+                return $product->name.' has size '.$requestedSize.', but not in '.$colorLabel.'.';
+            }
+
+            return 'I could not find size '.$requestedSize.' for '.$product->name.'.';
+        }
+
+        if ($availableQuantity <= 0) {
+            return $descriptor.' is currently unavailable.';
+        }
+
+        return $descriptor.' has '.$availableQuantity.' '.Str::plural('pair', $availableQuantity).' left.';
+    }
+
+    private function currentProductSizeAvailabilityAnswer(Product $product, string $size): string
+    {
+        $availability = $this->productDiscovery->sizeAvailabilityForProduct($product, $size);
+        $descriptor = $product->name.' size '.($availability['requested_size'] ?? $size);
+
+        return match (true) {
+            ($availability['state'] ?? null) === ProductAvailabilityService::STATE_IN_STOCK => $descriptor.' is in stock.',
+            ($availability['state'] ?? null) === ProductAvailabilityService::STATE_LOW_STOCK => $descriptor.' is available in limited stock.',
+            ($availability['is_backorder'] ?? false) === true => $descriptor.' is available for backorder right now.',
+            ($availability['has_variant'] ?? false) === true => $descriptor.' is currently unavailable.',
+            default => 'I could not find size '.($availability['requested_size'] ?? $size).' for '.$product->name.'.',
+        };
+    }
+
+    private function currentProductVariantOption(Product $product, array $availability, ?array $requestedColor = null): array
+    {
+        $requestedSize = (string) ($availability['requested_size'] ?? '');
+        $requestedColorKey = $requestedColor['color_key'] ?? null;
+
+        if ($requestedSize === '') {
+            return [];
+        }
+
+        return collect($this->availability->variantOptionsForProductSize($product, $requestedSize))
+            ->first(function (array $option) use ($requestedColorKey, $availability): bool {
+                if ($requestedColorKey === null) {
+                    return true;
+                }
+
+                return (string) ($option['color'] ?? '') === $requestedColorKey
+                    || (string) ($option['color_label'] ?? '') === (string) ($availability['requested_color_label'] ?? '');
+            }) ?? [];
+    }
+
+    private function resolveCurrentProductColor(Product $product, array $commerce, array $currentProductContext, string $message): ?array
+    {
+        $contextColor = $currentProductContext['selected_color_label']
+            ?? $currentProductContext['selected_color']
+            ?? null;
+
+        return $this->resolveProductColorFromMessage(
+            $product,
+            $commerce['entities']['color'] ?? $contextColor,
+            $message,
+        );
+    }
+
+    private function resolveCurrentProductSize(array $commerce, array $currentProductContext): ?string
+    {
+        $size = trim((string) ($commerce['entities']['size'] ?? $currentProductContext['selected_size'] ?? ''));
+
+        return $size !== '' ? $size : null;
+    }
+
     private function lowStockResponse(): array
     {
-        $products = $this->productDiscovery->lowStockProducts(4)
-            ->map(fn ($product): array => $this->productDiscovery->formatProduct($product))
+        $matches = $this->productDiscovery->lowStockVariantOptions(4);
+        $products = $matches
+            ->map(fn (array $match): array => $this->productDiscovery->formatProduct($match['product']))
+            ->unique('slug')
             ->all();
 
         if ($products === []) {
             return $this->response(
-                answer: 'Nothing is currently flagged as low stock in the active catalog. Most visible pairs still have comfortable inventory.',
+                answer: 'No visible products are currently low stock.',
                 actions: [
                     ['label' => 'Browse all shoes', 'type' => 'link', 'url' => route('storefront.shop')],
                     ['label' => 'Black sneakers', 'type' => 'message', 'message' => 'Show me black sneakers'],
@@ -337,8 +562,46 @@ class SmartShoppingAssistantService
             );
         }
 
+        $descriptors = $matches
+            ->map(fn (array $match): string => $this->variantDescriptor($match['product'], $match['option']).' is available in limited stock.')
+            ->values()
+            ->all();
+
         return $this->response(
-            answer: 'These pairs are the most time-sensitive right now based on current storefront inventory.',
+            answer: implode(' ', $descriptors),
+            products: $products,
+            actions: [
+                ['label' => 'Open catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                ['label' => 'Show my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+            ],
+        );
+    }
+
+    private function outOfStockResponse(): array
+    {
+        $matches = $this->productDiscovery->outOfStockVariantOptions(4);
+        $products = $matches
+            ->map(fn (array $match): array => $this->productDiscovery->formatProduct($match['product']))
+            ->unique('slug')
+            ->all();
+
+        if ($products === []) {
+            return $this->response(
+                answer: 'No visible products are currently out of stock.',
+                actions: [
+                    ['label' => 'Browse all shoes', 'type' => 'link', 'url' => route('storefront.shop')],
+                    ['label' => 'Black sneakers', 'type' => 'message', 'message' => 'Show me black sneakers'],
+                ],
+            );
+        }
+
+        $descriptors = $matches
+            ->map(fn (array $match): string => $this->variantDescriptor($match['product'], $match['option']).' is currently unavailable.')
+            ->values()
+            ->all();
+
+        return $this->response(
+            answer: implode(' ', $descriptors),
             products: $products,
             actions: [
                 ['label' => 'Open catalog', 'type' => 'link', 'url' => route('storefront.shop')],
@@ -373,6 +636,10 @@ class SmartShoppingAssistantService
 
         $answer = 'Your cart has '.$summary['item_count'].' item'.($summary['item_count'] === 1 ? '' : 's')
             .' worth PHP '.number_format((float) $summary['total'], 0).'.';
+
+        if (($summary['has_inventory_issues'] ?? false) === true) {
+            $answer .= ' Some cart items need attention because inventory changed.';
+        }
 
         if ($summary['shipping'] > 0) {
             $answer .= ' Shipping is PHP '.number_format((float) $summary['shipping'], 0).' until you reach the free-shipping threshold.';
@@ -468,8 +735,17 @@ class SmartShoppingAssistantService
             'available',
             'in stock',
             'low stock',
+            'limited stock',
+            'out of stock',
             'sold out',
             'stock',
+            'stocks',
+            'unavailable',
+            'left',
+            'remaining',
+            'natitira',
+            'may stock',
+            'meron pa',
         ]);
     }
 
@@ -482,17 +758,74 @@ class SmartShoppingAssistantService
             'pair left',
             'stocks left',
             'stock left',
+            'remaining',
+            'natitira',
         ]);
+    }
+
+    private function isStockIntent(string $message, array $commerce): bool
+    {
+        return ($commerce['flags']['stock_intent'] ?? false) === true
+            || $this->isAvailabilityIntent($message)
+            || $this->isQuantityIntent($message);
+    }
+
+    private function isGenericStockLookupQuery(mixed $query): bool
+    {
+        $normalized = Str::of((string) $query)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/i', ' ')
+            ->squish()
+            ->value();
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        return in_array($normalized, [
+            'availability',
+            'available',
+            'im talking about stocks',
+            'i m talking about stocks',
+            'left',
+            'remaining',
+            'sabi ko stock',
+            'stock',
+            'stocks',
+        ], true);
     }
 
     private function hasStructuredProductSignal(array $criteria): bool
     {
+        if (filled($criteria['product_name'] ?? null)) {
+            return true;
+        }
+
         return filled($criteria['category'])
             || filled($criteria['color'])
             || filled($criteria['size'])
             || filled($criteria['use_case'])
             || $criteria['max_price'] !== null
             || $criteria['min_price'] !== null;
+    }
+
+    private function isLowStockListingIntent(string $message): bool
+    {
+        return $this->containsAny($message, [
+            'low stock',
+            'limited stock',
+        ]);
+    }
+
+    private function isOutOfStockListingIntent(string $message): bool
+    {
+        return $this->containsAny($message, [
+            'no stock',
+            'out of stock',
+            'sold out',
+            'unavailable',
+            'wala bang stock',
+        ]);
     }
 
     private function containsAny(string $message, array $phrases): bool
@@ -517,21 +850,64 @@ class SmartShoppingAssistantService
 
         return match ($availability['state'] ?? null) {
             ProductAvailabilityService::STATE_INACTIVE => $product->name.' is currently unavailable.',
-            ProductAvailabilityService::STATE_BACKORDER => $product->name.' is available for backorder right now.',
-            ProductAvailabilityService::STATE_SOLD_OUT => $product->name.' is currently sold out.',
-            ProductAvailabilityService::STATE_LOW_STOCK => $product->name.' is still available, but only '.$this->pairLabel((int) ($availability['available_quantity'] ?? 0)).' left.',
-            ProductAvailabilityService::STATE_IN_STOCK => $quantityIntent
-                ? $product->name.' currently has '.$this->pairLabel((int) ($availability['available_quantity'] ?? 0)).' in stock.'
-                : $product->name.' is available with '.$this->pairLabel((int) ($availability['available_quantity'] ?? 0)).' currently in stock.',
-            default => $quantityIntent
-                ? $product->name.' is available, but exact stock is not tracked for this product.'
-                : $product->name.' is available right now.',
+            ProductAvailabilityService::STATE_BACKORDER_AVAILABLE => $product->name.' is available for backorder right now.',
+            ProductAvailabilityService::STATE_OUT_OF_STOCK => $product->name.' is currently unavailable.',
+            ProductAvailabilityService::STATE_LOW_STOCK => $product->name.' is available in limited stock.',
+            ProductAvailabilityService::STATE_IN_STOCK => $product->name.' is in stock right now.',
+            default => $product->name.' is available right now.',
         };
     }
 
     private function pairLabel(int $quantity): string
     {
         return $quantity.' '.Str::plural('pair', $quantity);
+    }
+
+    private function variantDescriptor(Product $product, array $option): string
+    {
+        $descriptor = $product->name;
+        $size = trim((string) ($option['size'] ?? ''));
+        $color = trim((string) ($option['color_label'] ?? $option['color'] ?? ''));
+
+        if ($size !== '') {
+            $descriptor .= ' size '.$size;
+        }
+
+        if ($color !== '') {
+            $descriptor .= ' in '.$color;
+        }
+
+        return $descriptor;
+    }
+
+    private function resolveProductColorFromMessage(Product $product, ?string $commerceColor, string $message): ?array
+    {
+        foreach (array_filter([$commerceColor, $message]) as $candidate) {
+            $resolved = $this->availability->resolveColorOptionForProduct($product, (string) $candidate);
+
+            if ($resolved !== null) {
+                return $resolved;
+            }
+        }
+
+        $normalizedMessage = $this->normalizeColorMatchText($message);
+
+        return collect($this->availability->colorOptionsForProduct($product))
+            ->sortByDesc(fn (array $option): int => strlen((string) ($option['color_label'] ?? $option['color'] ?? '')))
+            ->first(function (array $option) use ($normalizedMessage): bool {
+                $colorLabel = $this->normalizeColorMatchText((string) ($option['color_label'] ?? $option['color'] ?? ''));
+
+                return $colorLabel !== '' && str_contains($normalizedMessage, $colorLabel);
+            });
+    }
+
+    private function normalizeColorMatchText(string $value): string
+    {
+        return Str::of($value)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/i', ' ')
+            ->squish()
+            ->value();
     }
 
     private function displayLookupQuery(string $query): string

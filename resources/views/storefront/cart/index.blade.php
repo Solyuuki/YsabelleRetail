@@ -24,6 +24,13 @@
                     <h1 class="font-serif text-5xl text-ys-ivory">Shopping bag</h1>
                     <p class="mt-3 text-sm text-ys-ivory/45">{{ $summary['item_count'] }} item{{ $summary['item_count'] > 1 ? 's' : '' }}</p>
 
+                    @if ($summary['has_inventory_issues'] ?? false)
+                        <div class="mt-6 rounded-[1.4rem] border border-[#7c2727] bg-[#361010] px-5 py-4 text-sm text-[#ffd8d8]">
+                            <p class="font-semibold">Some items in your bag changed while you were shopping.</p>
+                            <p class="mt-2 text-[#ffdddd]/85">Review the affected items below before checking out.</p>
+                        </div>
+                    @endif
+
                     <div class="mt-8 space-y-4">
                         @foreach ($summary['items'] as $item)
                             <article class="rounded-[1.6rem] border border-white/7 bg-ys-panel/80 p-4 sm:p-5" data-reveal>
@@ -64,6 +71,12 @@
                                                 <button type="submit" class="text-sm font-medium text-ys-ivory/45 transition hover:text-[#e17373]">Remove</button>
                                             </form>
                                         </div>
+
+                                        @if (($item->inventory_status['message'] ?? null) && (($item->inventory_status['has_issue'] ?? false) || ($item->inventory_status['state'] ?? null) === 'low_stock'))
+                                            <div class="mt-4 rounded-2xl border {{ ($item->inventory_status['has_issue'] ?? false) ? 'border-[#7c2727] bg-[#361010] text-[#ffd8d8]' : 'border-[#6b5315] bg-[#2b2210] text-[#f8deb2]' }} px-4 py-3 text-sm">
+                                                {{ $item->inventory_status['message'] }}
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             </article>

@@ -6,6 +6,7 @@
     <script type="application/json" data-assistant-page-context>
         {{ json_encode([
             'current_product' => [
+                'id' => $product->id,
                 'slug' => $product->slug,
                 'name' => $product->name,
                 'style_code' => $product->style_code,
@@ -19,22 +20,31 @@
         $imageUrl = $media->imageUrlFor($product);
         $imageAlt = $media->altTextFor($product);
         $availability = $productAvailability ?? [
-            'state' => 'sold_out',
-            'label' => 'Sold Out',
+            'state' => 'out_of_stock',
+            'label' => 'Currently Unavailable',
             'available_quantity' => 0,
             'inventory_tracked' => true,
+            'color_options' => [],
+            'size_options' => [],
         ];
-        $availabilityCopy = match ($availability['state'] ?? 'sold_out') {
-            'in_stock' => ($availability['available_quantity'] ?? null) !== null
-                ? number_format((int) $availability['available_quantity']).' in stock'
-                : 'In stock',
-            'low_stock' => ($availability['available_quantity'] ?? null) !== null
-                ? 'Low stock - '.number_format((int) $availability['available_quantity']).' left'
-                : 'Low stock',
-            'available_for_backorder' => 'Available for backorder',
-            'inactive' => 'Currently unavailable',
-            default => 'Sold out',
+        $colorOptions = collect($availability['color_options'] ?? []);
+        $selectedVariantId = (string) old('variant_id', '');
+        $selectedOption = collect($availability['variant_options'] ?? [])->first(
+            fn (array $option): bool => $selectedVariantId !== '' && (string) ($option['variant_id'] ?? '') === $selectedVariantId
+        );
+        $selectedColorKey = (string) ($selectedOption['color'] ?? old('selected_color', $availability['default_color'] ?? ''));
+        $selectedColor = $colorOptions->firstWhere('color_key', $selectedColorKey) ?? $colorOptions->first();
+        $selectedColorKey = (string) ($selectedColor['color_key'] ?? '');
+        $sizeOptions = collect($selectedColor['size_options'] ?? []);
+        $selectedOption = $sizeOptions->firstWhere('variant_id', (int) ($selectedOption['variant_id'] ?? 0));
+        $availabilityCopy = $selectedOption['label'] ?? 'Select a size to view availability.';
+        $initialButtonLabel = match (true) {
+            ! $selectedOption => 'Select a size',
+            ($selectedOption['backorder_available'] ?? false) === true => 'Preorder now',
+            ($selectedOption['is_selectable'] ?? false) === true => 'Add to cart',
+            default => 'Currently unavailable',
         };
+        $initialAvailabilityNote = $selectedOption['label'] ?? 'Select a size to view availability.';
         $trustMarks = collect(($storefrontTrustMarks ?? config('storefront.trust_marks')) ?: [
             [
                 'label' => 'Secure Checkout',
@@ -110,7 +120,7 @@
                         <span class="font-medium uppercase tracking-[0.18em] text-ys-ivory/38">No reviews yet</span>
                     @endif
                     <span>&middot;</span>
-                    <span>{{ $availabilityCopy }}</span>
+                    <span data-product-availability-label>{{ $availabilityCopy }}</span>
                 </div>
 
                 <div class="mt-6 flex items-center gap-3">
@@ -124,27 +134,81 @@
 
                 <form action="{{ route('storefront.cart.store') }}" method="POST" class="mt-10 space-y-8" data-product-form>
                     @csrf
-                    <input type="hidden" name="variant_id" value="{{ old('variant_id') }}">
+                    @if ($errors->has('variant_id') || $errors->has('quantity') || $errors->has('inventory'))
+                        <div class="rounded-[1.4rem] border border-[#7c2727] bg-[#361010] px-5 py-4 text-sm text-[#ffd8d8]">
+                            <p class="font-semibold">We couldn't add that variant yet.</p>
+                            <ul class="mt-2 space-y-1 text-[#ffdddd]/85">
+                                @foreach (['variant_id', 'quantity', 'inventory'] as $field)
+                                    @foreach ($errors->get($field) as $message)
+                                        <li>{{ $message }}</li>
+                                    @endforeach
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    <script type="application/json" data-product-availability>
+                        {!! json_encode([
+                            'color_options' => $colorOptions->values()->all(),
+                            'selected_color' => $selectedColorKey,
+                            'selected_variant_id' => $selectedOption['variant_id'] ?? null,
+                            'default_availability_label' => 'Select a size to view availability.',
+                            'default_add_to_cart_label' => 'Select a size',
+                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+                    </script>
+
+                    <input type="hidden" name="variant_id" value="{{ $selectedOption['variant_id'] ?? old('variant_id') }}">
+                    <input type="hidden" name="selected_color" value="{{ $selectedColorKey }}" data-selected-color-input>
                     <input type="hidden" name="quantity" value="{{ old('quantity', 1) }}" data-quantity-input>
 
                     <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-ivory/45">Select Size (US)</p>
-                        <div class="mt-4 flex flex-wrap gap-3">
-                            @foreach ($product->variants as $variant)
+                        <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-ivory/45">Select Color</p>
+                        <div class="mt-4 flex flex-wrap gap-3" data-color-options>
+                            @foreach ($colorOptions as $option)
                                 @php
-                                    $size = $variant->option_values['size'] ?? preg_replace('/[^0-9.]/', '', $variant->name);
-                                    $selected = (string) old('variant_id') === (string) $variant->id;
+                                    $isSelectedColor = $selectedColorKey !== '' && (string) ($option['color_key'] ?? '') === $selectedColorKey;
                                 @endphp
                                 <button
                                     type="button"
-                                    class="ys-size-option {{ $selected ? 'ys-size-option-active' : '' }}"
-                                    data-variant-option
-                                    data-variant-id="{{ $variant->id }}"
+                                    class="ys-size-option {{ $isSelectedColor ? 'ys-size-option-active' : '' }}"
+                                    data-color-option
+                                    data-color-key="{{ $option['color_key'] }}"
+                                    data-color-label="{{ $option['color_label'] }}"
+                                    aria-pressed="{{ $isSelectedColor ? 'true' : 'false' }}"
                                 >
-                                    {{ $size }}
+                                    {{ $option['color_label'] }}
                                 </button>
                             @endforeach
                         </div>
+                    </div>
+
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.35em] text-ys-ivory/45">Select Size (US)</p>
+                        <div class="mt-4 flex flex-wrap gap-3" data-size-options>
+                            @foreach ($sizeOptions as $option)
+                                @php
+                                    $selected = $selectedOption && (int) $selectedOption['variant_id'] === (int) $option['variant_id'];
+                                    $isSelectable = (bool) ($option['is_selectable'] ?? false);
+                                @endphp
+                                <button
+                                    type="button"
+                                    class="ys-size-option {{ $selected ? 'ys-size-option-active' : '' }} {{ $isSelectable ? '' : 'ys-size-option-unavailable' }}"
+                                    data-variant-option
+                                    data-variant-id="{{ $option['variant_id'] }}"
+                                    data-variant-size="{{ $option['size'] }}"
+                                    data-variant-color="{{ $option['color'] }}"
+                                    data-variant-state="{{ $option['state'] }}"
+                                    data-variant-selectable="{{ $isSelectable ? '1' : '0' }}"
+                                    data-variant-label="{{ $option['label'] }}"
+                                    data-variant-backorder="{{ ($option['backorder_available'] ?? false) ? '1' : '0' }}"
+                                    @disabled(! $isSelectable)
+                                    aria-disabled="{{ $isSelectable ? 'false' : 'true' }}"
+                                >
+                                    {{ $option['size'] }}
+                                </button>
+                            @endforeach
+                        </div>
+                        <p class="mt-3 text-sm text-ys-ivory/48" data-selected-availability>{{ $initialAvailabilityNote }}</p>
                     </div>
 
                     <div>
@@ -156,8 +220,13 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="ys-button-primary w-full justify-center text-base" data-add-to-cart-button>
-                        {{ old('variant_id') ? 'Add to cart' : 'Select a size' }}
+                    <button
+                        type="submit"
+                        class="ys-button-primary w-full justify-center text-base disabled:cursor-not-allowed disabled:opacity-60"
+                        data-add-to-cart-button
+                        @disabled(! $selectedOption || ! ($selectedOption['is_selectable'] ?? false))
+                    >
+                        {{ $initialButtonLabel }}
                     </button>
                 </form>
 

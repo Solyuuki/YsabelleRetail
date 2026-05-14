@@ -340,7 +340,7 @@ test('assistant prioritizes an exact active product name over broader similar ma
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $exact->slug)
-        ->assertJsonPath('answer', 'Atlas Highstreet is available with 8 pairs currently in stock.');
+        ->assertJsonPath('answer', 'Atlas Highstreet is in stock right now.');
 });
 
 test('assistant returns Atlas Highstreet first for find me phrasing', function () {
@@ -356,7 +356,7 @@ test('assistant returns Atlas Highstreet first for find me phrasing', function (
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $exact->slug)
-        ->assertJsonPath('answer', 'Atlas Highstreet is available with 8 pairs currently in stock.');
+        ->assertJsonPath('answer', 'Atlas Highstreet is in stock right now.');
 });
 
 test('assistant returns exact product matches for direct availability and show-me requests', function () {
@@ -372,14 +372,14 @@ test('assistant returns exact product matches for direct availability and show-m
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('answer', 'Carbon Trace is available with 8 pairs currently in stock.');
+        ->assertJsonPath('answer', 'Carbon Trace is in stock right now.');
 
     assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Show me Carbon Trace',
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('answer', 'Carbon Trace is available with 8 pairs currently in stock.');
+        ->assertJsonPath('answer', 'Carbon Trace is in stock right now.');
 });
 
 test('assistant uses current product page context for this-product requests', function () {
@@ -525,7 +525,7 @@ test('assistant uses current product context for size questions instead of the s
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('answer', 'Atlas Highstreet size 9 is available with 8 pairs left.')
+        ->assertJsonPath('answer', 'Atlas Highstreet size 9 is in stock.')
         ->assertJsonPath('assistant_context.last_intent', 'ecommerce_product_search');
 });
 
@@ -585,7 +585,7 @@ test('assistant resolves typo and partial product-name queries when the match is
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('answer', 'I did not find an exact match, but Atlas Highstreet is the closest real product name match I found. Atlas Highstreet is available with 8 pairs currently in stock.');
+        ->assertJsonPath('answer', 'I did not find an exact match, but Atlas Highstreet is the closest real product name match I found. Atlas Highstreet is in stock right now.');
 
     assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'find Highstreet',
@@ -650,7 +650,7 @@ test('assistant answers exact product stock truthfully with live quantity', func
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
         ->assertJsonPath('products.0.availability.state', 'in_stock')
-        ->assertJsonPath('answer', 'Carbon Trace is available with 12 pairs currently in stock.');
+        ->assertJsonPath('answer', 'Carbon Trace is in stock right now.');
 });
 
 test('assistant answers sold out product responses truthfully', function () {
@@ -669,8 +669,8 @@ test('assistant answers sold out product responses truthfully', function () {
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('products.0.availability.state', 'sold_out')
-        ->assertJsonPath('answer', 'Shadow Stride is currently sold out.');
+        ->assertJsonPath('products.0.availability.state', 'out_of_stock')
+        ->assertJsonPath('answer', 'Shadow Stride is currently unavailable.');
 });
 
 test('assistant answers low stock product responses truthfully', function () {
@@ -690,7 +690,30 @@ test('assistant answers low stock product responses truthfully', function () {
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
         ->assertJsonPath('products.0.availability.state', 'low_stock')
-        ->assertJsonPath('answer', 'Atlas Highstreet is still available, but only 2 pairs left.');
+        ->assertJsonPath('answer', 'Atlas Highstreet is available in limited stock.');
+});
+
+test('assistant lists real low stock variants for generic low stock questions', function () {
+    makeStorefrontProduct([
+        'name' => 'Atlas Highstreet',
+        'slug' => 'atlas-highstreet',
+    ], [
+        'sku' => 'YS-ATL-6805-12',
+        'option_values' => [
+            'size' => '12',
+            'color' => 'Black',
+        ],
+    ], [
+        'quantity_on_hand' => 2,
+        'reorder_level' => 3,
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'What shoes are low stock?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', 'atlas-highstreet')
+        ->assertJsonPath('answer', 'Atlas Highstreet size 12 in Black is available in limited stock.');
 });
 
 test('assistant answers exact quantity questions from live inventory', function () {
@@ -728,7 +751,7 @@ test('assistant answers exact quantity questions from live inventory', function 
         'message' => 'How many stocks does Night Current have left?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Night Current currently has 7 pairs in stock.');
+        ->assertJsonPath('answer', 'Night Current is in stock right now.');
 });
 
 test('assistant answers size specific stock with exact quantity and color context', function () {
@@ -750,7 +773,7 @@ test('assistant answers size specific stock with exact quantity and color contex
         'message' => 'May black size 9 ba yung Carbon Trace?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Carbon Trace size 9 in Black is available with 3 pairs left.');
+        ->assertJsonPath('answer', 'Carbon Trace size 9 in Black is in stock.');
 });
 
 test('assistant answers size out of stock responses truthfully', function () {
@@ -788,7 +811,30 @@ test('assistant answers size out of stock responses truthfully', function () {
         'message' => 'Do you have size 10 for Carbon Trace?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Carbon Trace size 10 is currently out of stock. Available sizes right now: 9.');
+        ->assertJsonPath('answer', 'Carbon Trace size 10 is currently unavailable. Available sizes right now: 9.');
+});
+
+test('assistant lists real unavailable variants for generic out of stock questions', function () {
+    $product = makeStorefrontProduct([
+        'name' => 'Carbon Trace',
+        'slug' => 'carbon-trace',
+    ], [
+        'sku' => 'YS-CBT-6825-10',
+        'option_values' => [
+            'size' => '10',
+            'color' => 'Black',
+        ],
+    ], [
+        'quantity_on_hand' => 0,
+        'reorder_level' => 2,
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Ano unavailable?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonPath('answer', 'Carbon Trace size 10 in Black is currently unavailable.');
 });
 
 test('assistant ignores inactive variants when aggregating stock truth', function () {
@@ -826,7 +872,7 @@ test('assistant ignores inactive variants when aggregating stock truth', functio
         'message' => 'How many stocks does Shadow Gauge have left?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Shadow Gauge currently has 5 pairs in stock.');
+        ->assertJsonPath('answer', 'Shadow Gauge is in stock right now.');
 });
 
 test('storefront availability matches chatbot truth for the same product', function () {
@@ -842,13 +888,13 @@ test('storefront availability matches chatbot truth for the same product', funct
 
     $this->get(route('storefront.catalog.products.show', $product))
         ->assertOk()
-        ->assertSeeText('Low stock - 2 left');
+        ->assertSeeText('Limited Stock');
 
     assistantPostJson($this, route('storefront.assistant.message'), [
         'message' => 'Do you have Carbon Trace in stock?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Carbon Trace is still available, but only 2 pairs left.');
+        ->assertJsonPath('answer', 'Carbon Trace is available in limited stock.');
 });
 
 test('ProductDiscovery excludes inactive products from general discovery results', function () {
@@ -874,6 +920,40 @@ test('ProductDiscovery excludes inactive products from general discovery results
     expect($matches['products']->pluck('slug')->all())
         ->toContain($active->slug)
         ->not()->toContain('dormant-trace');
+});
+
+test('ProductDiscovery excludes archived and draft products from assistant recommendations', function () {
+    makeStorefrontProduct([
+        'name' => 'Archived Trace',
+        'slug' => 'archived-trace',
+        'status' => 'archived',
+    ], [
+        'sku' => 'YS-ARC-6855-9',
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Draft Trace',
+        'slug' => 'draft-trace',
+        'status' => 'draft',
+    ], [
+        'sku' => 'YS-DRF-6855-9',
+    ]);
+
+    $active = makeStorefrontProduct([
+        'name' => 'Live Trace',
+        'slug' => 'live-trace',
+    ], [
+        'sku' => 'YS-LIV-6855-9',
+    ]);
+
+    $matches = app(\App\Services\Storefront\ProductDiscoveryService::class)->findMatches([
+        'search' => 'trace',
+    ], 5);
+
+    expect($matches['products']->pluck('slug')->all())
+        ->toContain($active->slug)
+        ->not()->toContain('archived-trace')
+        ->not()->toContain('draft-trace');
 });
 
 test('ProductDiscovery deprioritizes sold out products in general discovery results', function () {
@@ -930,7 +1010,7 @@ test('VisualSearch returns centralized availability labels consistently', functi
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
         ->assertJsonPath('products.0.availability.state', 'low_stock')
-        ->assertJsonPath('products.0.availability.label', 'Low Stock');
+        ->assertJsonPath('products.0.availability.label', 'Limited Stock');
 });
 
 test('VisualSearch excludes sold out products from normal recommendation results', function () {
@@ -989,7 +1069,7 @@ test('stock movement updates immediately affect assistant stock answers', functi
         'message' => 'How many stocks does Signal Runner have left?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Signal Runner currently has 5 pairs in stock.');
+        ->assertJsonPath('answer', 'Signal Runner is in stock right now.');
 
     app(InventoryManager::class)->recordManualChange(
         $product->variants->first(),
@@ -1001,7 +1081,7 @@ test('stock movement updates immediately affect assistant stock answers', functi
         'message' => 'How many stocks does Signal Runner have left?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Signal Runner currently has 3 pairs in stock.');
+        ->assertJsonPath('answer', 'Signal Runner is in stock right now.');
 });
 
 test('manual stock adjustment updates availability labels immediately', function () {
@@ -1026,7 +1106,7 @@ test('manual stock adjustment updates availability labels immediately', function
     ])
         ->assertOk()
         ->assertJsonPath('products.0.availability.state', 'in_stock')
-        ->assertJsonPath('answer', 'Pulse Runner is available with 4 pairs currently in stock.');
+        ->assertJsonPath('answer', 'Pulse Runner is in stock right now.');
 });
 
 test('POS and order deductions update chatbot stock truth', function () {
@@ -1050,7 +1130,7 @@ test('POS and order deductions update chatbot stock truth', function () {
         'message' => 'How many stocks does Counter Runner have left?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Counter Runner currently has 5 pairs in stock.');
+        ->assertJsonPath('answer', 'Counter Runner is in stock right now.');
 });
 
 test('assistant labels backorder products correctly', function () {
@@ -1070,8 +1150,8 @@ test('assistant labels backorder products correctly', function () {
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('products.0.availability.state', 'available_for_backorder')
-        ->assertJsonPath('products.0.availability.label', 'Available for Backorder')
+        ->assertJsonPath('products.0.availability.state', 'backorder_available')
+        ->assertJsonPath('products.0.availability.label', 'Backorder Available')
         ->assertJsonPath('answer', 'Reserve Runner is available for backorder right now.');
 });
 
@@ -1090,7 +1170,27 @@ test('assistant handles multilingual stock questions truthfully', function () {
         'message' => 'Ilan nalang yung Taglish Trace?',
     ])
         ->assertOk()
-        ->assertJsonPath('answer', 'Taglish Trace currently has 4 pairs in stock.');
+        ->assertJsonPath('answer', 'Taglish Trace is in stock right now.');
+});
+
+test('assistant does not expose exact quantities in customer-facing stock answers', function () {
+    makeStorefrontProduct([
+        'name' => 'Quiet Counter',
+        'slug' => 'quiet-counter',
+    ], [
+        'sku' => 'YS-QCT-6925-9',
+    ], [
+        'quantity_on_hand' => 7,
+        'reorder_level' => 2,
+    ]);
+
+    $response = assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'How many stocks does Quiet Counter have left?',
+    ])
+        ->assertOk()
+        ->assertJsonPath('answer', 'Quiet Counter is in stock right now.');
+
+    expect($response->json('answer'))->not->toContain('7');
 });
 
 test('fuzzy matched products still use truthful stock answers', function () {
@@ -1109,7 +1209,7 @@ test('fuzzy matched products still use truthful stock answers', function () {
     ])
         ->assertOk()
         ->assertJsonPath('products.0.slug', $product->slug)
-        ->assertJsonPath('answer', 'I did not find an exact match, but Atlas Highstreet is the closest real product name match I found. Atlas Highstreet is currently sold out.');
+        ->assertJsonPath('answer', 'I did not find an exact match, but Atlas Highstreet is the closest real product name match I found. Atlas Highstreet is currently unavailable.');
 });
 
 test('assistant treats greetings as conversational and returns no products', function () {

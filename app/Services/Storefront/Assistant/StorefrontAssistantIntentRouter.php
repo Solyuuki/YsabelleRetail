@@ -95,8 +95,17 @@ class StorefrontAssistantIntentRouter
         'available',
         'in stock',
         'low stock',
+        'limited stock',
+        'out of stock',
         'sold out',
         'stock',
+        'stocks',
+        'unavailable',
+        'left',
+        'remaining',
+        'natitira',
+        'may stock',
+        'meron pa',
     ];
 
     private const OUT_OF_SCOPE_KEYWORDS = [
@@ -216,6 +225,19 @@ class StorefrontAssistantIntentRouter
     {
         if (($commerce['flags']['has_low_signal_text'] ?? false) === true && ($commerce['flags']['has_product_signal'] ?? false) !== true) {
             return false;
+        }
+
+        if (
+            $this->isAvailabilityIntent($message)
+            && (
+                ($commerce['flags']['stock_intent'] ?? false) === true
+                || ($commerce['flags']['references_current_product'] ?? false) === true
+                || filled($commerce['entities']['product_name'] ?? null)
+                || filled($commerce['entities']['size'] ?? null)
+                || $this->hasStructuredProductSignal($criteria)
+            )
+        ) {
+            return true;
         }
 
         if (in_array($commerce['intent'] ?? null, [

@@ -5,9 +5,12 @@ namespace App\Services\Storefront;
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
 use App\Models\Catalog\ProductVariant;
+use App\Services\Catalog\ProductAvailabilityService;
+use App\Services\Inventory\InventoryManager;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Collection;
 use Throwable;
 
 class CartService
@@ -15,6 +18,8 @@ class CartService
     public function __construct(
         private readonly Request $request,
         private readonly AuthFactory $auth,
+        private readonly InventoryManager $inventoryManager,
+        private readonly ProductAvailabilityService $availability,
     ) {}
 
     public function currentCart(): Cart
@@ -29,7 +34,14 @@ class CartService
 
     public function addVariant(ProductVariant $variant, int $quantity): Cart
     {
-        $cart = $this->currentCart();
+        $variant->loadMissing(['product', 'inventoryItem']);
+        $cart = $this->activeCart();
+        $existingLine = $cart?->items
+            ->firstWhere('product_variant_id', $variant->id);
+        $requestedQuantity = ($existingLine?->quantity ?? 0) + $quantity;
+
+        $this->inventoryManager->ensureSufficientStock($variant, $requestedQuantity);
+        $cart ??= $this->currentCart();
 
         $line = $cart->items()
             ->where('product_variant_id', $variant->id)
@@ -63,6 +75,8 @@ class CartService
         }
 
         $this->authorizeItem($item);
+        $item->loadMissing(['variant.product', 'variant.inventoryItem']);
+        $this->inventoryManager->ensureSufficientStock($item->variant, $quantity);
 
         $item->update([
             'quantity' => $quantity,
@@ -102,18 +116,25 @@ class CartService
             ];
         }
 
-        $subtotal = (float) $cart->items->sum(fn (CartItem $item): float => (float) $item->line_total);
+        $items = $this->annotateInventoryStatus($cart->items);
+        $inventoryIssues = $items
+            ->filter(fn (CartItem $item): bool => (bool) data_get($item->inventory_status, 'has_issue', false))
+            ->values();
+
+        $subtotal = (float) $items->sum(fn (CartItem $item): float => (float) $item->line_total);
         $shipping = $subtotal >= 5000 || $subtotal === 0.0 ? 0.0 : 350.0;
         $total = $subtotal + $shipping;
 
         return [
             'cart' => $cart,
-            'items' => $cart->items,
-            'item_count' => (int) $cart->items->sum('quantity'),
+            'items' => $items,
+            'item_count' => (int) $items->sum('quantity'),
             'subtotal' => $subtotal,
             'shipping' => $shipping,
             'total' => $total,
-            'is_empty' => $cart->items->isEmpty(),
+            'is_empty' => $items->isEmpty(),
+            'has_inventory_issues' => $inventoryIssues->isNotEmpty(),
+            'inventory_issues' => $inventoryIssues,
         ];
     }
 
@@ -166,6 +187,21 @@ class CartService
     private function freshCart(Cart $cart): Cart
     {
         return $cart->fresh(['items.variant.product.category', 'items.variant.inventoryItem']);
+    }
+
+    private function annotateInventoryStatus(Collection $items): Collection
+    {
+        return $items->map(function (CartItem $item): CartItem {
+            $status = $this->availability->forRequestedQuantity($item->variant, (int) $item->quantity);
+
+            if (($status['state'] ?? null) === ProductAvailabilityService::STATE_LOW_STOCK && ! ($status['has_issue'] ?? false)) {
+                $status['message'] = 'This item is available in limited stock.';
+            }
+
+            $item->setAttribute('inventory_status', $status);
+
+            return $item;
+        });
     }
 
     private function cartTablesExist(): bool
