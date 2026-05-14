@@ -29,7 +29,7 @@
                         <article class="rounded-[1.6rem] border border-white/7 bg-ys-panel/80 p-5" data-reveal>
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
-                                    <p class="text-sm text-ys-ivory/42">{{ optional($order->placed_at)->format('m/d/Y') ?? $order->created_at->format('m/d/Y') }}</p>
+                                    <p class="text-sm text-ys-ivory/42">{{ \App\Support\BusinessTime::format($order->placed_at ?? $order->created_at, 'm/d/Y') }}</p>
                                     <p class="mt-2 text-sm font-semibold tracking-[0.22em] text-ys-ivory/72">{{ $order->order_number }}</p>
                                 </div>
 

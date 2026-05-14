@@ -400,7 +400,7 @@
                                     @endfor
                                 </div>
                             </div>
-                            <p class="text-sm text-ys-ivory/42">{{ $review->created_at?->format('F j, Y') }}</p>
+                            <p class="text-sm text-ys-ivory/42">{{ \App\Support\BusinessTime::format($review->created_at, 'F j, Y') }}</p>
                         </div>
 
                         @if (filled($review->title))

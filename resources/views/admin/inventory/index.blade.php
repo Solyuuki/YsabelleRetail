@@ -292,7 +292,7 @@
                                         </td>
                                         <td>
                                             <p>{{ $batch->uploadedBy?->name ?? 'Admin' }}</p>
-                                            <p class="text-xs text-ys-ivory/38">{{ $batch->created_at?->format('M d, Y h:i A') }}</p>
+                                            <p class="text-xs text-ys-ivory/38">{{ \App\Support\BusinessTime::format($batch->created_at, 'M d, Y h:i A') }}</p>
                                         </td>
                                     </tr>
                                 @empty
@@ -394,7 +394,7 @@
                     <tbody>
                         @forelse ($stockMovements as $movement)
                             <tr>
-                                <td>{{ optional($movement->occurred_at)->format('M d, Y h:i A') }}</td>
+                                <td>{{ \App\Support\BusinessTime::format($movement->occurred_at, 'M d, Y h:i A') }}</td>
                                 <td>
                                     <p class="font-semibold text-ys-ivory">{{ $movement->variant?->product?->name }}</p>
                                     <p class="text-xs text-ys-ivory/38">{{ $movement->variant?->sku }}</p>

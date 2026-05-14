@@ -40,7 +40,7 @@
                         <tr>
                             <td>
                                 <p class="font-semibold text-ys-ivory">{{ $order->order_number }}</p>
-                                <p class="text-xs text-ys-ivory/38">{{ optional($order->placed_at)->format('M d, Y h:i A') }}</p>
+                                <p class="text-xs text-ys-ivory/38">{{ \App\Support\BusinessTime::format($order->placed_at, 'M d, Y h:i A') }}</p>
                             </td>
                             <td>
                                 <x-admin.status-pill :tone="$order->source === 'walk_in' ? 'warning' : 'neutral'">

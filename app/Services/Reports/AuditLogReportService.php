@@ -4,6 +4,7 @@ namespace App\Services\Reports;
 
 use App\Models\Audit\AuditLog;
 use App\Models\User;
+use App\Support\BusinessTime;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -59,11 +60,11 @@ class AuditLogReportService
     private function applyFilters(Builder $query, array $filters): void
     {
         if ($dateFrom = $filters['date_from'] ?? null) {
-            $query->whereDate('created_at', '>=', $dateFrom);
+            $query->where('created_at', '>=', BusinessTime::startOfBusinessDayInStorage($dateFrom));
         }
 
         if ($dateTo = $filters['date_to'] ?? null) {
-            $query->whereDate('created_at', '<=', $dateTo);
+            $query->where('created_at', '<=', BusinessTime::endOfBusinessDayInStorage($dateTo));
         }
 
         if ($action = $filters['action'] ?? null) {
@@ -104,7 +105,7 @@ class AuditLogReportService
     private function rowFor(AuditLog $log): array
     {
         return [
-            optional($log->created_at)->format('Y-m-d H:i:s') ?? '-',
+            BusinessTime::format($log->created_at, 'Y-m-d H:i:s'),
             $this->actorLabel($log),
             $this->actionLabel($log->event),
             $this->entityLabel($log),

@@ -6,6 +6,7 @@ use App\Models\Catalog\Category;
 use App\Models\Catalog\Product;
 use App\Models\Inventory\InventoryItem;
 use App\Models\Orders\Order;
+use App\Support\BusinessTime;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -34,7 +35,7 @@ class ReportService
             $this->resolveRows((clone $query)->latest('placed_at'), $perPage),
             fn (Order $order): array => [
                 $order->order_number,
-                optional($order->placed_at)->format('Y-m-d H:i'),
+                BusinessTime::format($order->placed_at, 'Y-m-d H:i'),
                 $order->customer_name ?: 'Customer',
                 strtoupper((string) $order->payment_method),
                 ucfirst($order->status),
@@ -104,7 +105,7 @@ class ReportService
             $this->resolveRows((clone $query)->latest('placed_at'), $perPage),
             fn (Order $order): array => [
                 $order->order_number,
-                optional($order->placed_at)->format('Y-m-d H:i'),
+                BusinessTime::format($order->placed_at, 'Y-m-d H:i'),
                 $order->customer_name ?: 'Walk-in Customer',
                 $order->handledBy?->name ?? 'Admin',
                 strtoupper((string) $order->payment_method),
@@ -183,11 +184,11 @@ class ReportService
     private function applyOrderFilters(Builder $query, array $filters): void
     {
         if ($dateFrom = $filters['date_from'] ?? null) {
-            $query->whereDate('placed_at', '>=', $dateFrom);
+            $query->where('placed_at', '>=', BusinessTime::startOfBusinessDayInStorage($dateFrom));
         }
 
         if ($dateTo = $filters['date_to'] ?? null) {
-            $query->whereDate('placed_at', '<=', $dateTo);
+            $query->where('placed_at', '<=', BusinessTime::endOfBusinessDayInStorage($dateTo));
         }
     }
 

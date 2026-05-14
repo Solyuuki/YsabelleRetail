@@ -10,6 +10,6 @@
     @endforeach
 </ul>
 
-<p>This secure link expires on {{ $claim->expires_at?->timezone(config('app.timezone'))->format('F j, Y g:i A') }}.</p>
+<p>This secure link expires on {{ \App\Support\BusinessTime::format($claim->expires_at, 'F j, Y g:i A') }}.</p>
 <p><a href="{{ $claimUrl }}">Claim this purchase</a></p>
 <p>If you already have a Ysabelle Retail account with this email address, sign in first. If not, create an account with the same email address before claiming.</p>

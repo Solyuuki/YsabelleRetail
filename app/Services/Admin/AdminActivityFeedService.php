@@ -3,6 +3,7 @@
 namespace App\Services\Admin;
 
 use App\Models\Audit\AuditLog;
+use App\Support\BusinessTime;
 use Illuminate\Support\Collection;
 
 class AdminActivityFeedService
@@ -57,7 +58,7 @@ class AdminActivityFeedService
                     $metadata['order_number'] ?: 'an order',
                     number_format((float) ($metadata['grand_total'] ?? 0), 2),
                 ),
-                'timestamp' => optional($log->created_at)->format('M d, h:i A'),
+                'timestamp' => BusinessTime::format($log->created_at, 'M d, h:i A', ''),
             ],
             'commerce.walk_in_sale.completed' => [
                 'id' => $log->id,
@@ -68,7 +69,7 @@ class AdminActivityFeedService
                     $metadata['order_number'] ?: 'A receipt',
                     number_format((float) ($metadata['grand_total'] ?? 0), 2),
                 ),
-                'timestamp' => optional($log->created_at)->format('M d, h:i A'),
+                'timestamp' => BusinessTime::format($log->created_at, 'M d, h:i A', ''),
             ],
             default => $this->inventoryPayload($log, $metadata),
         };
@@ -107,7 +108,7 @@ class AdminActivityFeedService
                 $direction,
                 $delta,
             ),
-            'timestamp' => optional($log->created_at)->format('M d, h:i A'),
+            'timestamp' => BusinessTime::format($log->created_at, 'M d, h:i A', ''),
         ];
     }
 }

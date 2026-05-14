@@ -8,7 +8,7 @@
         </button>
         <div>
             <p class="text-[0.72rem] uppercase tracking-[0.28em] text-ys-gold/72">Control Center</p>
-            <p class="text-sm text-ys-ivory/54">{{ now()->format('l, F j, Y') }}</p>
+            <p class="text-sm text-ys-ivory/54">{{ \App\Support\BusinessTime::formatNow('l, F j, Y') }}</p>
         </div>
     </div>
 

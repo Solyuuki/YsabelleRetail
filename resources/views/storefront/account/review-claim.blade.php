@@ -40,7 +40,7 @@
                 @php($order = $claim->order)
                 <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <p class="text-sm text-ys-ivory/42">{{ optional($order->placed_at)->format('F j, Y g:i A') }}</p>
+                        <p class="text-sm text-ys-ivory/42">{{ \App\Support\BusinessTime::format($order->placed_at, 'F j, Y g:i A') }}</p>
                         <p class="mt-2 text-sm font-semibold tracking-[0.22em] text-ys-ivory/72">{{ $order->order_number }}</p>
                         <p class="mt-4 text-sm leading-7 text-ys-ivory/58">
                             Claim email: {{ $maskedClaimEmail }}

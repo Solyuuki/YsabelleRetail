@@ -48,7 +48,7 @@
                 </div>
                 <div>
                     <span>Date / Time</span>
-                    <strong>{{ optional($order->placed_at)->format('M d, Y h:i A') }}</strong>
+                    <strong>{{ \App\Support\BusinessTime::format($order->placed_at, 'M d, Y h:i A') }}</strong>
                 </div>
                 <div>
                     <span>Customer</span>
@@ -66,7 +66,7 @@
                 <div class="ys-admin-panel-heading">
                     <div>
                         <h2 class="ys-admin-panel-title">Line Items</h2>
-                        <p class="ys-admin-subtle">{{ str($order->source)->headline() }} transaction / {{ optional($order->placed_at)->format('M d, Y h:i A') }}</p>
+                        <p class="ys-admin-subtle">{{ str($order->source)->headline() }} transaction / {{ \App\Support\BusinessTime::format($order->placed_at, 'M d, Y h:i A') }}</p>
                     </div>
                 </div>
 

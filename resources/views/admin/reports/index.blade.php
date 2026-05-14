@@ -59,7 +59,7 @@
         <div class="ys-admin-panel-heading">
             <div>
                 <h2 class="ys-admin-panel-title">{{ $dataset['title'] }}</h2>
-                <p class="ys-admin-subtle">Generated {{ now()->format('M d, Y h:i A') }}</p>
+                <p class="ys-admin-subtle">Generated {{ \App\Support\BusinessTime::formatNow('M d, Y h:i A') }}</p>
             </div>
             <div class="ys-admin-inline-actions">
                 <a href="{{ route('admin.reports.export', array_merge($filters, ['format' => 'csv'])) }}" class="ys-admin-button-secondary">Export CSV</a>

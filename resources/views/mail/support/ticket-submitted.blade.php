@@ -13,6 +13,6 @@
 @if ($ticket->reference)
     <p><strong>Order or reference:</strong> {{ $ticket->reference }}</p>
 @endif
-<p><strong>Submitted:</strong> {{ $ticket->created_at?->timezone(config('app.timezone'))->format('F j, Y g:i A') }}</p>
+<p><strong>Submitted:</strong> {{ \App\Support\BusinessTime::format($ticket->created_at, 'F j, Y g:i A') }}</p>
 <p><strong>Issue details:</strong></p>
 <p>{!! nl2br(e($ticket->message)) !!}</p>

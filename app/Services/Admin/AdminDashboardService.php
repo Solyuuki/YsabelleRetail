@@ -6,6 +6,7 @@ use App\Models\Catalog\Product;
 use App\Models\Inventory\InventoryItem;
 use App\Models\Inventory\StockMovement;
 use App\Models\Orders\Order;
+use App\Support\BusinessTime;
 use App\Support\Admin\InventoryMovementType;
 use Illuminate\Support\Collection;
 
@@ -86,29 +87,37 @@ class AdminDashboardService
 
     private function salesChart(): Collection
     {
-        $start = now()->subDays(6)->startOfDay();
+        $start = BusinessTime::now()->subDays(6)->startOfDay();
+        $end = $start->addDays(6)->endOfDay();
 
         $totals = Order::query()
-            ->selectRaw("DATE(placed_at) as order_date, SUM(grand_total) as total, SUM(CASE WHEN source = 'online' THEN grand_total ELSE 0 END) as online_total, SUM(CASE WHEN source = 'walk_in' THEN grand_total ELSE 0 END) as walk_in_total, COUNT(*) as orders_count")
             ->where('status', 'completed')
             ->whereNotNull('placed_at')
-            ->where('placed_at', '>=', $start)
-            ->groupBy('order_date')
-            ->get()
-            ->keyBy('order_date');
+            ->where('placed_at', '>=', $start->setTimezone(BusinessTime::storageTimezone()))
+            ->where('placed_at', '<=', $end->setTimezone(BusinessTime::storageTimezone()))
+            ->get(['source', 'grand_total', 'placed_at'])
+            ->groupBy(fn (Order $order): string => BusinessTime::toBusiness($order->placed_at)?->toDateString() ?? '')
+            ->map(function (Collection $orders): array {
+                return [
+                    'total' => (float) $orders->sum('grand_total'),
+                    'online_total' => (float) $orders->where('source', 'online')->sum('grand_total'),
+                    'walk_in_total' => (float) $orders->where('source', 'walk_in')->sum('grand_total'),
+                    'orders_count' => $orders->count(),
+                ];
+            });
 
         return collect(range(0, 6))
             ->map(function (int $offset) use ($start, $totals): array {
                 $date = $start->copy()->addDays($offset);
-                $row = $totals->get($date->toDateString());
+                $row = $totals->get($date->toDateString(), []);
 
                 return [
                     'date' => $date->toDateString(),
                     'label' => $date->format('M d'),
-                    'total' => (float) ($row->total ?? 0),
-                    'online_total' => (float) ($row->online_total ?? 0),
-                    'walk_in_total' => (float) ($row->walk_in_total ?? 0),
-                    'orders_count' => (int) ($row->orders_count ?? 0),
+                    'total' => (float) ($row['total'] ?? 0),
+                    'online_total' => (float) ($row['online_total'] ?? 0),
+                    'walk_in_total' => (float) ($row['walk_in_total'] ?? 0),
+                    'orders_count' => (int) ($row['orders_count'] ?? 0),
                 ];
             });
     }
@@ -168,7 +177,7 @@ class AdminDashboardService
             },
             'source' => $source,
             'source_tone' => $order->source === 'walk_in' ? 'warning' : 'neutral',
-            'placed_at' => optional($order->placed_at)->format('M d, Y h:i A') ?: 'Awaiting timestamp',
+            'placed_at' => BusinessTime::format($order->placed_at, 'M d, Y h:i A', 'Awaiting timestamp'),
             'note' => $order->source === 'walk_in'
                 ? ($order->payment_method ?: 'Counter checkout')
                 : ($order->customer_email ?: 'Storefront checkout'),

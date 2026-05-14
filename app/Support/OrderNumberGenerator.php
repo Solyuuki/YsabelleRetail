@@ -8,6 +8,6 @@ class OrderNumberGenerator
 {
     public function generate(string $prefix = 'YSB'): string
     {
-        return "{$prefix}-".now()->format('ymd').'-'.Str::upper(Str::random(6));
+        return "{$prefix}-".BusinessTime::now()->format('ymd').'-'.Str::upper(Str::random(6));
     }
 }

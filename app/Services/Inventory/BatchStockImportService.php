@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Models\Catalog\ProductVariant;
 use App\Models\Inventory\InventoryImportBatch;
 use App\Models\User;
+use App\Support\BusinessTime;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -141,7 +142,7 @@ class BatchStockImportService
 
         return DB::transaction(function () use ($previewPayload, $rows, $variants, $actor): InventoryImportBatch {
             $batch = InventoryImportBatch::query()->create([
-                'reference_number' => 'IMP-'.now()->format('ymdHis').'-'.Str::upper(Str::random(4)),
+                'reference_number' => 'IMP-'.BusinessTime::now()->format('ymdHis').'-'.Str::upper(Str::random(4)),
                 'uploaded_by_user_id' => $actor->id,
                 'original_filename' => $previewPayload['filename'] ?? 'stock-import.csv',
                 'status' => 'completed',
