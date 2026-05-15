@@ -52,6 +52,9 @@ Route::prefix('account/review-claims')
     ->as('storefront.account.review-claims.')
     ->group(function (): void {
         Route::get('/{token}', [WalkInReviewClaimController::class, 'show'])->name('show');
+        Route::post('/{token}/switch-account', [WalkInReviewClaimController::class, 'switchAccount'])
+            ->middleware('auth')
+            ->name('switch-account');
         Route::post('/{token}', [WalkInReviewClaimController::class, 'store'])
             ->middleware('auth')
             ->name('store');

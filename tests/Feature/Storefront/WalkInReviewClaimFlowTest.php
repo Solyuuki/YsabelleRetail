@@ -30,6 +30,19 @@ function walkInReviewClaimCustomer(array $attributes = []): User
     return $user;
 }
 
+function walkInReviewClaimAdmin(array $attributes = []): User
+{
+    $role = Role::query()->firstOrCreate(
+        ['slug' => 'admin'],
+        ['name' => 'Admin', 'description' => 'Admin role', 'is_system' => true],
+    );
+
+    $user = User::factory()->create($attributes);
+    $user->roles()->attach($role);
+
+    return $user;
+}
+
 function walkInReviewClaimProduct(array $overrides = []): Product
 {
     $category = Category::factory()->create([
@@ -318,6 +331,97 @@ test('walk in review claim email token resolves to the same database claim', fun
 
         return $mail->claim->is($claim);
     });
+});
+
+test('wrong logged in user can switch accounts and return to the same walk in review claim', function () {
+    $rightUser = walkInReviewClaimCustomer([
+        'email' => 'claim.switch@example.com',
+        'password' => 'Password123x',
+    ]);
+    $admin = walkInReviewClaimAdmin([
+        'email' => 'admin.claim.switch@example.com',
+        'password' => 'Password123x',
+    ]);
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, $rightUser->email);
+    $token = str_repeat('2', 64);
+    $claim = walkInReviewClaimRecord($order, $token);
+    $showUrl = walkInReviewClaimShowUrl($claim, $token);
+
+    $this->actingAs($admin)
+        ->get($showUrl)
+        ->assertOk()
+        ->assertSeeText('This claim only works with the email address that received the purchase email.')
+        ->assertSee('action="'.route('storefront.account.review-claims.switch-account', ['token' => $token]).'"', escape: false);
+
+    $this->actingAs($admin)
+        ->post(route('storefront.account.review-claims.switch-account', ['token' => $token]))
+        ->assertRedirect(route('login', ['intended' => $showUrl]))
+        ->assertSessionHas('status', 'Sign in with the email address that received this claim link to continue.');
+
+    $this->assertGuest();
+
+    $this->post(route('login.store'), [
+        'email' => $rightUser->email,
+        'password' => 'Password123x',
+        'intended' => $showUrl,
+    ])->assertRedirect($showUrl);
+
+    $this->get($showUrl)
+        ->assertOk()
+        ->assertSeeText('Confirm purchase claim');
+});
+
+test('guest can sign in from a walk in review claim and return to the same link', function () {
+    $user = walkInReviewClaimCustomer([
+        'email' => 'claim.guest.login@example.com',
+        'password' => 'Password123x',
+    ]);
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, $user->email);
+    $token = str_repeat('1', 64);
+    $claim = walkInReviewClaimRecord($order, $token);
+    $showUrl = walkInReviewClaimShowUrl($claim, $token);
+    $loginUrl = route('login', ['intended' => $showUrl]);
+
+    $this->get($showUrl)
+        ->assertOk()
+        ->assertSee('href="'.$loginUrl.'"', escape: false)
+        ->assertSeeText('Sign in to claim');
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'Password123x',
+        'intended' => $showUrl,
+    ])->assertRedirect($showUrl);
+
+    $this->get($showUrl)
+        ->assertOk()
+        ->assertSeeText('Confirm purchase claim');
+});
+
+test('admin cannot claim a customer walk in review claim', function () {
+    $admin = walkInReviewClaimAdmin([
+        'email' => 'admin.blocked@example.com',
+    ]);
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, 'claim.customer@example.com');
+    $token = str_repeat('0', 64);
+    $claim = walkInReviewClaimRecord($order, $token);
+    $storeUrl = walkInReviewClaimStoreUrl($claim, $token);
+    $showUrl = walkInReviewClaimShowUrl($claim, $token);
+
+    $this->from($showUrl)
+        ->actingAs($admin)
+        ->post($storeUrl)
+        ->assertRedirect($showUrl)
+        ->assertSessionHasErrors([
+            'claim' => 'Sign in with the same email address that received this claim link.',
+        ]);
+
+    expect($order->fresh()->user_id)->toBeNull()
+        ->and($claim->fresh()->claimed_by_user_id)->toBeNull()
+        ->and($claim->fresh()->used_at)->toBeNull();
 });
 
 test('used walk in review claim is not treated as expired even when its expiry is in the past', function () {

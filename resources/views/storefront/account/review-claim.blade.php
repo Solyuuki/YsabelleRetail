@@ -69,7 +69,10 @@
                 @elseif ($status === 'mismatch')
                     <p class="mt-8 max-w-2xl text-sm leading-7 text-ys-ivory/52">You are signed in as <strong>{{ auth()->user()->email }}</strong>. This claim only works with the email address that received the purchase email.</p>
                     <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-                        <a href="{{ $loginUrl }}" class="ys-button-primary">Use a different account</a>
+                        <form action="{{ $switchAccountUrl }}" method="POST">
+                            @csrf
+                            <button type="submit" class="ys-button-primary">Use a different account</button>
+                        </form>
                         <a href="{{ route('storefront.account.index') }}" class="ys-button-secondary">Keep current account</a>
                     </div>
                 @elseif ($status === 'ready')
