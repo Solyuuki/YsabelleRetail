@@ -21,9 +21,9 @@ class OrderReviewClaim extends Model
     protected function casts(): array
     {
         return [
-            'expires_at' => 'datetime',
-            'sent_at' => 'datetime',
-            'used_at' => 'datetime',
+            'expires_at' => 'immutable_datetime',
+            'sent_at' => 'immutable_datetime',
+            'used_at' => 'immutable_datetime',
         ];
     }
 

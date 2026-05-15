@@ -61,6 +61,10 @@ return [
         'reviews_per_page' => 5,
     ],
 
+    'review_claims' => [
+        'ttl_days' => (int) env('STOREFRONT_REVIEW_CLAIM_TTL_DAYS', 30),
+    ],
+
     'assistant' => [
         'ai' => [
             'enabled' => env('STOREFRONT_ASSISTANT_AI_ENABLED', false),

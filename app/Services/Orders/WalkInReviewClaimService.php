@@ -7,6 +7,8 @@ use App\Models\Orders\Order;
 use App\Models\Orders\OrderReviewClaim;
 use App\Models\User;
 use App\Services\Auth\CustomerAccountService;
+use App\Support\BusinessTime;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -15,7 +17,7 @@ use Throwable;
 
 class WalkInReviewClaimService
 {
-    private const CLAIM_TTL_DAYS = 30;
+    public const DEFAULT_CLAIM_TTL_DAYS = 30;
 
     public function __construct(
         private readonly CustomerAccountService $customerAccounts,
@@ -33,14 +35,16 @@ class WalkInReviewClaimService
             return $claim;
         }
 
+        $claimUrl = $this->claimUrl($claim, $plainToken);
+
         try {
             Mail::to($claim->customer_email)->send(new WalkInReviewClaimMail(
                 claim: $claim->loadMissing('order.items'),
-                claimUrl: route('storefront.account.review-claims.show', ['token' => $plainToken]),
+                claimUrl: $claimUrl,
             ));
 
             $claim->forceFill([
-                'sent_at' => now(),
+                'sent_at' => $this->storageNow(),
             ])->save();
         } catch (Throwable $exception) {
             report($exception);
@@ -49,15 +53,20 @@ class WalkInReviewClaimService
         return $claim->fresh(['order.items']);
     }
 
+    public function claimUrl(OrderReviewClaim $claim, string $plainToken): string
+    {
+        return route('storefront.account.review-claims.show', ['token' => $plainToken]);
+    }
+
     public function findByPlainToken(string $plainToken): ?OrderReviewClaim
     {
-        if ($plainToken === '' || ! preg_match('/^[a-f0-9]{64}$/', $plainToken)) {
+        if (! $this->hasValidPlainTokenFormat($plainToken)) {
             return null;
         }
 
         return OrderReviewClaim::query()
             ->with(['order.items', 'claimedBy'])
-            ->where('token_hash', hash('sha256', $plainToken))
+            ->where('token_hash', $this->hashPlainToken($plainToken))
             ->first();
     }
 
@@ -79,7 +88,7 @@ class WalkInReviewClaimService
 
             $freshClaim->forceFill([
                 'claimed_by_user_id' => $user->id,
-                'used_at' => now(),
+                'used_at' => $this->storageNow(),
             ])->save();
 
             return $order->fresh(['items', 'reviewClaim']);
@@ -100,7 +109,7 @@ class WalkInReviewClaimService
             return 'unavailable';
         }
 
-        if ($claim->expires_at->isPast()) {
+        if ($this->hasExpired($claim)) {
             return 'expired';
         }
 
@@ -144,8 +153,8 @@ class WalkInReviewClaimService
         $claim->forceFill([
             'claimed_by_user_id' => null,
             'customer_email' => $customerEmail,
-            'token_hash' => hash('sha256', $plainToken),
-            'expires_at' => now()->addDays(self::CLAIM_TTL_DAYS),
+            'token_hash' => $this->hashPlainToken($plainToken),
+            'expires_at' => $this->storageNow()->addDays($this->claimLifetimeDays()),
             'used_at' => null,
         ])->save();
 
@@ -175,7 +184,7 @@ class WalkInReviewClaimService
             ]);
         }
 
-        if ($claim->expires_at->isPast()) {
+        if ($this->hasExpired($claim)) {
             throw ValidationException::withMessages([
                 'claim' => 'This claim link has expired.',
             ]);
@@ -186,5 +195,32 @@ class WalkInReviewClaimService
                 'claim' => 'Sign in with the same email address that received this claim link.',
             ]);
         }
+    }
+
+    private function hasExpired(OrderReviewClaim $claim): bool
+    {
+        return CarbonImmutable::instance($claim->expires_at ?? $this->storageNow())
+            ->setTimezone(BusinessTime::storageTimezone())
+            ->lessThanOrEqualTo($this->storageNow());
+    }
+
+    private function storageNow(): CarbonImmutable
+    {
+        return CarbonImmutable::now(BusinessTime::storageTimezone());
+    }
+
+    private function claimLifetimeDays(): int
+    {
+        return max((int) config('storefront.review_claims.ttl_days', self::DEFAULT_CLAIM_TTL_DAYS), 1);
+    }
+
+    private function hashPlainToken(string $plainToken): string
+    {
+        return hash('sha256', $plainToken);
+    }
+
+    private function hasValidPlainTokenFormat(string $plainToken): bool
+    {
+        return $plainToken !== '' && preg_match('/^[a-f0-9]{64}$/', $plainToken) === 1;
     }
 }

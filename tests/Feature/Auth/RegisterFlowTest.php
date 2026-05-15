@@ -7,6 +7,7 @@ use App\Models\Catalog\ProductVariant;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderReviewClaim;
 use App\Models\User;
+use App\Services\Orders\WalkInReviewClaimService;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -91,7 +92,7 @@ function registerClaimDestinationUrl(string $email): string
 
     $token = str_repeat('f', 64);
 
-    OrderReviewClaim::query()->create([
+    $claim = OrderReviewClaim::query()->create([
         'order_id' => $order->id,
         'claimed_by_user_id' => null,
         'customer_email' => $email,
@@ -101,7 +102,7 @@ function registerClaimDestinationUrl(string $email): string
         'used_at' => null,
     ]);
 
-    return route('storefront.account.review-claims.show', ['token' => $token]);
+    return app(WalkInReviewClaimService::class)->claimUrl($claim, $token);
 }
 
 test('valid registration creates a real customer account', function () {

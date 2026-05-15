@@ -8,8 +8,12 @@ use App\Models\Catalog\ProductVariant;
 use App\Models\Orders\Order;
 use App\Models\Orders\OrderReviewClaim;
 use App\Models\User;
+use App\Mail\Orders\WalkInReviewClaimMail;
+use App\Services\Orders\WalkInReviewClaimService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 uses(RefreshDatabase::class);
 
@@ -97,9 +101,14 @@ function walkInReviewClaimOrder(Product $product, string $email): Order
     })->fresh(['items', 'reviewClaim']);
 }
 
-function walkInReviewClaimRecord(Order $order, string $plainToken, ?Carbon $expiresAt = null): OrderReviewClaim
+function walkInReviewClaimRecord(
+    Order $order,
+    string $plainToken,
+    ?Carbon $expiresAt = null,
+    array $attributes = [],
+): OrderReviewClaim
 {
-    return OrderReviewClaim::query()->create([
+    return OrderReviewClaim::query()->create(array_merge([
         'order_id' => $order->id,
         'claimed_by_user_id' => null,
         'customer_email' => $order->customer_email,
@@ -107,7 +116,7 @@ function walkInReviewClaimRecord(Order $order, string $plainToken, ?Carbon $expi
         'expires_at' => $expiresAt ?? now()->addDays(30),
         'sent_at' => now(),
         'used_at' => null,
-    ]);
+    ], $attributes));
 }
 
 function walkInReviewClaimPayload(array $overrides = []): array
@@ -119,6 +128,16 @@ function walkInReviewClaimPayload(array $overrides = []): array
     ], $overrides);
 }
 
+function walkInReviewClaimShowUrl(OrderReviewClaim $claim, string $plainToken): string
+{
+    return app(WalkInReviewClaimService::class)->claimUrl($claim, $plainToken);
+}
+
+function walkInReviewClaimStoreUrl(OrderReviewClaim $claim, string $plainToken): string
+{
+    return route('storefront.account.review-claims.store', ['token' => $plainToken]);
+}
+
 test('walk in review claim can attach a paid completed walk in order to an existing customer and unlock verified reviews', function () {
     $user = walkInReviewClaimCustomer([
         'email' => 'walker@example.com',
@@ -126,20 +145,22 @@ test('walk in review claim can attach a paid completed walk in order to an exist
     $product = walkInReviewClaimProduct();
     $order = walkInReviewClaimOrder($product, 'walker@example.com');
     $token = str_repeat('a', 64);
-    walkInReviewClaimRecord($order, $token);
+    $claim = walkInReviewClaimRecord($order, $token);
+    $showUrl = walkInReviewClaimShowUrl($claim, $token);
+    $storeUrl = walkInReviewClaimStoreUrl($claim, $token);
 
-    $this->get(route('storefront.account.review-claims.show', ['token' => $token]))
+    $this->get($showUrl)
         ->assertOk()
         ->assertSeeText('Sign in to claim')
         ->assertSeeText($order->order_number);
 
     $this->actingAs($user)
-        ->get(route('storefront.account.review-claims.show', ['token' => $token]))
+        ->get($showUrl)
         ->assertOk()
         ->assertSeeText('Confirm purchase claim');
 
     $this->actingAs($user)
-        ->post(route('storefront.account.review-claims.store', ['token' => $token]))
+        ->post($storeUrl)
         ->assertRedirect(route('storefront.account.index'));
 
     $order->refresh();
@@ -164,8 +185,8 @@ test('walk in review claim supports sign up with intended redirect before the cl
     $product = walkInReviewClaimProduct();
     $order = walkInReviewClaimOrder($product, 'new.walkin@example.com');
     $token = str_repeat('b', 64);
-    walkInReviewClaimRecord($order, $token);
-    $claimUrl = route('storefront.account.review-claims.show', ['token' => $token]);
+    $claim = walkInReviewClaimRecord($order, $token);
+    $claimUrl = walkInReviewClaimShowUrl($claim, $token);
 
     $response = $this->get($claimUrl)
         ->assertOk()
@@ -185,50 +206,258 @@ test('walk in review claim rejects wrong users expired links and duplicate reuse
 
     $mismatchOrder = walkInReviewClaimOrder($product, 'claim.right@example.com');
     $mismatchToken = str_repeat('c', 64);
-    walkInReviewClaimRecord($mismatchOrder, $mismatchToken);
+    $mismatchClaim = walkInReviewClaimRecord($mismatchOrder, $mismatchToken);
+    $mismatchShowUrl = walkInReviewClaimShowUrl($mismatchClaim, $mismatchToken);
+    $mismatchStoreUrl = walkInReviewClaimStoreUrl($mismatchClaim, $mismatchToken);
 
     $this->actingAs($wrongUser)
-        ->get(route('storefront.account.review-claims.show', ['token' => $mismatchToken]))
+        ->get($mismatchShowUrl)
         ->assertOk()
         ->assertSeeText('This claim only works with the email address that received the purchase email.');
 
-    $this->from(route('storefront.account.review-claims.show', ['token' => $mismatchToken]))
+    $this->from($mismatchShowUrl)
         ->actingAs($wrongUser)
-        ->post(route('storefront.account.review-claims.store', ['token' => $mismatchToken]))
-        ->assertRedirect(route('storefront.account.review-claims.show', ['token' => $mismatchToken]))
+        ->post($mismatchStoreUrl)
+        ->assertRedirect($mismatchShowUrl)
         ->assertSessionHasErrors(['claim']);
 
     $expiredOrder = walkInReviewClaimOrder($product, 'claim.right@example.com');
     $expiredToken = str_repeat('d', 64);
-    walkInReviewClaimRecord($expiredOrder, $expiredToken, now()->subHour());
+    $expiredClaim = walkInReviewClaimRecord($expiredOrder, $expiredToken, now()->subHour());
+    $expiredShowUrl = walkInReviewClaimShowUrl($expiredClaim, $expiredToken);
+    $expiredStoreUrl = walkInReviewClaimStoreUrl($expiredClaim, $expiredToken);
 
     $this->actingAs($rightUser)
-        ->get(route('storefront.account.review-claims.show', ['token' => $expiredToken]))
+        ->get($expiredShowUrl)
         ->assertOk()
         ->assertSeeText('This claim link has expired.');
 
-    $this->from(route('storefront.account.review-claims.show', ['token' => $expiredToken]))
+    $this->from($expiredShowUrl)
         ->actingAs($rightUser)
-        ->post(route('storefront.account.review-claims.store', ['token' => $expiredToken]))
-        ->assertRedirect(route('storefront.account.review-claims.show', ['token' => $expiredToken]))
+        ->post($expiredStoreUrl)
+        ->assertRedirect($expiredShowUrl)
         ->assertSessionHasErrors(['claim']);
 
     $claimableOrder = walkInReviewClaimOrder($product, 'claim.right@example.com');
     $claimableToken = str_repeat('e', 64);
-    walkInReviewClaimRecord($claimableOrder, $claimableToken);
+    $claimableClaim = walkInReviewClaimRecord($claimableOrder, $claimableToken);
+    $claimableShowUrl = walkInReviewClaimShowUrl($claimableClaim, $claimableToken);
+    $claimableStoreUrl = walkInReviewClaimStoreUrl($claimableClaim, $claimableToken);
 
     $this->actingAs($rightUser)
-        ->post(route('storefront.account.review-claims.store', ['token' => $claimableToken]))
+        ->post($claimableStoreUrl)
         ->assertRedirect(route('storefront.account.index'));
 
     $this->actingAs($rightUser)
-        ->get(route('storefront.account.review-claims.show', ['token' => $claimableToken]))
+        ->get($claimableShowUrl)
         ->assertOk()
         ->assertSeeText('This purchase has already been claimed.');
 
-    $this->from(route('storefront.account.review-claims.show', ['token' => $claimableToken]))
+    $this->from($claimableShowUrl)
         ->actingAs($rightUser)
-        ->post(route('storefront.account.review-claims.store', ['token' => $claimableToken]))
-        ->assertRedirect(route('storefront.account.review-claims.show', ['token' => $claimableToken]))
+        ->post($claimableStoreUrl)
+        ->assertRedirect($claimableShowUrl)
         ->assertSessionHasErrors(['claim']);
+});
+
+test('walk in review claim expiration stays valid immediately and expires on schedule with utc storage timezone', function () {
+    config([
+        'app.timezone' => 'UTC',
+        'app.business_timezone' => 'Asia/Manila',
+    ]);
+
+    Carbon::setTestNow(Carbon::parse('2026-05-15 16:05:00', 'UTC'));
+
+    try {
+        $product = walkInReviewClaimProduct();
+        $order = walkInReviewClaimOrder($product, 'timezone.claim@example.com');
+        $token = str_repeat('f', 64);
+        $claim = walkInReviewClaimRecord($order, $token, now()->addMinutes(10))->fresh(['order']);
+        $service = app(WalkInReviewClaimService::class);
+        $showUrl = walkInReviewClaimShowUrl($claim, $token);
+
+        expect($claim->getRawOriginal('expires_at'))->toBe('2026-05-15 16:15:00')
+            ->and($service->statusFor($claim, null))->toBe('guest');
+
+        $this->get($showUrl)
+            ->assertOk()
+            ->assertSeeText('Sign in to claim');
+
+        Carbon::setTestNow(Carbon::parse('2026-05-15 16:15:01', 'UTC'));
+
+        expect($service->statusFor($claim->fresh(['order']), null))->toBe('expired');
+    } finally {
+        Carbon::setTestNow();
+    }
+});
+
+test('walk in review claim rejects invalid tokens without opening the claim form', function () {
+    $product = walkInReviewClaimProduct();
+    walkInReviewClaimOrder($product, 'invalid.claim@example.com');
+
+    $this->get(route('storefront.account.review-claims.show', ['token' => str_repeat('9', 64)]))
+        ->assertOk()
+        ->assertSeeText('This claim link is not available.');
+});
+
+test('walk in review claim email token resolves to the same database claim', function () {
+    Mail::fake();
+
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, 'mail.claim@example.com');
+    $claim = app(WalkInReviewClaimService::class)->issueAndSendForEligibleOrder($order);
+
+    Mail::assertSent(WalkInReviewClaimMail::class, function (WalkInReviewClaimMail $mail) use ($claim): bool {
+        preg_match('#/account/review-claims/([a-f0-9]{64})#', (string) parse_url($mail->claimUrl, PHP_URL_PATH), $matches);
+        $plainToken = $matches[1] ?? null;
+        $resolved = $plainToken ? app(WalkInReviewClaimService::class)->findByPlainToken($plainToken) : null;
+
+        expect($plainToken)->not->toBeNull()
+            ->and($resolved?->id)->toBe($claim?->id)
+            ->and($resolved?->token_hash)->toBe(hash('sha256', (string) $plainToken));
+
+        return $mail->claim->is($claim);
+    });
+});
+
+test('used walk in review claim is not treated as expired even when its expiry is in the past', function () {
+    $user = walkInReviewClaimCustomer([
+        'email' => 'claim.used@example.com',
+    ]);
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, $user->email);
+    $order->forceFill([
+        'user_id' => $user->id,
+    ])->save();
+
+    $token = str_repeat('7', 64);
+    $claim = walkInReviewClaimRecord($order, $token, now()->subDay(), [
+        'claimed_by_user_id' => $user->id,
+        'used_at' => now()->subHour(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(walkInReviewClaimShowUrl($claim, $token))
+        ->assertOk()
+        ->assertSeeText('This purchase has already been claimed.');
+});
+
+test('saving sent_at does not change walk in review claim expires_at', function () {
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, 'sent.freeze@example.com');
+    $token = str_repeat('8', 64);
+    $expiresAt = Carbon::parse('2026-06-14 09:51:44', 'UTC');
+    $sentAt = Carbon::parse('2026-05-15 09:51:44', 'UTC');
+    $claim = walkInReviewClaimRecord($order, $token, $expiresAt, [
+        'sent_at' => $sentAt,
+    ]);
+
+    $rawExpiresAt = $claim->getRawOriginal('expires_at');
+
+    $claim->forceFill([
+        'sent_at' => $sentAt->copy()->addMinutes(5),
+    ])->save();
+
+    expect($claim->fresh()->getRawOriginal('expires_at'))->toBe($rawExpiresAt);
+});
+
+test('saving used_at does not change walk in review claim expires_at', function () {
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, 'used.freeze@example.com');
+    $token = str_repeat('6', 64);
+    $expiresAt = Carbon::parse('2026-06-14 09:51:44', 'UTC');
+    $claim = walkInReviewClaimRecord($order, $token, $expiresAt);
+    $rawExpiresAt = $claim->getRawOriginal('expires_at');
+
+    $claim->forceFill([
+        'used_at' => now(),
+    ])->save();
+
+    expect($claim->fresh()->getRawOriginal('expires_at'))->toBe($rawExpiresAt);
+});
+
+test('walk in review claim repair command restores known broken unclaimed claim', function () {
+    config([
+        'storefront.review_claims.ttl_days' => 30,
+    ]);
+
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, 'repairable.claim@example.com');
+    $token = str_repeat('5', 64);
+    $sentAt = Carbon::parse('2026-05-15 17:51:44', 'UTC');
+    $claim = walkInReviewClaimRecord($order, $token, $sentAt, [
+        'sent_at' => $sentAt,
+        'created_at' => $sentAt->copy()->subSeconds(4),
+        'updated_at' => $sentAt,
+    ]);
+
+    $this->artisan('review-claims:repair-expiry')
+        ->expectsOutputToContain('Walk-in review claim expiry repair completed.')
+        ->assertSuccessful();
+
+    expect($claim->fresh()->expires_at?->toIso8601String())
+        ->toBe($sentAt->copy()->addDays(30)->toIso8601String());
+});
+
+test('walk in review claim repair command does not repair used claims', function () {
+    config([
+        'storefront.review_claims.ttl_days' => 30,
+    ]);
+
+    $user = walkInReviewClaimCustomer([
+        'email' => 'repair.used@example.com',
+    ]);
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, $user->email);
+    $token = str_repeat('4', 64);
+    $sentAt = Carbon::parse('2026-05-15 17:51:44', 'UTC');
+    $claim = walkInReviewClaimRecord($order, $token, $sentAt, [
+        'claimed_by_user_id' => $user->id,
+        'sent_at' => $sentAt,
+        'used_at' => $sentAt->copy()->addMinute(),
+    ]);
+
+    $this->artisan('review-claims:repair-expiry')
+        ->expectsOutputToContain('Skipped used')
+        ->assertSuccessful();
+
+    expect($claim->fresh()->getRawOriginal('expires_at'))->toBe($sentAt->toDateTimeString());
+});
+
+test('walk in review claim repair command is idempotent', function () {
+    config([
+        'storefront.review_claims.ttl_days' => 30,
+    ]);
+
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, 'repair.twice@example.com');
+    $token = str_repeat('3', 64);
+    $sentAt = Carbon::parse('2026-05-15 17:51:44', 'UTC');
+    $claim = walkInReviewClaimRecord($order, $token, $sentAt, [
+        'sent_at' => $sentAt,
+    ]);
+
+    $this->artisan('review-claims:repair-expiry')->assertSuccessful();
+    $firstExpiry = $claim->fresh()->getRawOriginal('expires_at');
+
+    $this->artisan('review-claims:repair-expiry')
+        ->expectsOutputToContain('Affected')
+        ->assertSuccessful();
+
+    expect($claim->fresh()->getRawOriginal('expires_at'))->toBe($firstExpiry);
+});
+
+test('walk in review claim mysql schema does not auto update expires_at', function () {
+    if (DB::getDriverName() !== 'mysql') {
+        expect(true)->toBeTrue();
+
+        return;
+    }
+
+    $createTable = DB::selectOne('SHOW CREATE TABLE order_review_claims');
+    $sql = strtolower($createTable->{'Create Table'} ?? '');
+
+    expect(str_contains($sql, '`expires_at` datetime'))->toBeTrue()
+        ->and((bool) preg_match('/`expires_at`[^,]*default current_timestamp/', $sql))->toBeFalse()
+        ->and((bool) preg_match('/`expires_at`[^,]*on update current_timestamp/', $sql))->toBeFalse();
 });
