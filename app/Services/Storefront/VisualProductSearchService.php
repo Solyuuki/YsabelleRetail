@@ -34,6 +34,7 @@ class VisualProductSearchService
         private readonly VisualSearchImageSource $imageSource,
         private readonly VisualSearchIndexService $indexService,
         private readonly VisualSearchEmbeddingService $embeddingService,
+        private readonly VisualSearchCropCandidateService $cropCandidateService,
     ) {}
 
     public function search(UploadedFile $image, array $hints = []): array
@@ -187,7 +188,7 @@ class VisualProductSearchService
                 $engine = $engine === 'embedding' ? $engine : 'fallback';
             }
 
-            if ($scoredProducts->isEmpty()) {
+            if ($scoredProducts.isEmpty()) {
                 $reason = $this->noMatchReason($embeddingPayload, $fallbackFeatures, null, $criteria, $uploadContext);
                 $this->logFailure($reason, $image, [
                     'criteria' => $criteria,
@@ -198,6 +199,23 @@ class VisualProductSearchService
                     'reason' => $reason,
                     'top_products' => [],
                 ]);
+
+                // Try crop search for screenshots before giving up
+                if ($reason === 'screenshot_needs_crop' && $materializedUpload !== null && is_string($materializedUpload['path'])) {
+                    $cropSearchResult = $this->attemptCropSearch(
+                        $materializedUpload['path'],
+                        $imageMetadata = is_array($embeddingPayload['metadata'] ?? null) ? $embeddingPayload['metadata'] : null,
+                        $indexedEmbeddingEntries,
+                        $indexEntries,
+                        $criteria,
+                        $visualSignals,
+                        $context
+                    );
+
+                    if ($cropSearchResult !== null) {
+                        return $cropSearchResult;
+                    }
+                }
 
                 return $this->failedVisualResponse(
                     reason: $reason,
@@ -224,6 +242,23 @@ class VisualProductSearchService
                     'top_similarity' => round((float) ($topCandidate['confidence_score'] ?? 0.0), 6),
                     'top_products' => $topProducts,
                 ]);
+
+                // Try crop search for screenshots before giving up
+                if ($reason === 'screenshot_needs_crop' && $materializedUpload !== null && is_string($materializedUpload['path'])) {
+                    $cropSearchResult = $this->attemptCropSearch(
+                        $materializedUpload['path'],
+                        $imageMetadata = is_array($embeddingPayload['metadata'] ?? null) ? $embeddingPayload['metadata'] : null,
+                        $indexedEmbeddingEntries,
+                        $indexEntries,
+                        $criteria,
+                        $visualSignals,
+                        $context
+                    );
+
+                    if ($cropSearchResult !== null) {
+                        return $cropSearchResult;
+                    }
+                }
 
                 return $this->failedVisualResponse(
                     reason: $reason,
@@ -1451,5 +1486,156 @@ class VisualProductSearchService
     private function blurFloor(): float
     {
         return (float) config('storefront.assistant.visual_search.thresholds.blur_floor', 0.0015);
+    }
+
+    private function attemptCropSearch(
+        string $imagePath,
+        ?array $imageMetadata,
+        Collection $indexedEmbeddingEntries,
+        Collection $indexEntries,
+        array $criteria,
+        array $visualSignals,
+        array $context,
+    ): ?array {
+        $cropCandidates = $this->cropCandidateService->generateCropCandidates($imagePath, $imageMetadata);
+
+        if ($cropCandidates->isEmpty()) {
+            $this->debugLog('crop_search.no_candidates', $context + ['image_path' => $imagePath]);
+
+            return null;
+        }
+
+        $cropSearchResults = [];
+        $cropScores = [];
+
+        foreach ($cropCandidates as $cropCandidate) {
+            $cropPath = $cropCandidate['path'] ?? null;
+
+            if (! is_string($cropPath) || ! is_file($cropPath)) {
+                continue;
+            }
+
+            try {
+                $cropEmbedding = $this->embeddingService->embedPath($cropPath, 'crop');
+                $cropEmbeddingGenerated = is_array($cropEmbedding)
+                    && ($cropEmbedding['ok'] ?? false) === true
+                    && is_array($cropEmbedding['embedding'] ?? null);
+
+                if (! $cropEmbeddingGenerated) {
+                    $this->debugLog('crop_search.embedding_failed', [
+                        'crop_label' => $cropCandidate['label'] ?? 'unknown',
+                        'crop_path' => $cropPath,
+                    ]);
+
+                    continue;
+                }
+
+                if ($indexedEmbeddingEntries->isEmpty()) {
+                    continue;
+                }
+
+                $scoredCropProducts = $this->rankProductsByEmbedding($cropEmbedding, $indexedEmbeddingEntries, $criteria, $visualSignals);
+
+                if ($scoredCropProducts->isNotEmpty()) {
+                    $topCrop = $scoredCropProducts->first();
+                    $cropScore = (float) ($topCrop['confidence_score'] ?? $topCrop['visual_score'] ?? 0.0);
+
+                    $cropScores[] = [
+                        'crop_label' => $cropCandidate['label'] ?? 'unknown',
+                        'crop_width' => $cropCandidate['width'] ?? 0,
+                        'crop_height' => $cropCandidate['height'] ?? 0,
+                        'x_offset' => $cropCandidate['x_offset'] ?? 0,
+                        'y_offset' => $cropCandidate['y_offset'] ?? 0,
+                        'confidence_hint' => $cropCandidate['confidence_hint'] ?? null,
+                        'similarity_score' => round($cropScore, 6),
+                        'result_count' => $scoredCropProducts->count(),
+                    ];
+
+                    if ($cropScore >= $this->similarMatchThreshold()) {
+                        $cropSearchResults[] = [
+                            'crop_label' => $cropCandidate['label'],
+                            'score' => $cropScore,
+                            'products' => $scoredCropProducts,
+                        ];
+                    }
+                }
+            } catch (\Throwable $exception) {
+                $this->debugLog('crop_search.exception', [
+                    'crop_label' => $cropCandidate['label'] ?? 'unknown',
+                    'message' => $exception->getMessage(),
+                    'exception_class' => $exception::class,
+                ]);
+            } finally {
+                // Clean up the crop file
+                $this->cropCandidateService->cleanupCropFile($cropPath);
+            }
+        }
+
+        if (empty($cropSearchResults)) {
+            $this->debugLog('crop_search.no_usable_crops', $context + [
+                'crop_candidate_count' => $cropCandidates->count(),
+                'crop_scores' => $cropScores,
+            ]);
+
+            return null;
+        }
+
+        // Find the best crop by score
+        usort($cropSearchResults, function (array $a, array $b): int {
+            return $b['score'] <=> $a['score'];
+        });
+
+        $bestCropResult = $cropSearchResults[0];
+        $bestScorePath = $bestCropResult['products'];
+        $topCandidate = $bestScorePath->first();
+        $searchConfidence = $this->searchConfidenceForCandidate($topCandidate, 'embedding');
+
+        $this->debugLog('crop_search.success', $context + [
+            'crop_candidate_count' => $cropCandidates->count(),
+            'usable_crops' => count($cropSearchResults),
+            'selected_crop' => $bestCropResult['crop_label'],
+            'selected_score' => round($bestCropResult['score'], 6),
+            'crop_scores' => $cropScores,
+        ]);
+
+        $products = $bestScorePath
+            ->take(4)
+            ->map(function (array $candidate): array {
+                $product = $this->productDiscovery->formatProduct($candidate['product']);
+                $product['match'] = [
+                    'confidence' => $candidate['confidence'],
+                    'label' => $this->confidenceLabel($candidate['confidence'], 'embedding'),
+                    'score' => round((float) ($candidate['confidence_score'] ?? $candidate['visual_score']), 4),
+                    'score_percent' => (int) round(((float) ($candidate['confidence_score'] ?? $candidate['visual_score'])) * 100),
+                ];
+
+                return $product;
+            })
+            ->values()
+            ->all();
+
+        return [
+            'status' => 'success',
+            'search_confidence' => $searchConfidence,
+            'answer' => 'I found nearby matches from the cropped shoe area.',
+            'match' => [
+                'confidence' => $topCandidate['confidence'],
+                'label' => $this->confidenceLabel($topCandidate['confidence'], 'embedding'),
+                'score' => round((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score']), 4),
+                'score_percent' => (int) round(((float) ($topCandidate['confidence_score'] ?? $topCandidate['visual_score'])) * 100),
+                'engine' => 'crop-search',
+                'reason' => $topCandidate['confidence'],
+                'search_confidence' => $searchConfidence,
+            ],
+            'visual_search' => [
+                'status' => 'success',
+                'confidence' => $searchConfidence,
+                'engine' => 'crop-search',
+                'reason' => $topCandidate['confidence'],
+                'signals' => $visualSignals,
+            ],
+            'products' => $products,
+            'actions' => $this->matchActions(),
+        ];
     }
 }

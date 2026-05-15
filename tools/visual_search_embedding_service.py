@@ -400,6 +400,236 @@ def emit(payload: dict[str, Any], code: int = 0) -> int:
     return code
 
 
+class CropCandidateGenerator:
+    def __init__(self, output_dir: str) -> None:
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+    def generate_crops(self, image_path: str) -> dict[str, Any]:
+        """Generate crop candidates from an image and save them to files."""
+        try:
+            with Image.open(image_path) as source:
+                source.load()
+                source = ImageOps.exif_transpose(source)
+                if "A" in source.getbands():
+                    source = source.convert("RGB")
+                else:
+                    source = source.convert("RGB")
+
+            original_width = source.width
+            original_height = source.height
+            candidates = []
+
+            # Generate crop candidates
+            crops = self._generate_crop_candidates(source)
+
+            for label, crop_image, metadata in crops:
+                crop_file = self._save_crop(crop_image, label, original_width, original_height)
+                if crop_file:
+                    candidates.append({
+                        "label": label,
+                        "path": crop_file,
+                        "temporary": True,
+                        "width": crop_image.width,
+                        "height": crop_image.height,
+                        "x_offset": int(metadata.get("x_offset", 0)),
+                        "y_offset": int(metadata.get("y_offset", 0)),
+                        "confidence_hint": metadata.get("confidence_hint"),
+                    })
+
+            if not candidates:
+                return {
+                    "ok": False,
+                    "error": "no_crops_generated",
+                }
+
+            return {
+                "ok": True,
+                "original_width": original_width,
+                "original_height": original_height,
+                "candidates": candidates,
+            }
+
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ok": False,
+                "error": str(exc),
+            }
+
+    def _generate_crop_candidates(self, image: Image.Image) -> list[tuple[str, Image.Image, dict[str, Any]]]:
+        """Generate multiple crop candidates."""
+        candidates = []
+        width = image.width
+        height = image.height
+
+        # 1. Full image
+        candidates.append(("full", image.copy(), {"x_offset": 0, "y_offset": 0}))
+
+        # 2. Center crop
+        center_crop = self._center_crop(image)
+        center_offset = ((width - center_crop.width) // 2, (height - center_crop.height) // 2)
+        candidates.append(("center", center_crop, {
+            "x_offset": center_offset[0],
+            "y_offset": center_offset[1],
+            "confidence_hint": "high",
+        }))
+
+        # 3. Lower-center crop
+        lower_crop = self._lower_center_crop(image)
+        lower_offset = ((width - lower_crop.width) // 2, int((height - lower_crop.height) * 0.5))
+        candidates.append(("lower_center", lower_crop, {
+            "x_offset": lower_offset[0],
+            "y_offset": lower_offset[1],
+            "confidence_hint": "high",
+        }))
+
+        # 4. Upper-center crop
+        upper_crop = self._upper_center_crop(image)
+        upper_offset = ((width - upper_crop.width) // 2, int((height - upper_crop.height) * 0.1))
+        candidates.append(("upper_center", upper_crop, {
+            "x_offset": upper_offset[0],
+            "y_offset": upper_offset[1],
+        }))
+
+        # 5. Left-center crop
+        left_crop = self._left_center_crop(image)
+        left_offset = (int((width - left_crop.width) * 0.15), (height - left_crop.height) // 2)
+        candidates.append(("left_center", left_crop, {
+            "x_offset": left_offset[0],
+            "y_offset": left_offset[1],
+        }))
+
+        # 6. Right-center crop
+        right_crop = self._right_center_crop(image)
+        right_offset = (int((width - right_crop.width) * 0.85), (height - right_crop.height) // 2)
+        candidates.append(("right_center", right_crop, {
+            "x_offset": right_offset[0],
+            "y_offset": right_offset[1],
+        }))
+
+        # 7. Wide shoe-like crop (4:3 ratio)
+        wide_crop = self._wide_shoe_crop(image)
+        wide_offset = ((width - wide_crop.width) // 2, (height - wide_crop.height) // 2)
+        candidates.append(("wide_shoe", wide_crop, {
+            "x_offset": wide_offset[0],
+            "y_offset": wide_offset[1],
+            "confidence_hint": "high",
+        }))
+
+        # 8. Horizontal lower-third crop
+        lower_third = self._horizontal_lower_third_crop(image)
+        third_offset = (0, int(height * 0.65))
+        candidates.append(("lower_third", lower_third, {
+            "x_offset": third_offset[0],
+            "y_offset": third_offset[1],
+            "confidence_hint": "medium",
+        }))
+
+        # 9. Content-aware crop (largest contour area)
+        content_crop = self._content_aware_crop(image)
+        if content_crop and content_crop[1] is not None:
+            label, crop_image, metadata = content_crop
+            candidates.append((label, crop_image, metadata))
+
+        return candidates
+
+    def _center_crop(self, image: Image.Image) -> Image.Image:
+        side = max(32, int(min(image.width, image.height) * 0.88))
+        return ImageOps.fit(image, (side, side), method=Image.Resampling.BICUBIC, centering=(0.5, 0.5))
+
+    def _lower_center_crop(self, image: Image.Image) -> Image.Image:
+        side = min(image.width, image.height)
+        left = max(0, (image.width - side) // 2)
+        top = max(0, int((image.height - side) * 0.35))
+        top = min(top, max(0, image.height - side))
+        return image.crop((left, top, left + side, top + side))
+
+    def _upper_center_crop(self, image: Image.Image) -> Image.Image:
+        side = min(image.width, image.height)
+        left = max(0, (image.width - side) // 2)
+        top = max(0, int((image.height - side) * 0.1))
+        return image.crop((left, top, left + side, top + side))
+
+    def _left_center_crop(self, image: Image.Image) -> Image.Image:
+        side = int(min(image.width, image.height) * 0.85)
+        left = max(0, int(image.width * 0.05))
+        top = max(0, (image.height - side) // 2)
+        return image.crop((left, top, left + side, top + side))
+
+    def _right_center_crop(self, image: Image.Image) -> Image.Image:
+        side = int(min(image.width, image.height) * 0.85)
+        left = max(0, int(image.width - side - (image.width * 0.05)))
+        top = max(0, (image.height - side) // 2)
+        return image.crop((left, top, left + side, top + side))
+
+    def _wide_shoe_crop(self, image: Image.Image) -> Image.Image:
+        """Generate a 4:3 shoe-like crop."""
+        max_width = image.width
+        max_height = int(max_width * 3 / 4)
+        if max_height > image.height:
+            max_height = image.height
+            max_width = int(max_height * 4 / 3)
+        left = max(0, (image.width - max_width) // 2)
+        top = max(0, (image.height - max_height) // 2)
+        return image.crop((left, top, left + max_width, top + max_height))
+
+    def _horizontal_lower_third_crop(self, image: Image.Image) -> Image.Image:
+        """Generate a horizontal crop from the lower third of the image."""
+        height = int(image.height * 0.38)
+        top = image.height - height
+        return image.crop((0, top, image.width, image.height))
+
+    def _content_aware_crop(self, image: Image.Image) -> tuple[str, Image.Image, dict[str, Any]] | None:
+        """Generate a content-aware crop focusing on non-background areas."""
+        try:
+            rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+            distance_from_white = np.sqrt(np.sum((255 - rgb.astype(np.float32)) ** 2, axis=2))
+            mask = distance_from_white > 20
+            coordinates = np.argwhere(mask)
+
+            if coordinates.size == 0:
+                return None
+
+            y0, x0 = coordinates.min(axis=0)
+            y1, x1 = coordinates.max(axis=0) + 1
+            width = x1 - x0
+            height = y1 - y0
+
+            if width < image.width * 0.12 or height < image.height * 0.12:
+                return None
+
+            side = max(width, height)
+            side = min(max(side, int(min(image.width, image.height) * 0.7)), max(image.width, image.height))
+            cx = (x0 + x1) // 2
+            cy = (y0 + y1) // 2
+            half = side // 2
+            left = max(0, cx - half)
+            top = max(0, cy - half)
+            right = min(image.width, left + side)
+            bottom = min(image.height, top + side)
+            left = max(0, right - side)
+            top = max(0, bottom - side)
+
+            crop = image.crop((left, top, right, bottom))
+            return ("content_aware", crop, {
+                "x_offset": left,
+                "y_offset": top,
+                "confidence_hint": "high",
+            })
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _save_crop(self, image: Image.Image, label: str, original_width: int, original_height: int) -> str | None:
+        """Save crop to file."""
+        try:
+            filename = f"crop-{label}-{original_width}x{original_height}-{os.urandom(4).hex()}.png"
+            filepath = os.path.join(self.output_dir, filename)
+            image.save(filepath, format="PNG", optimize=False)
+            return filepath
+        except Exception:  # noqa: BLE001
+            return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Local visual search embedding service")
     parser.add_argument("--model", default=os.environ.get("VISUAL_SEARCH_EMBEDDING_MODEL", "openai/clip-vit-base-patch32"))
@@ -414,7 +644,27 @@ def main() -> int:
     batch_parser = subparsers.add_parser("embed-batch")
     batch_parser.add_argument("--input", required=True)
 
+    crop_parser = subparsers.add_parser("generate-crops")
+    crop_parser.add_argument("--image", required=True)
+    crop_parser.add_argument("--output-dir", required=True)
+    crop_parser.add_argument("--original-width", type=int, required=False)
+    crop_parser.add_argument("--original-height", type=int, required=False)
+
     args = parser.parse_args()
+
+    # Handle crop generation without loading embedding model
+    if args.command == "generate-crops":
+        try:
+            generator = CropCandidateGenerator(args.output_dir)
+            return emit(generator.generate_crops(args.image))
+        except Exception as exc:  # noqa: BLE001
+            return emit(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                },
+                code=1,
+            )
 
     try:
         service = ClipEmbeddingService(args.model, args.embedding_version)

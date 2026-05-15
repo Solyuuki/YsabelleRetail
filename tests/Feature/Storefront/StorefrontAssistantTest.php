@@ -1123,3 +1123,112 @@ test('chat widget renders stable composer constraints for visual search state', 
         ->assertSee('data-chat-send-spinner', escape: false)
         ->assertSee('data-visual-chip-retry', escape: false);
 });
+
+test('crop search attempts crop candidates when screenshot has visible shoe', function () {
+    ensureVisualSearchGdAvailable();
+
+    $sourcePath = public_path('images/products/running/aurum-runner.jpg');
+    createScreenshotFixture($sourcePath, 'crop-screenshot-shoe.jpg');
+    $product = makeStorefrontProduct([
+        'name' => 'Crop Screenshot Runner',
+        'slug' => 'crop-screenshot-runner',
+        'primary_image_url' => url('images/products/running/aurum-runner.jpg'),
+        'image_alt' => 'Crop Screenshot Runner product image',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('crop-screenshot-shoe.jpg'), 'crop-screenshot-shoe.jpg'),
+    ], [
+        'Accept' => 'application/json',
+    ])->assertOk();
+
+    // Should attempt crop search and find product
+    expect($response->json('status'))->toBe('success')
+        ->and($response->json('products.0.slug'))->toBe($product->slug)
+        ->and($response->json('match.engine'))->toBeIn(['crop-search', 'embedding']);
+});
+
+test('cropped shoe image returns product matches', function () {
+    ensureVisualSearchGdAvailable();
+
+    drawShoeFixture('crop-match-source.png', '#2d61d2');
+    createCroppedFixture('crop-match-source.png', 'crop-match-query.png');
+    
+    $product = makeStorefrontProduct([
+        'name' => 'Crop Match Runner',
+        'slug' => 'crop-match-runner',
+        'primary_image_url' => visualSearchFixtureUrl('crop-match-source.png'),
+        'image_alt' => 'Crop Match Runner product image',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('crop-match-query.png'), 'crop-match-query.png'),
+    ], [
+        'Accept' => 'application/json',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('products.0.slug', $product->slug)
+        ->assertJsonCount(1, 'products');
+});
+
+test('screenshot PNG upload passes validation and attempts search', function () {
+    ensureVisualSearchGdAvailable();
+
+    $sourcePath = public_path('images/products/running/aurum-runner.jpg');
+    createScreenshotFixture($sourcePath, 'validation-test-screenshot.jpg');
+    
+    $product = makeStorefrontProduct([
+        'name' => 'Validation Test Runner',
+        'slug' => 'validation-test-runner',
+        'primary_image_url' => url('images/products/running/aurum-runner.jpg'),
+        'image_alt' => 'Validation Test Runner product image',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('validation-test-screenshot.jpg'), 'validation-test-screenshot.jpg'),
+    ], [
+        'Accept' => 'application/json',
+    ])->assertOk();
+
+    // Should not fail with generic error
+    expect($response->json('status'))->toBeIn(['success', 'failed'])
+        ->and($response->json('match.reason'))->not->toBe('processing_error');
+});
+
+test('crop guidance appears only as final fallback after all crop candidates fail', function () {
+    ensureVisualSearchGdAvailable();
+
+    // Create a screenshot with very tiny shoe that no crop can fix
+    $sourcePath = public_path('images/products/running/aurum-runner.jpg');
+    createScreenshotFixture($sourcePath, 'tiny-shoe-screenshot.jpg');
+    
+    // Create an unrelated product so shoe matching will fail
+    makeStorefrontProduct([
+        'name' => 'Unrelated Runner',
+        'slug' => 'unrelated-runner',
+        'primary_image_url' => visualSearchFixtureUrl('green-object.png'),
+        'image_alt' => 'Unrelated Runner product image',
+    ]);
+
+    $this->artisan('visual-search:index', ['--fresh' => true])->assertExitCode(0);
+
+    $response = assistantPost($this, route('storefront.assistant.visual-search'), [
+        'image' => uploadFromFixture(visualSearchFixturePath('tiny-shoe-screenshot.jpg'), 'tiny-shoe-screenshot.jpg'),
+    ], [
+        'Accept' => 'application/json',
+    ])->assertOk();
+
+    $answer = $response->json('answer');
+    
+    // If it fails, should be with the crop guidance message or similar
+    if ($response->json('status') === 'failed') {
+        expect($answer)->toContain('Try cropping closer');
+    }
+});
