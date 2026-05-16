@@ -354,6 +354,62 @@ class ProductDiscoveryService
         ];
     }
 
+    public function findMostExpensiveProducts(array $criteria, int $limit = 4): array
+    {
+        $normalized = $this->normalizeCriteria($criteria);
+        $matches = $this->activeProducts()
+            ->get()
+            ->map(function (Product $product) use ($normalized): ?array {
+                if (! $this->matchesMostExpensiveProductCriteria($product, $normalized)) {
+                    return null;
+                }
+
+                $pricedVariants = $this->activePricedVariantsForRanking($product, $normalized);
+
+                if ($pricedVariants->isEmpty()) {
+                    return null;
+                }
+
+                $availability = $this->aggregateVariantAvailability($pricedVariants);
+                $highestPrice = (float) $pricedVariants->max(fn ($variant): float => (float) $variant->price);
+                $lowestPrice = (float) $pricedVariants->min(fn ($variant): float => (float) $variant->price);
+
+                return [
+                    'product' => $product,
+                    'availability' => $availability,
+                    'highest_price' => $highestPrice,
+                    'highest_price_label' => $this->phpMoneyLabel($highestPrice),
+                    'lowest_price' => $lowestPrice,
+                    'lowest_price_label' => $this->phpMoneyLabel($lowestPrice),
+                ];
+            })
+            ->filter()
+            ->sort(function (array $left, array $right): int {
+                return [
+                    $this->rankingStockPriority((string) ($left['availability']['state'] ?? ProductAvailabilityService::STATE_OUT_OF_STOCK)),
+                    -1 * (float) ($left['highest_price'] ?? 0),
+                    -1 * (float) ($left['lowest_price'] ?? 0),
+                    Str::lower((string) $left['product']->name),
+                ]
+                    <=>
+                    [
+                        $this->rankingStockPriority((string) ($right['availability']['state'] ?? ProductAvailabilityService::STATE_OUT_OF_STOCK)),
+                        -1 * (float) ($right['highest_price'] ?? 0),
+                        -1 * (float) ($right['lowest_price'] ?? 0),
+                        Str::lower((string) $right['product']->name),
+                    ];
+            })
+            ->values();
+
+        return [
+            'criteria' => $normalized,
+            'matches' => $matches->take($limit)->values(),
+            'all_out_of_stock' => $matches->isNotEmpty() && $matches->every(
+                fn (array $match): bool => ($match['availability']['state'] ?? null) === ProductAvailabilityService::STATE_OUT_OF_STOCK
+            ),
+        ];
+    }
+
     public function sizeAvailabilityForProduct(Product $product, string $size, ?string $color = null): array
     {
         return $this->availability->forProductSize($product, $size, $color);
@@ -624,6 +680,93 @@ class ProductDiscoveryService
             ], true);
     }
 
+    private function matchesMostExpensiveProductCriteria(Product $product, array $criteria): bool
+    {
+        if (
+            filled($criteria['product_name'])
+            && ! $this->productMatchesName($product, (string) $criteria['product_name'])
+            && ! $this->productMatchesText($product, (string) $criteria['product_name'])
+        ) {
+            return false;
+        }
+
+        if (filled($criteria['category']) && $product->category?->slug !== $criteria['category']) {
+            return false;
+        }
+
+        if (
+            filled($criteria['use_case'])
+            && isset(self::USE_CASE_CATEGORY_MAP[$criteria['use_case']])
+            && ! in_array((string) $product->category?->slug, self::USE_CASE_CATEGORY_MAP[$criteria['use_case']], true)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function activePricedVariantsForRanking(Product $product, array $criteria): Collection
+    {
+        return $product->variants
+            ->filter(function ($variant) use ($product, $criteria): bool {
+                if ($variant->status !== 'active' || $variant->price === null) {
+                    return false;
+                }
+
+                if (! $variant->relationLoaded('product')) {
+                    $variant->setRelation('product', $product);
+                }
+
+                if (filled($criteria['color'])) {
+                    $color = $this->normalizeComparableText((string) data_get($variant->option_values, 'color', ''));
+
+                    if ($color === '' || ! str_contains($color, $this->normalizeComparableText((string) $criteria['color']))) {
+                        return false;
+                    }
+                }
+
+                if (filled($criteria['size'])) {
+                    $size = $this->normalizeSizeValue((string) data_get($variant->option_values, 'size', ''));
+
+                    if ($size !== (string) $criteria['size']) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->values();
+    }
+
+    private function aggregateVariantAvailability(Collection $variants): array
+    {
+        $availability = $variants
+            ->map(fn ($variant): array => $this->availability->forVariant($variant))
+            ->values();
+        $availableQuantity = (int) $availability->sum(fn (array $entry): int => (int) ($entry['available_quantity'] ?? 0));
+        $hasInStock = $availability->contains(
+            fn (array $entry): bool => ($entry['state'] ?? null) === ProductAvailabilityService::STATE_IN_STOCK
+        );
+        $hasLowStock = $availability->contains(
+            fn (array $entry): bool => ($entry['state'] ?? null) === ProductAvailabilityService::STATE_LOW_STOCK
+        );
+        $hasBackorder = $availability->contains(
+            fn (array $entry): bool => ($entry['state'] ?? null) === ProductAvailabilityService::STATE_BACKORDER_AVAILABLE
+        );
+        $state = match (true) {
+            $hasInStock => ProductAvailabilityService::STATE_IN_STOCK,
+            $hasLowStock => ProductAvailabilityService::STATE_LOW_STOCK,
+            $hasBackorder => ProductAvailabilityService::STATE_BACKORDER_AVAILABLE,
+            default => ProductAvailabilityService::STATE_OUT_OF_STOCK,
+        };
+
+        return [
+            'state' => $state,
+            'label' => $this->availability->labelForState($state),
+            'available_quantity' => $availableQuantity,
+        ];
+    }
+
     private function searchableText(Product $product): string
     {
         return Str::lower(collect([
@@ -891,6 +1034,21 @@ class ProductDiscoveryService
         $value = preg_replace('/[^a-z0-9]+/i', ' ', $value);
 
         return trim((string) preg_replace('/\s+/', ' ', $value));
+    }
+
+    private function rankingStockPriority(string $state): int
+    {
+        return match ($state) {
+            ProductAvailabilityService::STATE_IN_STOCK => 0,
+            ProductAvailabilityService::STATE_LOW_STOCK => 1,
+            ProductAvailabilityService::STATE_BACKORDER_AVAILABLE => 2,
+            default => 3,
+        };
+    }
+
+    private function phpMoneyLabel(float $amount): string
+    {
+        return 'PHP '.number_format($amount, 0);
     }
 
     private function availableQuantity(Product $product): int

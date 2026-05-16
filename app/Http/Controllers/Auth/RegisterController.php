@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Services\Auth\CustomerAccountService;
 use App\Services\Auth\SocialAuthService;
+use App\Services\Storefront\CartService;
 use App\Support\Auth\AuthenticatedRedirector;
 use Illuminate\Contracts\View\View;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -26,14 +27,18 @@ class RegisterController extends Controller
 
         return view('auth.register', [
             'socialProviders' => $socialAuth->providerButtons($request),
+            'intendedUrl' => $request->session()->get('url.intended'),
         ]);
     }
 
     public function store(
         RegisterRequest $request,
         CustomerAccountService $customerAccounts,
+        CartService $cartService,
         AuthenticatedRedirector $redirector,
     ): RedirectResponse {
+        $redirector->rememberLoginContext($request);
+
         $user = $customerAccounts->register(
             name: $request->string('name')->toString(),
             email: $request->string('email')->toString(),
@@ -42,11 +47,12 @@ class RegisterController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $cartService->mergeGuestCartFor($user);
 
         if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {
             $user->sendEmailVerificationNotification();
 
-            if ($this->shouldContinueToClaimDestination($request)) {
+            if ($this->shouldContinueToIntendedDestination($request)) {
                 return redirect()->intended(route('storefront.account.index'))
                     ->with('status', 'We sent a verification link to your email address.');
             }
@@ -63,11 +69,12 @@ class RegisterController extends Controller
             ]);
     }
 
-    private function shouldContinueToClaimDestination(Request $request): bool
+    private function shouldContinueToIntendedDestination(Request $request): bool
     {
         $intended = $request->session()->get('url.intended');
         $path = is_string($intended) ? parse_url($intended, PHP_URL_PATH) : null;
 
-        return is_string($path) && Str::startsWith($path, '/account/review-claims/');
+        return is_string($path)
+            && Str::startsWith($path, ['/account/review-claims/', '/checkout', '/cart']);
     }
 }

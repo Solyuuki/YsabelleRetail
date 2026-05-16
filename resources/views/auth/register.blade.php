@@ -13,6 +13,9 @@
 
             <form action="{{ route('register.store') }}" method="POST" class="ys-auth-form" novalidate>
                 @csrf
+                @if (is_string($intendedUrl ?? null) && $intendedUrl !== '')
+                    <input type="hidden" name="intended" value="{{ $intendedUrl }}">
+                @endif
 
                 <label class="ys-auth-field">
                     <span class="ys-auth-field-label">Email address</span>
@@ -145,7 +148,12 @@
 
             <p class="ys-auth-switch-copy">
                 Already have an account?
-                <a href="{{ route('login') }}" class="ys-auth-inline-link">Sign in</a>
+                <a
+                    href="{{ is_string($intendedUrl ?? null) && $intendedUrl !== '' ? route('login', ['intended' => $intendedUrl]) : route('login') }}"
+                    class="ys-auth-inline-link"
+                >
+                    Sign in
+                </a>
             </p>
 
             <div class="ys-auth-divider" role="presentation">

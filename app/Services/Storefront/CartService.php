@@ -5,16 +5,20 @@ namespace App\Services\Storefront;
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
 use App\Models\Catalog\ProductVariant;
+use App\Models\User;
 use App\Services\Catalog\ProductAvailabilityService;
 use App\Services\Inventory\InventoryManager;
 use Illuminate\Contracts\Auth\Factory as AuthFactory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 use Throwable;
 
 class CartService
 {
+    private const GUEST_CART_SESSION_KEY = 'storefront.cart_guest_session_id';
+
     public function __construct(
         private readonly Request $request,
         private readonly AuthFactory $auth,
@@ -143,6 +147,62 @@ class CartService
         return $this->summary()['item_count'];
     }
 
+    public function mergeGuestCartFor(User $user): ?Cart
+    {
+        if (! $this->cartTablesExist()) {
+            return null;
+        }
+
+        $guestSessionId = $this->guestCartSessionId();
+
+        if (! is_string($guestSessionId) || trim($guestSessionId) === '') {
+            return $this->activeCart();
+        }
+
+        return DB::transaction(function () use ($guestSessionId, $user): ?Cart {
+            $guestCart = Cart::query()
+                ->with(['items.variant.product.category', 'items.variant.inventoryItem'])
+                ->where('status', 'active')
+                ->whereNull('user_id')
+                ->where('session_id', $guestSessionId)
+                ->first();
+
+            if (! $guestCart) {
+                $this->forgetGuestCartSessionId();
+
+                return $this->activeCart();
+            }
+
+            $userCart = Cart::query()
+                ->with(['items.variant.product.category', 'items.variant.inventoryItem'])
+                ->where('status', 'active')
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (! $userCart) {
+                $guestCart->forceFill([
+                    'user_id' => $user->id,
+                    'session_id' => null,
+                    'expires_at' => now()->addDays(7),
+                ])->save();
+
+                $this->forgetGuestCartSessionId();
+
+                return $this->freshCart($guestCart);
+            }
+
+            foreach ($guestCart->items as $guestItem) {
+                $this->mergeGuestItemIntoUserCart($userCart, $guestItem);
+            }
+
+            $guestCart->items()->delete();
+            $guestCart->delete();
+            $this->forgetGuestCartSessionId();
+
+            return $this->freshCart($userCart);
+        });
+    }
+
     private function findCart(bool $createIfMissing): ?Cart
     {
         if (! $this->cartTablesExist()) {
@@ -161,6 +221,7 @@ class CartService
         if ($user) {
             $query->where('user_id', $user->id);
         } else {
+            $this->rememberGuestCartSessionId($session->getId());
             $query->where('session_id', $session->getId());
         }
 
@@ -211,5 +272,82 @@ class CartService
         } catch (Throwable) {
             return false;
         }
+    }
+
+    private function mergeGuestItemIntoUserCart(Cart $userCart, CartItem $guestItem): void
+    {
+        $guestItem->loadMissing(['variant.product', 'variant.inventoryItem']);
+
+        $targetItem = $userCart->items()
+            ->where('product_variant_id', $guestItem->product_variant_id)
+            ->first();
+
+        if (! $targetItem) {
+            $userCart->items()->create([
+                'product_variant_id' => $guestItem->product_variant_id,
+                'quantity' => $guestItem->quantity,
+                'unit_price' => $guestItem->unit_price,
+                'line_total' => $guestItem->line_total,
+                'metadata' => $guestItem->metadata,
+            ]);
+
+            return;
+        }
+
+        $mergedQuantity = $this->mergeableQuantity(
+            $guestItem->variant,
+            (int) $targetItem->quantity,
+            (int) $guestItem->quantity,
+        );
+        $unitPrice = (float) ($targetItem->unit_price ?: $guestItem->unit_price);
+
+        $targetItem->forceFill([
+            'quantity' => $mergedQuantity,
+            'unit_price' => $unitPrice,
+            'line_total' => $mergedQuantity * $unitPrice,
+            'metadata' => $targetItem->metadata ?: $guestItem->metadata,
+        ])->save();
+    }
+
+    private function mergeableQuantity(ProductVariant $variant, int $existingQuantity, int $guestQuantity): int
+    {
+        $availability = $this->availability->forVariant($variant);
+
+        if (
+            ! ($availability['inventory_tracked'] ?? true)
+            || ($availability['allow_backorder'] ?? false) === true
+        ) {
+            return $existingQuantity + $guestQuantity;
+        }
+
+        $availableQuantity = max(0, (int) ($availability['available_quantity'] ?? 0));
+
+        return min(
+            $existingQuantity + $guestQuantity,
+            max($existingQuantity, $availableQuantity),
+        );
+    }
+
+    private function guestCartSessionId(): ?string
+    {
+        $sessionId = $this->request->session()->get(self::GUEST_CART_SESSION_KEY);
+
+        return is_string($sessionId) && trim($sessionId) !== ''
+            ? $sessionId
+            : null;
+    }
+
+    private function rememberGuestCartSessionId(string $sessionId): void
+    {
+        if (trim($sessionId) === '') {
+            return;
+        }
+
+        $this->request->session()->put(self::GUEST_CART_SESSION_KEY, $sessionId);
+    }
+
+    private function forgetGuestCartSessionId(): void
+    {
+        $this->request->session()->forget(self::GUEST_CART_SESSION_KEY);
     }
 }

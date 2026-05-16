@@ -104,7 +104,12 @@
 
             <p class="ys-auth-switch-copy">
                 Don't have an account?
-                <a href="{{ route('register') }}" class="ys-auth-inline-link">Sign up</a>
+                <a
+                    href="{{ is_string($intendedUrl) && $intendedUrl !== '' ? route('register', ['intended' => $intendedUrl]) : route('register') }}"
+                    class="ys-auth-inline-link"
+                >
+                    Sign up
+                </a>
             </p>
 
             <div class="ys-auth-divider" role="presentation">

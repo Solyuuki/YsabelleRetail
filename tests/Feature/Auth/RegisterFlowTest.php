@@ -325,3 +325,25 @@ test('registration keeps a walk in review claim destination when the new account
     $this->assertAuthenticatedAs($user);
     Notification::assertSentTo($user, VerifyEmail::class);
 });
+
+test('registration keeps an intended checkout destination for the new customer', function () {
+    ensureCustomerRoleExists();
+    Notification::fake();
+
+    $this->get(route('register', ['intended' => route('storefront.checkout.create')]))
+        ->assertOk();
+
+    $this->post(route('register.store'), [
+        'name' => 'Checkout Register Customer',
+        'email' => 'checkout.register@example.com',
+        'password' => 'Password123',
+        'password_confirmation' => 'Password123',
+    ])
+        ->assertRedirect(route('storefront.checkout.create'))
+        ->assertSessionHas('status', 'We sent a verification link to your email address.');
+
+    $user = User::query()->where('email', 'checkout.register@example.com')->firstOrFail();
+
+    $this->assertAuthenticatedAs($user);
+    Notification::assertSentTo($user, VerifyEmail::class);
+});

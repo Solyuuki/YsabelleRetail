@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Services\Auth\SocialAuthException;
 use App\Services\Auth\SocialAuthService;
+use App\Services\Storefront\CartService;
 use App\Support\Auth\AuthenticatedRedirector;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class SocialAuthController extends Controller
         Request $request,
         string $provider,
         SocialAuthService $socialAuth,
+        CartService $cartService,
         AuthenticatedRedirector $redirector,
     ): RedirectResponse {
         try {
@@ -53,8 +55,10 @@ class SocialAuthController extends Controller
                     'type' => 'error',
                     'title' => 'Access restricted',
                     'message' => $message,
-                ]);
+            ]);
         }
+
+        $cartService->mergeGuestCartFor($user);
 
         return $redirector->redirectAfterLogin($request, $user);
     }

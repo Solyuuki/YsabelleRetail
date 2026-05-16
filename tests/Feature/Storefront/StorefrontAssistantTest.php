@@ -501,6 +501,153 @@ test('assistant returns affordable products for mura buyer phrasing', function (
         ->assertJsonPath('answer', 'These are the most affordable active pairs I found right now.');
 });
 
+test('assistant answers most expensive questions with the actual highest active selling price', function () {
+    makeStorefrontProduct([
+        'name' => 'Sale Mirage',
+        'slug' => 'sale-mirage',
+        'base_price' => 6490,
+        'compare_at_price' => 15990,
+    ], [
+        'sku' => 'YS-SLM-6490-8',
+        'price' => 6490,
+        'compare_at_price' => 15990,
+    ]);
+
+    $expensive = makeStorefrontProduct([
+        'name' => 'Apex Monarch',
+        'slug' => 'apex-monarch',
+        'base_price' => 5990,
+        'category_name' => 'Sneakers',
+        'category_slug' => 'sneakers',
+    ], [
+        'sku' => 'YS-APX-5990-8',
+        'price' => 5990,
+        'option_values' => [
+            'size' => '8',
+            'color' => 'Black',
+        ],
+    ]);
+
+    $topVariant = ProductVariant::factory()->for($expensive)->create([
+        'name' => 'Size 10',
+        'sku' => 'YS-APX-8990-10',
+        'option_values' => [
+            'size' => '10',
+            'color' => 'Black',
+        ],
+        'price' => 8990,
+        'compare_at_price' => 10990,
+        'status' => 'active',
+    ]);
+
+    $topVariant->inventoryItem()->create([
+        'quantity_on_hand' => 4,
+        'reserved_quantity' => 0,
+        'reorder_level' => 1,
+        'allow_backorder' => false,
+    ]);
+
+    $response = assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'What is the most expensive shoe?',
+    ])->assertOk()
+        ->assertJsonPath('products.0.slug', $expensive->slug)
+        ->assertJsonPath('assistant_context.last_intent', 'ecommerce_product_price_ranking');
+
+    expect((string) $response->json('answer'))
+        ->toContain('Apex Monarch is the highest-priced active catalog match right now at PHP 8,990.')
+        ->toContain('It starts at PHP 5,990.')
+        ->not->toContain('closest real products')
+        ->not->toContain('closest active matches');
+});
+
+test('assistant excludes inactive archived and unpriced products from most expensive ranking', function () {
+    $active = makeStorefrontProduct([
+        'name' => 'Regal Sprint',
+        'slug' => 'regal-sprint',
+        'base_price' => 6990,
+    ], [
+        'sku' => 'YS-RGS-6990-9',
+        'price' => 6990,
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Inactive Crown',
+        'slug' => 'inactive-crown',
+        'base_price' => 12990,
+        'status' => 'inactive',
+    ], [
+        'sku' => 'YS-INC-12990-9',
+        'price' => 12990,
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'Archived Crown',
+        'slug' => 'archived-crown',
+        'base_price' => 13990,
+        'status' => 'archived',
+    ], [
+        'sku' => 'YS-ARC-13990-9',
+        'price' => 13990,
+    ]);
+
+    makeStorefrontProduct([
+        'name' => 'No Price Phantom',
+        'slug' => 'no-price-phantom',
+        'base_price' => 14990,
+    ], [
+        'sku' => 'YS-NPP-14990-9',
+        'price' => null,
+    ]);
+
+    assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Most expensive product?',
+    ])->assertOk()
+        ->assertJsonPath('products.0.slug', $active->slug)
+        ->assertJsonMissing(['slug' => 'inactive-crown'])
+        ->assertJsonMissing(['slug' => 'archived-crown'])
+        ->assertJsonMissing(['slug' => 'no-price-phantom']);
+});
+
+test('assistant detects pinakamahal phrasing and prefers in stock ranked products over pricier out of stock ones', function () {
+    makeStorefrontProduct([
+        'name' => 'Dormant Luxe',
+        'slug' => 'dormant-luxe',
+        'base_price' => 9990,
+    ], [
+        'sku' => 'YS-DLX-9990-9',
+        'price' => 9990,
+    ], [
+        'quantity_on_hand' => 0,
+        'reserved_quantity' => 0,
+        'reorder_level' => 1,
+        'allow_backorder' => false,
+    ]);
+
+    $inStock = makeStorefrontProduct([
+        'name' => 'Crown Velocity',
+        'slug' => 'crown-velocity',
+        'base_price' => 7990,
+    ], [
+        'sku' => 'YS-CRV-7990-9',
+        'price' => 7990,
+    ], [
+        'quantity_on_hand' => 5,
+        'reserved_quantity' => 0,
+        'reorder_level' => 1,
+        'allow_backorder' => false,
+    ]);
+
+    $response = assistantPostJson($this, route('storefront.assistant.message'), [
+        'message' => 'Ano pinaka mahal dito?',
+    ])->assertOk()
+        ->assertJsonPath('products.0.slug', $inStock->slug)
+        ->assertJsonPath('assistant_context.last_intent', 'ecommerce_product_price_ranking');
+
+    expect((string) $response->json('answer'))
+        ->toContain('Crown Velocity')
+        ->toContain('Stock status: In Stock.');
+});
+
 test('assistant uses current product context for size questions instead of the size guide', function () {
     $product = makeStorefrontProduct([
         'name' => 'Atlas Highstreet',

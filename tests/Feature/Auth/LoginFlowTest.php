@@ -92,6 +92,21 @@ test('customer login respects an intended walk in review claim destination', fun
     ])->assertRedirect($claimUrl);
 });
 
+test('customer login respects an intended checkout destination', function () {
+    $customer = makeUserWithRole('customer', [
+        'email' => 'checkout.login@example.com',
+        'password' => 'Password123x',
+    ]);
+
+    $this->get(route('login', ['intended' => route('storefront.checkout.create')]))
+        ->assertOk();
+
+    $this->post(route('login.store'), [
+        'email' => $customer->email,
+        'password' => 'Password123x',
+    ])->assertRedirect(route('storefront.checkout.create'));
+});
+
 test('manual login does not enable remember me unless explicitly requested', function () {
     $customer = makeUserWithRole('customer', [
         'email' => 'remember.off@example.com',

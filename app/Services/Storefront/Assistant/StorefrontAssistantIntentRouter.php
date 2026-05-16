@@ -48,6 +48,8 @@ class StorefrontAssistantIntentRouter
 
     public const INTENT_PRODUCT_SEARCH = 'ecommerce_product_search';
 
+    public const INTENT_PRODUCT_PRICE_RANKING = 'ecommerce_product_price_ranking';
+
     public const INTENT_OUT_OF_SCOPE = 'out_of_scope';
 
     public const INTENT_FALLBACK = 'fallback';
@@ -165,6 +167,10 @@ class StorefrontAssistantIntentRouter
 
         if ($this->isVisualSearchIntent($normalized)) {
             return ['intent' => self::INTENT_VISUAL_SEARCH];
+        }
+
+        if ($this->isMostExpensiveIntent($normalized)) {
+            return ['intent' => self::INTENT_PRODUCT_PRICE_RANKING];
         }
 
         if ($this->hasHighConfidenceProductIntent($normalized, $criteria, $commerce)) {
@@ -385,6 +391,30 @@ class StorefrontAssistantIntentRouter
     private function isAvailabilityIntent(string $message): bool
     {
         return $this->containsAny($message, self::AVAILABILITY_KEYWORDS);
+    }
+
+    private function isMostExpensiveIntent(string $message): bool
+    {
+        if ($this->containsAny($message, [
+            'most expensive',
+            'highest price',
+            'highest priced',
+            'top priced',
+            'priciest',
+            'pinaka mahal',
+            'pinakamahal',
+        ])) {
+            return true;
+        }
+
+        if (
+            ($this->containsAny($message, ['expensive', 'premium', 'luxury', 'mahal']) && $this->containsAny($message, ['highest', 'top', 'most', 'price', 'priced']))
+            || ($this->containsAny($message, ['mahal']) && $this->containsAny($message, ['ano', 'dito', 'product', 'products', 'shoe', 'shoes', 'sneaker', 'sneakers']))
+        ) {
+            return true;
+        }
+
+        return preg_match('/\bmahal na (shoe|shoes|sapatos|sneaker|sneakers|product|products)\b/u', $message) === 1;
     }
 
     private function containsAny(string $message, array $phrases): bool

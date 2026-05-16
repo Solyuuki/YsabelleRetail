@@ -372,6 +372,36 @@ test('wrong logged in user can switch accounts and return to the same walk in re
         ->assertSeeText('Confirm purchase claim');
 });
 
+test('stale switch-account resubmission redirects back to login without a session expired page', function () {
+    $rightUser = walkInReviewClaimCustomer([
+        'email' => 'claim.stale.switch@example.com',
+        'password' => 'Password123x',
+    ]);
+    $admin = walkInReviewClaimAdmin([
+        'email' => 'admin.stale.switch@example.com',
+        'password' => 'Password123x',
+    ]);
+    $product = walkInReviewClaimProduct();
+    $order = walkInReviewClaimOrder($product, $rightUser->email);
+    $token = str_repeat('3', 64);
+    $claim = walkInReviewClaimRecord($order, $token);
+    $showUrl = walkInReviewClaimShowUrl($claim, $token);
+    $switchUrl = route('storefront.account.review-claims.switch-account', ['token' => $token]);
+
+    $this->actingAs($admin)
+        ->withSession(['_token' => 'switch-token'])
+        ->post($switchUrl, ['_token' => 'switch-token'])
+        ->assertRedirect(route('login', ['intended' => $showUrl]));
+
+    $this->assertGuest();
+
+    $this->followingRedirects()
+        ->post($switchUrl, ['_token' => 'switch-token'])
+        ->assertOk()
+        ->assertDontSeeText('Session expired')
+        ->assertSeeText('Sign in');
+});
+
 test('guest can sign in from a walk in review claim and return to the same link', function () {
     $user = walkInReviewClaimCustomer([
         'email' => 'claim.guest.login@example.com',

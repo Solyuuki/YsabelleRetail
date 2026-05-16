@@ -80,9 +80,9 @@
                         @if (auth()->user()?->isAdmin())
                             <a href="{{ route('admin.dashboard') }}" class="ys-dropdown-link">Admin dashboard</a>
                         @endif
-                        <form action="{{ route('logout') }}" method="POST">
+                        <form action="{{ route('logout') }}" method="POST" data-session-exit-form>
                             @csrf
-                            <button type="submit" class="ys-dropdown-link w-full text-left">
+                            <button type="submit" class="ys-dropdown-link w-full text-left" data-loading-label="Signing out...">
                                 Sign out
                             </button>
                         </form>
@@ -131,9 +131,9 @@
                     @if (auth()->user()?->isAdmin())
                         <a href="{{ route('admin.dashboard') }}" class="ys-button-secondary text-[0.95rem]">Admin dashboard</a>
                     @endif
-                    <form action="{{ route('logout') }}" method="POST" class="contents">
+                    <form action="{{ route('logout') }}" method="POST" class="contents" data-session-exit-form>
                         @csrf
-                        <button type="submit" class="ys-button-primary text-[0.95rem]">Sign out</button>
+                        <button type="submit" class="ys-button-primary text-[0.95rem]" data-loading-label="Signing out...">Sign out</button>
                     </form>
                 @else
                     <a href="{{ route('login') }}" class="ys-button-primary text-[0.95rem]">Sign in</a>

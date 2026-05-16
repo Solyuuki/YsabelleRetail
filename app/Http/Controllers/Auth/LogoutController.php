@@ -14,6 +14,7 @@ class LogoutController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        $request->session()->put('recent_logout_completed_at', now()->timestamp);
 
         $response = redirect()->route('storefront.home')
             ->with('toast', [

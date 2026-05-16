@@ -13,6 +13,7 @@ import { initCartQuantityForms } from './modules/cart';
 import { initHeroShowcase } from './modules/hero-showcase';
 import { initProductReviews } from './modules/product-reviews';
 import { initSupportPages } from './modules/support-pages';
+import { initSessionExitForms } from './modules/session-exit';
 import { initToasts } from './modules/toasts';
 
 const initStorefront = () => {
@@ -30,6 +31,7 @@ const initStorefront = () => {
     initCartQuantityForms();
     initCheckoutOptions();
     initToasts();
+    initSessionExitForms();
     initRoleShortcuts();
     initChatWidget();
 };

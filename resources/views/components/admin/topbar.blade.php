@@ -14,9 +14,9 @@
 
     <div class="flex items-center gap-3">
         <a href="{{ route('storefront.home') }}" class="ys-admin-button-secondary">Open storefront</a>
-        <form method="POST" action="{{ route('logout') }}">
+        <form method="POST" action="{{ route('logout') }}" data-session-exit-form>
             @csrf
-            <button type="submit" class="ys-admin-button-secondary">Sign out</button>
+            <button type="submit" class="ys-admin-button-secondary" data-loading-label="Signing out...">Sign out</button>
         </form>
         <div class="rounded-[1rem] border border-white/7 bg-white/[0.03] px-4 py-3 text-right">
             <p class="text-xs uppercase tracking-[0.24em] text-ys-ivory/38">Signed in</p>

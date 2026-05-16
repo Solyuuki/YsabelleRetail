@@ -60,6 +60,12 @@
                         </article>
                     @endforeach
                 </div>
+
+                @if ($orders->hasPages())
+                    <div class="mt-8 flex justify-center" data-reveal>
+                        {{ $orders->links('vendor.pagination.storefront') }}
+                    </div>
+                @endif
             @endif
         </div>
     </section>

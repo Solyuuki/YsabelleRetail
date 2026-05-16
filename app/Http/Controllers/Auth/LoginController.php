@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Services\Auth\SocialAuthService;
 use App\Services\Auth\AuthSystemHealthService;
+use App\Services\Storefront\CartService;
 use App\Support\Auth\AuthenticatedRedirector;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ class LoginController extends Controller
 
     public function store(
         LoginRequest $request,
+        CartService $cartService,
         AuthenticatedRedirector $redirector,
         AuthSystemHealthService $authHealth,
     ): \Illuminate\Http\RedirectResponse
@@ -84,6 +86,7 @@ class LoginController extends Controller
         }
 
         $request->clearRateLimiter();
+        $cartService->mergeGuestCartFor($request->user());
 
         return $redirector->redirectAfterLogin($request, $request->user());
     }

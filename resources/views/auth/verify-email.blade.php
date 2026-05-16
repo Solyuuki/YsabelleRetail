@@ -22,9 +22,9 @@
                 <button type="submit" class="ys-auth-submit">Resend verification email</button>
             </form>
 
-            <form action="{{ route('logout') }}" method="POST" class="ys-auth-form ys-auth-form-compact">
+            <form action="{{ route('logout') }}" method="POST" class="ys-auth-form ys-auth-form-compact" data-session-exit-form>
                 @csrf
-                <button type="submit" class="ys-auth-secondary-submit">Sign out</button>
+                <button type="submit" class="ys-auth-secondary-submit" data-loading-label="Signing out...">Sign out</button>
             </form>
 
             @include('auth.partials.legal-links')

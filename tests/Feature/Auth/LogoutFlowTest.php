@@ -3,6 +3,8 @@
 use App\Models\Access\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
@@ -38,6 +40,9 @@ test('customer logout posts safely and returns the user to the storefront as a g
         ->assertSee('"isAdmin":false', escape: false)
         ->assertSee('"isCustomer":false', escape: false);
 
+    $this->get(route('storefront.home'))
+        ->assertDontSeeText('Session expired');
+
     $this->get(route('storefront.account.index'))
         ->assertRedirect(route('login'));
 });
@@ -58,6 +63,9 @@ test('admin logout posts safely and returns the user to the storefront as a gues
         ->assertSee('"isAuthenticated":false', escape: false)
         ->assertSee('"isAdmin":false', escape: false)
         ->assertSee('"isCustomer":false', escape: false);
+
+    $this->get(route('storefront.home'))
+        ->assertDontSeeText('Session expired');
 
     $this->get(route('admin.dashboard'))
         ->assertRedirect(route('login'));
@@ -97,4 +105,34 @@ test('authenticated admin pages render a csrf protected logout form', function (
         ->assertSee('Sign out');
 
     expect($response->headers->get('Cache-Control'))->toContain('no-store');
+});
+
+test('stale second logout submission redirects cleanly instead of showing session expired', function () {
+    $customer = createUserWithRole('customer');
+
+    $this->actingAs($customer)
+        ->withSession(['_token' => 'logout-token'])
+        ->post(route('logout'), ['_token' => 'logout-token'])
+        ->assertRedirect(route('storefront.home'));
+
+    $this->assertGuest();
+
+    $this->followingRedirects()
+        ->post(route('logout'), ['_token' => 'logout-token'])
+        ->assertOk()
+        ->assertDontSeeText('Session expired')
+        ->assertSee('"isAuthenticated":false', escape: false);
+});
+
+test('logout with an invalid csrf token still shows the branded session expired page', function () {
+    config()->set('app.debug', false);
+
+    Route::middleware('web')->post('/test-invalid-logout', function () {
+        throw new TokenMismatchException('CSRF token mismatch.');
+    })->name('logout.invalid-csrf');
+
+    $this->post('/test-invalid-logout')
+        ->assertStatus(419)
+        ->assertSeeText('Session expired')
+        ->assertSeeText('Sign in again');
 });

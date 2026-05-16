@@ -106,7 +106,7 @@
                             @auth
                                 <a href="{{ route('storefront.checkout.create') }}" class="ys-button-primary w-full justify-center">Checkout</a>
                             @else
-                                <a href="{{ route('login') }}" class="ys-button-primary w-full justify-center">Sign in to checkout</a>
+                                <a href="{{ route('login', ['intended' => route('storefront.checkout.create')]) }}" class="ys-button-primary w-full justify-center">Sign in to checkout</a>
                             @endauth
                             <a href="{{ route('storefront.shop') }}" class="ys-button-ghost w-full justify-center">Continue shopping</a>
                         </div>

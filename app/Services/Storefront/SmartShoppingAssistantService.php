@@ -88,6 +88,7 @@ class SmartShoppingAssistantService
                 $assistantContext,
             ),
             StorefrontAssistantIntentRouter::INTENT_VISUAL_SEARCH => $this->visualSearchResponse(),
+            StorefrontAssistantIntentRouter::INTENT_PRODUCT_PRICE_RANKING => $this->mostExpensiveProductResponse($criteria),
             StorefrontAssistantIntentRouter::INTENT_PRODUCT_SEARCH => $this->productIntentResponse(
                 $message,
                 $normalizedMessage['normalized'],
@@ -301,6 +302,64 @@ class SmartShoppingAssistantService
             str_contains(Str::lower($message), 'available') || str_contains(Str::lower($message), 'stock') => 'These are the closest active matches I found, with current stock status included.',
             default => 'These are the closest active matches I found from the current catalog.',
         };
+
+        return $this->response(
+            answer: $answer,
+            products: $products,
+            actions: [
+                ['label' => 'Open full catalog', 'type' => 'link', 'url' => route('storefront.shop')],
+                ['label' => 'Check my cart', 'type' => 'message', 'message' => 'What is in my cart?'],
+            ],
+        );
+    }
+
+    private function mostExpensiveProductResponse(array $criteria): array
+    {
+        $ranking = $this->productDiscovery->findMostExpensiveProducts($criteria, 4);
+        $matches = $ranking['matches'];
+
+        if ($matches->isEmpty()) {
+            return $this->response(
+                answer: 'I could not find an active priced product that matches that request right now.',
+                actions: $this->defaultActions(),
+            );
+        }
+
+        $topMatch = $matches->first();
+        $topProduct = $topMatch['product'];
+        $topAvailabilityLabel = (string) ($topMatch['availability']['label'] ?? 'Currently Unavailable');
+        $topPrice = (float) ($topMatch['highest_price'] ?? 0);
+        $startingPrice = (float) $topProduct->base_price;
+        $products = $matches
+            ->map(function (array $match): array {
+                $product = $this->productDiscovery->formatProduct($match['product']);
+                $product['price_ranking'] = [
+                    'highest_active_price' => (float) ($match['highest_price'] ?? 0),
+                    'highest_active_price_label' => $this->phpMoneyLabel((float) ($match['highest_price'] ?? 0)),
+                    'stock_label' => (string) ($match['availability']['label'] ?? 'Currently Unavailable'),
+                    'stock_state' => (string) ($match['availability']['state'] ?? ProductAvailabilityService::STATE_OUT_OF_STOCK),
+                ];
+
+                return $product;
+            })
+            ->all();
+
+        $answer = ($ranking['all_out_of_stock'] ?? false) === true
+            ? 'All matching active products are currently out of stock. '
+            : '';
+
+        $answer .= sprintf(
+            '%s is the highest-priced active catalog match right now at %s.',
+            $topProduct->name,
+            $this->phpMoneyLabel($topPrice),
+        );
+
+        if ($startingPrice > 0 && abs($startingPrice - $topPrice) > 0.009) {
+            $answer .= ' It starts at '.$this->phpMoneyLabel($startingPrice).'.';
+        }
+
+        $answer .= ' Category: '.($topProduct->category?->name ?? 'Collection').'.';
+        $answer .= ' Stock status: '.$topAvailabilityLabel.'.';
 
         return $this->response(
             answer: $answer,
@@ -861,6 +920,11 @@ class SmartShoppingAssistantService
     private function pairLabel(int $quantity): string
     {
         return $quantity.' '.Str::plural('pair', $quantity);
+    }
+
+    private function phpMoneyLabel(float $amount): string
+    {
+        return 'PHP '.number_format($amount, 0);
     }
 
     private function variantDescriptor(Product $product, array $option): string
