@@ -25,7 +25,7 @@ class ReportService
 
     private function salesReport(array $filters, ?int $perPage): array
     {
-        $query = Order::query()
+        $query = $this->analyticsSalesOrdersQuery()
             ->with(['handledBy'])
             ->where('source', 'online');
 
@@ -95,7 +95,7 @@ class ReportService
 
     private function walkInSalesReport(array $filters, ?int $perPage): array
     {
-        $query = Order::query()
+        $query = $this->analyticsSalesOrdersQuery()
             ->with(['handledBy'])
             ->where('source', 'walk_in');
 
@@ -195,8 +195,23 @@ class ReportService
     private function applyOrderItemFilters(Builder $query, array $filters): void
     {
         $query->whereHas('order', function (Builder $builder) use ($filters): void {
+            $builder
+                ->analyticsIncluded()
+                ->whereIn('source', ['online', 'walk_in'])
+                ->where('status', 'completed')
+                ->where('payment_status', 'paid');
+
             $this->applyOrderFilters($builder, $filters);
         });
+    }
+
+    private function analyticsSalesOrdersQuery(): Builder
+    {
+        return Order::query()
+            ->analyticsIncluded()
+            ->whereIn('source', ['online', 'walk_in'])
+            ->where('status', 'completed')
+            ->where('payment_status', 'paid');
     }
 
     private function resolveRows(Builder $query, ?int $perPage): Collection|LengthAwarePaginator

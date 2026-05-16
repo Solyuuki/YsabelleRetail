@@ -14,6 +14,7 @@ use App\Models\Orders\Order;
 use App\Models\User;
 use App\Services\Admin\WalkInSaleService;
 use App\Services\Inventory\InventoryManager;
+use App\Services\Orders\OrderAnalyticsExclusionMarker;
 use App\Services\Storefront\CheckoutService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -184,6 +185,8 @@ class DemoCommerceSeeder extends Seeder
                 'status' => $entry['status'],
                 'payment_status' => $entry['payment_status'],
                 'fulfillment_status' => $entry['fulfillment_status'],
+                'exclude_from_analytics' => true,
+                'analytics_exclusion_reason' => OrderAnalyticsExclusionMarker::REASON_DEMO_ONLINE,
             ])->save();
 
             $this->retimeOrder($order, $entry['placed_at']);
@@ -223,6 +226,11 @@ class DemoCommerceSeeder extends Seeder
                 'notes' => $entry['notes'],
                 'lines' => $entry['lines'],
             ], $admin);
+
+            $order->forceFill([
+                'exclude_from_analytics' => true,
+                'analytics_exclusion_reason' => OrderAnalyticsExclusionMarker::REASON_DEMO_WALK_IN,
+            ])->save();
 
             $this->retimeOrder($order, $entry['placed_at']);
         }
@@ -365,6 +373,8 @@ class DemoCommerceSeeder extends Seeder
                 'demo_seed' => true,
                 'review_seed' => true,
             ],
+            'exclude_from_analytics' => true,
+            'analytics_exclusion_reason' => OrderAnalyticsExclusionMarker::REASON_REVIEW_SUPPORT,
         ]);
 
         $item = $order->items()->create([

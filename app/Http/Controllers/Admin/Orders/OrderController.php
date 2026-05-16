@@ -17,6 +17,7 @@ class OrderController extends Controller
         $search = trim((string) $request->query('search'));
         $source = $request->query('source', 'all');
         $status = $request->query('status', 'all');
+        $analytics = $request->query('analytics', 'all');
 
         $orders = Order::query()
             ->with(['handledBy', 'payments'])
@@ -30,13 +31,15 @@ class OrderController extends Controller
             })
             ->when($source !== 'all', fn ($query) => $query->where('source', $source))
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))
+            ->when($analytics === 'included', fn ($query) => $query->analyticsIncluded())
+            ->when($analytics === 'excluded', fn ($query) => $query->analyticsExcluded())
             ->latest('placed_at')
             ->paginate(15)
             ->withQueryString();
 
         return view('admin.orders.index', [
             'orders' => $orders,
-            'filters' => compact('search', 'source', 'status'),
+            'filters' => compact('search', 'source', 'status', 'analytics'),
         ]);
     }
 

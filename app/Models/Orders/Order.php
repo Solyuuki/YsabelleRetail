@@ -6,6 +6,7 @@ use App\Models\Inventory\StockMovement;
 use App\Models\Payments\Payment;
 use App\Models\Shipping\Shipment;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,6 +41,8 @@ class Order extends Model
         'shipping_postal_code',
         'payment_method',
         'metadata',
+        'exclude_from_analytics',
+        'analytics_exclusion_reason',
     ];
 
     protected function casts(): array
@@ -52,7 +55,18 @@ class Order extends Model
             'grand_total' => 'decimal:2',
             'placed_at' => 'datetime',
             'metadata' => 'array',
+            'exclude_from_analytics' => 'boolean',
         ];
+    }
+
+    public function scopeAnalyticsIncluded(Builder $query): Builder
+    {
+        return $query->where('exclude_from_analytics', false);
+    }
+
+    public function scopeAnalyticsExcluded(Builder $query): Builder
+    {
+        return $query->where('exclude_from_analytics', true);
     }
 
     public function user(): BelongsTo

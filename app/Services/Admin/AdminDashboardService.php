@@ -31,17 +31,22 @@ class AdminDashboardService
 
     private function liveMetrics(): array
     {
-        $completedOrders = Order::query()->where('status', 'completed');
+        $operationalOrders = Order::query()
+            ->analyticsIncluded()
+            ->whereIn('source', ['online', 'walk_in']);
+        $completedOrders = (clone $operationalOrders)
+            ->where('status', 'completed')
+            ->where('payment_status', 'paid');
 
         return [
             'total_sales' => (float) (clone $completedOrders)->sum('grand_total'),
             'online_sales' => (float) (clone $completedOrders)->where('source', 'online')->sum('grand_total'),
             'walk_in_sales' => (float) (clone $completedOrders)->where('source', 'walk_in')->sum('grand_total'),
-            'total_orders' => Order::query()->count(),
+            'total_orders' => (clone $operationalOrders)->count(),
             'total_products' => Product::query()->count(),
             'low_stock_items' => $this->lowStockItemsQuery()->count(),
             'out_of_stock_items' => InventoryItem::query()->where('quantity_on_hand', 0)->count(),
-            'pending_orders' => Order::query()->whereIn('status', ['pending', 'processing'])->count(),
+            'pending_orders' => (clone $operationalOrders)->whereIn('status', ['pending', 'processing'])->count(),
             'completed_orders' => (clone $completedOrders)->count(),
         ];
     }
@@ -49,6 +54,7 @@ class AdminDashboardService
     private function recentOrderCards(string $source, int $limit): Collection
     {
         return Order::query()
+            ->analyticsIncluded()
             ->latest('placed_at')
             ->where('source', $source)
             ->limit($limit)
@@ -91,7 +97,10 @@ class AdminDashboardService
         $end = $start->addDays(6)->endOfDay();
 
         $totals = Order::query()
+            ->analyticsIncluded()
+            ->whereIn('source', ['online', 'walk_in'])
             ->where('status', 'completed')
+            ->where('payment_status', 'paid')
             ->whereNotNull('placed_at')
             ->where('placed_at', '>=', $start->setTimezone(BusinessTime::storageTimezone()))
             ->where('placed_at', '<=', $end->setTimezone(BusinessTime::storageTimezone()))

@@ -7,6 +7,11 @@
             :title="$order->order_number"
             description="Printable summary with line items, payment state, and linked stock movements."
         >
+            @if ($order->exclude_from_analytics)
+                <span class="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">
+                    Excluded from analytics
+                </span>
+            @endif
             <button type="button" class="ys-admin-button-secondary" data-print-page>Print receipt</button>
         </x-admin.page-header>
     </div>
@@ -134,6 +139,18 @@
                             <span>Fulfillment</span>
                             <x-admin.status-pill :tone="$fulfillmentTone">{{ $order->fulfillment_status }}</x-admin.status-pill>
                         </div>
+                        <div class="flex items-center justify-between">
+                            <span>Analytics</span>
+                            <span class="font-semibold text-ys-ivory">
+                                {{ $order->exclude_from_analytics ? 'Excluded' : 'Included' }}
+                            </span>
+                        </div>
+                        @if ($order->exclude_from_analytics && $order->analytics_exclusion_reason)
+                            <div class="flex items-center justify-between">
+                                <span>Reason</span>
+                                <span class="font-semibold text-ys-ivory">{{ str($order->analytics_exclusion_reason)->headline() }}</span>
+                            </div>
+                        @endif
                         <div class="flex items-center justify-between border-t border-white/7 pt-3">
                             <span>Total</span>
                             <span class="text-lg font-semibold text-ys-gold">PHP {{ number_format((float) $order->grand_total, 2) }}</span>

@@ -7,7 +7,7 @@
                 'label' => 'Total Sales',
                 'value' => $metrics['total_sales'],
                 'display' => 'PHP '.number_format($metrics['total_sales'], 2),
-                'meta' => number_format($metrics['total_orders']).' orders captured',
+                'meta' => number_format($metrics['total_orders']).' analytics-included orders',
                 'icon' => 'spark',
                 'format' => 'currency',
                 'is_primary' => true,

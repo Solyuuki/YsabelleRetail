@@ -185,6 +185,8 @@ class CatalogQueryService
                 'orderItems as completed_order_lines' => function (Builder $builder): void {
                     $builder->whereHas('order', function (Builder $orderQuery): void {
                         $orderQuery
+                            ->analyticsIncluded()
+                            ->whereIn('source', ['online', 'walk_in'])
                             ->where('status', 'completed')
                             ->where('payment_status', 'paid');
                     });
@@ -194,6 +196,8 @@ class CatalogQueryService
                 'orderItems as units_sold' => function (Builder $builder): void {
                     $builder->whereHas('order', function (Builder $orderQuery): void {
                         $orderQuery
+                            ->analyticsIncluded()
+                            ->whereIn('source', ['online', 'walk_in'])
                             ->where('status', 'completed')
                             ->where('payment_status', 'paid');
                     });

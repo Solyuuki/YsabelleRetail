@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Services\Catalog\CatalogImageAuditService;
 use App\Services\Catalog\CatalogProductImageSyncService;
+use App\Services\Orders\OrderAnalyticsExclusionMarker;
 use App\Services\Storefront\Assistant\StorefrontAssistantGuidanceService;
 use App\Services\Storefront\VisualSearchEmbeddingService;
 use App\Services\Storefront\VisualSearchIndexService;
@@ -13,6 +14,45 @@ use Illuminate\Support\Facades\Artisan;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('orders:mark-review-seed-analytics-excluded', function (): int {
+    $stats = app(OrderAnalyticsExclusionMarker::class)->mark();
+
+    $this->components->info('Order analytics exclusion scan complete.');
+
+    $this->table(
+        ['Metric', 'Value'],
+        [
+            ['Scanned', $stats['scanned']],
+            ['Marked', $stats['marked']],
+            ['Skipped', $stats['skipped']],
+            ['Already excluded', $stats['already_excluded']],
+            ['Uncertain', $stats['uncertain']],
+        ],
+    );
+
+    if ($stats['marked_by_reason'] !== []) {
+        $this->table(
+            ['Reason', 'Marked'],
+            collect($stats['marked_by_reason'])
+                ->map(fn (int $count, string $reason): array => [$reason, $count])
+                ->values()
+                ->all(),
+        );
+    }
+
+    if ($stats['uncertain_orders'] !== []) {
+        $this->components->warn('Some orders looked suspicious but were not changed automatically.');
+        $this->table(
+            ['ID', 'Order', 'Source', 'Why uncertain'],
+            collect($stats['uncertain_orders'])
+                ->map(fn (array $row): array => [$row['id'], $row['order_number'], $row['source'], $row['reason']])
+                ->all(),
+        );
+    }
+
+    return 0;
+})->purpose('Mark review-support and demo orders as excluded from analytics without deleting them');
 
 Artisan::command('visual-search:index {--fresh : Clear the existing visual search index before rebuilding} {--limit= : Limit products/images for debugging}', function (): void {
     $fresh = (bool) $this->option('fresh');

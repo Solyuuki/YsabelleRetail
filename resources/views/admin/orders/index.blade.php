@@ -11,13 +11,18 @@
         <form method="GET" class="ys-admin-toolbar">
             <input type="text" name="search" value="{{ $filters['search'] }}" class="ys-admin-input" placeholder="Search order number, customer, or phone">
             <select name="source" class="ys-admin-select">
-                @foreach (['all' => 'All sources', 'online' => 'Online', 'walk_in' => 'Walk-in'] as $value => $label)
+                @foreach (['all' => 'All sources', 'online' => 'Online', 'walk_in' => 'Walk-in', 'storefront' => 'Storefront'] as $value => $label)
                     <option value="{{ $value }}" @selected($filters['source'] === $value)>{{ $label }}</option>
                 @endforeach
             </select>
             <select name="status" class="ys-admin-select">
                 @foreach (['all' => 'All statuses', 'pending' => 'Pending', 'processing' => 'Processing', 'completed' => 'Completed'] as $value => $label)
                     <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <select name="analytics" class="ys-admin-select">
+                @foreach (['all' => 'All analytics states', 'included' => 'Analytics included', 'excluded' => 'Analytics excluded'] as $value => $label)
+                    <option value="{{ $value }}" @selected($filters['analytics'] === $value)>{{ $label }}</option>
                 @endforeach
             </select>
             <button class="ys-admin-button-secondary">Filter</button>
@@ -46,6 +51,11 @@
                                 <x-admin.status-pill :tone="$order->source === 'walk_in' ? 'warning' : 'neutral'">
                                     {{ str($order->source)->headline() }}
                                 </x-admin.status-pill>
+                                @if ($order->exclude_from_analytics)
+                                    <div class="mt-2">
+                                        <x-admin.status-pill tone="warning">Excluded from analytics</x-admin.status-pill>
+                                    </div>
+                                @endif
                             </td>
                             <td>
                                 <p>{{ $order->customer_name ?: 'Registered customer' }}</p>
