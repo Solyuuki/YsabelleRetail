@@ -160,10 +160,16 @@ The platform follows a modular Laravel architecture using:
 | Frontend | Blade + Tailwind CSS |
 | Database | MariaDB |
 | AI Integration | Ollama + Qwen |
+| Machine Learning | AI-assisted Image Recognition & Product Matching |
+| Computer Vision Workflow | Image-Based Product Discovery System |
 | Reporting | Laravel Excel + PDF Exports |
 | Authentication | Laravel Authentication System |
 | Build Tools | Vite |
 | Runtime | PHP 8+ |
+| Realtime Infrastructure | Laravel Events & Polling Architecture |
+| Inventory Infrastructure | Unified Variant-Based Inventory Engine |
+| Export Services | CSV, XLSX, PDF Generation |
+| Security Layer | Laravel Middleware, Validation, CSRF Protection |
 
 ---
 
