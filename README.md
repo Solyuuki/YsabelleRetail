@@ -1,6 +1,6 @@
 # Ysabelle Store Platform
 
-Enterprise-grade Laravel 12 retail and ecommerce platform built for modern storefront operations, intelligent inventory management, operational reporting, AI-assisted product discovery, and unified retail workflows.
+Laravel 12 retail and ecommerce platform built for modern storefront operations, intelligent inventory management, operational reporting, AI-assisted product discovery, and unified retail workflows.
 
 Ysabelle Store combines a polished ecommerce storefront, enterprise admin control center, realtime operational tooling, stock intelligence, walk-in POS functionality, and AI-powered shopping assistance into a single integrated retail ecosystem.
 
