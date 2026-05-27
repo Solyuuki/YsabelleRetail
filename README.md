@@ -308,10 +308,10 @@ The testing environment uses SQLite in-memory configuration and does not require
 
 | Name | GitHub Account | Role | Contributions |
 |---|---|---|---|
-| Armando R. Abarado Jr. | C1D0U | Lead Developer / System Architect / Full Stack Engineer | Led the majority of the platform architecture, backend engineering, enterprise workflow systems, AI integrations, inventory infrastructure, reporting systems, authentication architecture, security implementation, operational services, realtime systems, database design, ecommerce workflows, and full-stack enterprise application development across the platform. |
-| Armando R. Abarado Jr. | HEVAB1 | Backend Systems Engineer / Enterprise Platform Contributor | Contributed to backend operational systems, enterprise validation workflows, reporting modules, retail business logic, inventory workflows, security enhancements, API integrations, operational tooling, and Laravel backend infrastructure support. |
-| Joshua Daniel S. Vito | Solyuuki | Frontend Integration Contributor / Framework Setup Support | Contributed to Laravel framework environment setup, storefront workflow integration, frontend navigation systems, UI support workflows, page integration assistance, responsive layout support, interface validation, social media integration assistance, and storefront operational integration support. |
-| James S. Ramos | JamesSRamos | Frontend Workflow Contributor / Integration Support Engineer | Assisted in frontend workflow integration, navigation support systems, UI consistency validation, storefront connection workflows, frontend operational support, responsive interface assistance, layout integration support, testing assistance, and collaborative frontend implementation tasks. |
+| Armando R. Abarado Jr. 100pts | C1D0U | Lead Developer / System Architect / Full Stack Engineer | Led the majority of the platform architecture, backend engineering, enterprise workflow systems, AI integrations, inventory infrastructure, reporting systems, authentication architecture, security implementation, operational services, realtime systems, database design, ecommerce workflows, and full-stack enterprise application development across the platform. |
+| Armando R. Abarado Jr. 100pts | HEVAB1 | Backend Systems Engineer / Enterprise Platform Contributor | Contributed to backend operational systems, enterprise validation workflows, reporting modules, retail business logic, inventory workflows, security enhancements, API integrations, operational tooling, and Laravel backend infrastructure support. |
+| Joshua Daniel S. Vito  100pts| Solyuuki | Frontend Integration Contributor / Framework Setup Support | Contributed to Laravel framework environment setup, storefront workflow integration, frontend navigation systems, UI support workflows, page integration assistance, responsive layout support, interface validation, social media integration assistance, and storefront operational integration support. |
+| James S. Ramos 100pts | JamesSRamos | Frontend Workflow Contributor / Integration Support Engineer | Assisted in frontend workflow integration, navigation support systems, UI consistency validation, storefront connection workflows, frontend operational support, responsive interface assistance, layout integration support, testing assistance, and collaborative frontend implementation tasks. |
 
 ---
 
@@ -319,6 +319,6 @@ The testing environment uses SQLite in-memory configuration and does not require
 
 This repository is designed for educational, demonstration, and enterprise workflow simulation purposes.
 
-The platform demonstrates modern Laravel enterprise development practices including modular architecture, operational retail workflows, AI-assisted ecommerce experiences, inventory synchronization systems, and enterprise-oriented security patterns.
+The platform demonstrates modern Laravel enterprise development practices including modular architecture, operational retail workflows, AI-assisted ecommerce experiences, inventory synchronization systems, and enterprise-oriented security patterns. All Contributors has a contribution of 100%
 
 ---
